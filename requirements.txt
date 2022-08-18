@@ -1,0 +1,6 @@
+# web API requirements
+requests
+
+# common tools requirements
+pandas
+#numpy
