@@ -1,6 +1,8 @@
-# PetroVisor API
+# PetroVisor API (Beta)
 
-Python interface to PetroVisor REST API.
+Python interface to PetroVisor REST API. 
+*This lib is currently in development and is subject to change.*
+
 
 # Install
 
