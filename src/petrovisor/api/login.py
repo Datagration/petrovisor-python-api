@@ -86,12 +86,9 @@ class PetroVisorLogin:
         if(not token_endpoint):
             token_endpoint = PetroVisorLogin.get_token_endpoint(discovery_url=discovery_url)
         grant_type = 'password'
-        client_id = 'ro.password.client'
-        client_secret = '3FE0DDD9-EE14-400B-9230-BA667D370B24'
-        client_auth = PetroVisorLogin.encode_base64(f'{client_id}:{client_secret}')
+        client_id = 'petrovisor.python.client'
         scope = 'petrovisor.api'
         requests_headers = {
-            'Authorization': f'Basic {client_auth}',
             'Content-Type': 'application/x-www-form-urlencoded',
         }
         request_data = {
