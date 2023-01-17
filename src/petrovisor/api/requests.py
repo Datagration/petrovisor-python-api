@@ -165,7 +165,6 @@ class PetroVisorApiRequest:
         """
         request_headers = {
             'accept': 'application/json',
-            'connection': 'keep-alive',
         }
         # add access token to headers
         if(token):
