@@ -163,19 +163,18 @@ class PetroVisorApiRequest:
         verbose : bool, default False
             Print mode
         """
-        request_headers = requests.utils.default_headers()
-        request_headers.update({
-            'Accept': 'application/json',
-            'Connection': 'keep-alive',
-        })
+        request_headers = {
+            'accept': 'application/json',
+            'connection': 'keep-alive',
+        }
         # add access token to headers
         if(token):
-            request_headers.update({'Authorization': f'Bearer {token}'})
+            request_headers['authorization'] = f'Bearer {token}'
         # content type to headers
         if(data):
-            request_headers.update({'Content-type': 'application/json'})
+            request_headers['content-type'] = 'application/json'
         # elif(files):
-        #     request_headers.update({'Content-type': 'multipart/form-data'})
+        #     request_headers['content-type'] = 'multipart/form-data'
         # add workspace
         if(workspace):
             rqst = workspace + '/' + rqst
