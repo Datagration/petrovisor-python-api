@@ -2187,7 +2187,7 @@ class PetroVisor:
         return None
 
     # save data from table to PetroVisor
-    def save_table_data( self, df: pd.DataFrame, delimiter: str = '\t', signals: Optional[Dict] = None, only_existing_entities: bool = True, entity_type: str = '', entities: Optional[Dict] = None, **kwargs) -> None:
+    def save_table_data( self, df: pd.DataFrame, delimiter: str = '\t', signals: Optional[Dict] = None, chunksize = 10000, only_existing_entities: bool = True, entity_type: str = '', entities: Optional[Dict] = None, **kwargs) -> None:
         """
         Save DataFrame data to corresponding signals
 
@@ -2199,6 +2199,8 @@ class PetroVisor:
             Delimiter used while reading table from file
         signals : dict, default None
             Dictionary map from 'table column name' to 'workspace signal name'
+        chunksize : int, default 10000
+            Save data by splitting it into several chunks of specified size and performing separate requests
         entities : dict, default None
             Dictionary map from 'table entity name' to 'workspace entity name'
         only_existing_entities : bool, deafult True
@@ -2207,19 +2209,25 @@ class PetroVisor:
             Save data only for specified entity type
         """
         # read table
-        if(isinstance(df,str)):
+        if (isinstance(df,str)):
             ext = PetroVisorHelper.get_file_extension(df,**kwargs)
             if(ext.lower() in ['.xlsx','.xls']):
                 df = pd.read_excel(df)
             else: #elif(ext.lower() in ['.csv']):
                 df = pd.read_csv(df, delimiter = delimiter)
-        if(df is not None):
+        if (df is not None):
+            if (chunksize and (df.shape[0] > chunksize) ):
+                for start in range(0,df.shape[0],chunksize):
+                    end = min(start + chunksize, df.shape[0])
+                    self.save_table_data(df[start:end], delimiter = delimiter, signals = signals, chunksize = chunksize, only_existing_entities = only_existing_entities, entity_type = entity_type, entities = entities, **kwargs)
+                return None
             # get PetroVisor data from DataFrame
             data_to_save = self.get_signal_data_from_dataframe( df, signals = signals, only_existing_entities = only_existing_entities, entity_type = entity_type, entities = entities, **kwargs)
             # save data
             for data_type, data in data_to_save.items():
                 if(data):
                     self.post(f'{self.get_signal_type_route(data_type)}/Save', data = data, **kwargs)
+        return None
 
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe( self, data: List, groupby_entity: bool = False, **kwargs):

@@ -163,17 +163,19 @@ class PetroVisorApiRequest:
         verbose : bool, default False
             Print mode
         """
-        request_headers = {
-            'accept': 'application/json'
-        }
+        request_headers = requests.utils.default_headers()
+        request_headers.update({
+            'Accept': 'application/json',
+            'Connection': 'keep-alive',
+        })
         # add access token to headers
         if(token):
-            request_headers['Authorization'] = f'Bearer {token}'
+            request_headers.update({'Authorization': f'Bearer {token}'})
         # content type to headers
         if(data):
-            request_headers['Content-type'] = 'application/json'
+            request_headers.update({'Content-type': 'application/json'})
         # elif(files):
-        #     request_headers['Content-type'] = 'multipart/form-data'
+        #     request_headers.update({'Content-type': 'multipart/form-data'})
         # add workspace
         if(workspace):
             rqst = workspace + '/' + rqst
@@ -238,7 +240,7 @@ class PetroVisorApiRequest:
             if(retry_on_unauthorized and response.status_code == requests.codes.unauthorized):
                 return response
             # raise requests.exceptions.HTTPError(err)
-            response = None        
+            response = None
         if(response is not None):
             try:
                 if(format == 'json'):
