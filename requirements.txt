@@ -3,4 +3,6 @@ requests
 
 # common tools requirements
 pandas
-#numpy
+numpy
+openpyxl
+typing_extensions

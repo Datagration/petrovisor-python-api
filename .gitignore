@@ -1,3 +1,7 @@
 *.DS_Store
 /build/
 /src/petrovisor.egg-info/
+/venv/
+/.vscode/
+/.idea/
+

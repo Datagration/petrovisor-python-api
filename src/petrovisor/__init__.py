@@ -1,3 +1,7 @@
-from petrovisor.api.petrovisor import PetroVisor
-from petrovisor.api.petrovisor import SignalType, TimeIncrement, DepthIncrement
-from petrovisor.api.petrovisor import MLModelType, MLNormalizationType
+# api
+from petrovisor.petrovisor import PetroVisor
+
+# data types
+from petrovisor.api.dtypes.signals import SignalType
+from petrovisor.api.dtypes.ml import MLModelType, MLNormalizationType
+from petrovisor.api.dtypes.increments import TimeIncrement, DepthIncrement
