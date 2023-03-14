@@ -22,6 +22,6 @@ Uninstall `petrovisor` package:
 
     python -m pip uninstall petrovisor
 
-# PetroVisor REST API
+# Dependencies
 
 REST API interface is implemented using `requests`: https://github.com/psf/requests
