@@ -175,6 +175,7 @@ class SupportsDataFrames(Protocol):
     # convert P# table to DataFrame
     def convert_psharp_table_to_dataframe(self,
                                           psharp_table: Union[Dict, List],
+                                          dropna: bool = True,
                                           with_entity_column: bool = True,
                                           groupby_entity: bool = False,
-                                          **kwargs) -> Optional[pd.DataFrame]: ...
+                                          **kwargs) -> Optional[Union[pd.DataFrame,Dict[str, pd.DataFrame]]]: ...
