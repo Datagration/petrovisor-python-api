@@ -5,6 +5,7 @@ from typing import (
     List,
     Dict,
     Tuple,
+    Iterable,
 )
 
 import io
@@ -121,9 +122,10 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
     # convert P# table to DataFrame
     def convert_psharp_table_to_dataframe(self,
                                           psharp_table: Union[Dict, List],
+                                          dropna: bool = True,
                                           with_entity_column: bool = True,
                                           groupby_entity: bool = False,
-                                          **kwargs) -> Optional[pd.DataFrame]:
+                                          **kwargs) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]:
         """
         Convert P# table to DataFrame
 
@@ -131,6 +133,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         ----------
         psharp_table : dict, list
             P# table data
+        dropna : bool, default True
+            Whether rows filled with NaNs should be dropped
         with_entity_column : bool, default True
             Load table with 'Entity' column, otherwise columns will be named as "EntityName : ColumnName"
         groupby_entity : bool, default False
@@ -142,321 +146,172 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         # standard columns
         entity_col = self.get_entity_column_name()
         alias_col = self.get_alias_column_name()
-        is_opportunity_col = self.get_opportunity_column_name(**kwargs)
-        entity_type_col = self.get_entity_type_column_name(**kwargs)
         date_col = self.get_date_column_name()
         depth_col = self.get_depth_column_name()
+        # known column types
+        columns_dtype = {
+            entity_col: 'String',
+            alias_col: 'String',
+            date_col: 'Time',
+            depth_col: 'Numeric',
+        }
 
+        # read P# table from list 
         if isinstance(psharp_table, list):
+            if len(psharp_table) < 2:
+                return None
+
             columns = psharp_table[0].split('\t') if len(psharp_table) > 0 else []
-            num_cols = len(columns)
-            num_rows = len(psharp_table) - 1
 
             # define type of table
             has_entity_col = entity_col in columns
 
-            # known column types
-            columns_dtype = {
-                entity_col: 'String',
-                alias_col: 'String',
-                date_col: 'Time',
-                depth_col: 'Numeric',
-            }
-
             # create DataFrame
             if has_entity_col or not groupby_entity:
                 # create DataFrame
-                df = pd.DataFrame([row.split('\t') for row in psharp_table[1:]] if num_rows > 0 else [],
-                                  columns=columns)
+                df = DataFrameMixinHelper.create_dataframe_from_list(psharp_table)
                 # assign column types
                 df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
                 # group by entity
                 if groupby_entity:
                     df = {e: df_group for e, df_group in df.groupby(entity_col)}
+                # convert to wide format with columns format "{entity_name} : {column_name"
                 elif has_entity_col and not with_entity_column:
                     df = self.convert_dataframe_from_long_to_wide(df)
+                # convert to long format with 'Entity' column
                 elif not has_entity_col and with_entity_column:
                     df = self.convert_dataframe_from_wide_to_long(df)
 
             # special case when columns have format "{entity_name} : {column_name}"
             # and group by entity is required
             else:
-                col_entities = []
-                col_names = []
-                # process columns and collect entities
-                for col in columns:
-                    c = col.split(':')
-                    if len(c) > 1:
-                        centity = c[0].strip()
-                        cname = c[1].strip()
-                    else:
-                        centity = ''
-                        cname = col
-                    col_entities.append(centity)
-                    col_names.append(cname)
-                # list of entities
-                entities = list(set([e for e in col_entities if e]))
-                # data
-                data: Dict[str, List] = {e: [] for e in entities}
-                columns = {e: [cname for centity, cname in zip(col_entities, col_names)
-                               if not centity or centity == e]
-                           for e in entities}
-                # group data by entity
-                if num_rows > 0:
-                    for e in entities:
-                        data[e] = [cv for row in psharp_table[1:]
-                                   for cv, ce in zip(row.split('\t'), col_entities)
-                                   if not ce or ce == e]
-
+                # remove entity name from column names
+                col_names = DataFrameMixinHelper.remove_entities_from_columns(columns)
+                # extract entity name from column names
+                col_entities = DataFrameMixinHelper.get_entities_from_columns(columns)
+                # list of all entities
+                entities = DataFrameMixinHelper.get_unique_non_empty_names(col_entities)
                 # create DataFrame
-                df = {e: pd.DataFrame(data[e], columns=columns[e]) for e in entities}
+                df = {}
+                for e in entities:
+                    e_columns = [cname for ce, cname in zip(col_entities, col_names)
+                                 if not ce or ce == e]
+                    df[e] = pd.DataFrame([cv for row in psharp_table[1:]
+                                          for cv, ce in zip(row.split('\t'), col_entities)
+                                          if not ce or ce == e],
+                                         columns=e_columns)
 
                 # assign column types
                 for e in entities:
                     df[e] = self.assign_dataframe_column_types(df[e], columns_dtype, **kwargs)
 
         elif psharp_table is not None and 'TableName' in psharp_table and 'ResultsOrder' in psharp_table:
+            # results order
             columns_short = psharp_table['ResultsOrder']
-            columns_order = {c: idx for idx, c in enumerate(columns_short)}
-            columns_short_units = {c: None for c in columns_short}
-            columns_dtype = {c: None for c in columns_short}
-            num_cols = len(columns_short)
-            data: Dict[str, Optional[Any]] = {}
-            depths = {}
-            dates = {}
-            date_depth_pair = {}
-            entities = set()
-            if 'Columns' in psharp_table or 'Data' in psharp_table:
-                # get column data
-                def _get_column_data(col, dtype=None):
-                    if 'ResultName' in col:
-                        col_entity_name = col['EntityName']
-                        col_dtype = dtype if dtype else 'Numeric'
-                        col_name = col['ResultName']
-                        col_signal_name = ''
-                        col_unit_name = col['UnitName']
-                        col_data = col['Data']
-                    else:
-                        col_entity_name = col['Entity']
-                        result = col['Result']
-                        col_name = result['Name']
-                        col_dtype = dtype if dtype else 'Numeric'
-                        # col_dtype = result['ResultType'] # 'Numeric', 'String', 'Time', 'Boolean', 'Unknown'
-                        col_formula = result['Formula']
-                        col_unit = result['Unit']
-                        col_signal_name = col['Signal']
-                        col_unit_name = col['Unit']
-                        col_data = col['Data']
-                    return col_entity_name, col_name, col_unit_name, col_data, col_dtype
+            # create column names map from short to full name with unit
+            columns_short_to_long = {col: None for col in columns_short}
 
-                for col_type in ['Columns', 'ColumnsDepth', 'ColumnsString', 'ColumnsTime', 'ColumnsBool',
-                                 'Data', 'DataDepth', 'DataString', 'DataTime', 'DataBool']:
-                    dtype = 'String' if ('String' in col_type) else 'Time' if ('Time' in col_type) else 'Bool' if (
-                            'Bool' in col_type) else 'Numeric'
-                    if col_type in psharp_table:
-                        for col in psharp_table[col_type]:
-                            col_entity_name, col_name, col_unit_name, col_data, col_dtype = \
-                                _get_column_data(col, dtype=dtype)
-                            # add entity
-                            entities.add(col_entity_name)
-                            # get column index
-                            col_idx = columns_order[col_name]
-                            # assign column data type
-                            if columns_dtype[col_name] is None:
-                                columns_dtype[col_name] = col_dtype
-                            # assign column unit
-                            if columns_short_units[col_name] is None:
-                                columns_short_units[col_name] = col_unit_name
-                            # assign data
-                            if col_entity_name not in dates:
-                                dates[col_entity_name] = set()
-                            if col_entity_name not in depths:
-                                depths[col_entity_name] = set()
-                            if col_entity_name not in date_depth_pair:
-                                date_depth_pair[col_entity_name] = set()
-                            if col_entity_name not in data:
-                                data[col_entity_name] = [None for _ in columns_short]
-                            if data[col_entity_name][col_idx] is None:
-                                data[col_entity_name][col_idx] = []
-                            for d in col_data:
-                                # time numeric data
-                                if 'Date' in d and 'Value' in d:
-                                    dates[col_entity_name].add(d['Date'])
-                                    # dates_depths[col_entity_name].add(d['Date'],None))
-                                    data[col_entity_name][col_idx].append({
-                                        'Date': d['Date'],
-                                        'Depth': None,
-                                        'Value': d['Value']
-                                    })
-                                # depth numeric data
-                                elif 'Depth' in d and 'Value' in d:
-                                    depths[col_entity_name].add(d['Depth'])
-                                    # dates_depths[col_entity_name].add((None,d['Depth']))
-                                    data[col_entity_name][col_idx].append({
-                                        'Date': None,
-                                        'Depth': d['Depth'],
-                                        'Value': d['Value']
-                                    })
-                                # static value
-                                elif 'Value' in d:
-                                    # dates_depths[col_entity_name].add((None,None))
-                                    data[col_entity_name][col_idx].append({
-                                        'Date': None,
-                                        'Depth': None,
-                                        'Value': d['Value']
-                                    })
-                                # unknown value
-                                else:
-                                    pass
-                # collect columns
-                columns = [col_name + ' ' + f'[{columns_short_units[col_name]}]' for col_name in columns_short]
-                columns_dtype = {col_name: columns_dtype[col_name_short] for col_name_short, col_name in
-                                 zip(columns_short, columns)}
-                columns_dtype[date_col] = 'Time'
-                columns_dtype[depth_col] = 'Numeric'
-                columns_dtype[entity_col] = 'String'
-                # columns_dtype[alias_col] = 'String'
-                # columns_dtype[entity_type_col] = 'String'
-                # columns_dtype[is_opportunity_col] = 'Bool'
-
-                # get 'Entity' column
-                entities = sorted(list(entities))
-
-                # check for 'Date' column
-                has_dates = False
-                for e, d in dates.items():
-                    if len(d) > 0:
-                        has_dates = True
-                        break
-                if has_dates:
-                    dates = {e: sorted(list(d)) if (len(d) > 0) else [None] for e, d in dates.items()}
+            # get column specs
+            def get_column_specs(col: Dict[str, Any], is_not_full_spec: bool) -> Tuple[str, str, str]:
+                if is_not_full_spec:
+                    centity = col['EntityName']
+                    cname = col['ResultName']
+                    cunit = col['UnitName']
                 else:
-                    dates = {}
-                # check for 'Depth' column
-                has_depths = False
-                for e, d in depths.items():
-                    if len(d) > 0:
-                        has_depths = True
-                        break
-                if has_depths:
-                    depths = {e: sorted(list(d)) if (len(d) > 0) else [None] for e, d in depths.items()}
+                    centity = col['Entity']
+                    result = col['Result']
+                    cname = result['Name']
+                    cunit = col['Unit']
+                    # cunit = result['Unit']['Name']
+                return centity, cname, cunit
+
+            # get full column name
+            def get_full_column_name(col_name: str, unit_name: str):
+                return f'{col_name} [{unit_name}]'
+            # create DataFrame
+            data_field = 'Data'
+            value_field = 'Value'
+            # result_field = ''
+            fields = []
+            for i, table_fields in enumerate([
+                ['Columns', 'ColumnsDepth', 'ColumnsString', 'ColumnsTime', 'ColumnsBool'],
+                ['Data', 'DataDepth', 'DataString', 'DataTime', 'DataBool'],
+            ]):
+                is_not_full_spec = i == 0
+                entity_field = 'EntityName' if is_not_full_spec else 'Entity'
+                # non-empty fields
+                fields = [field for field in table_fields if field in psharp_table and psharp_table[field]]
+                for col_type in fields:
+                    # column type
+                    col_dtype = 'Numeric'
+                    for suffix in ['String', 'Time', 'Bool']:
+                        if suffix in col_type:
+                            col_dtype = suffix
+                            break
+                    for col in psharp_table[col_type]:
+                        # get column info
+                        col_entity_name, col_name, col_unit_name = get_column_specs(col, is_not_full_spec)
+                        # assign column data type
+                        if columns_short_to_long[col_name] is None:
+                            full_column_name = get_full_column_name(col_name, col_unit_name)
+                            columns_short_to_long[col_name] = full_column_name
+                            columns_dtype[columns_short_to_long[col_name]] = col_dtype
+                        else:
+                            full_column_name = columns_short_to_long[col_name]
+                        # change entity field to 'Entity'
+                        if entity_field != entity_col:
+                            col[entity_col] = col.pop(entity_field)
+                        # change value field to column name
+                        for d in col[data_field]:
+                            d[full_column_name] = d.pop(value_field)
+                if fields:
+                    break
+            if not fields:
+                return None
+
+            # create DataFrame
+            df = pd.json_normalize([values for field in fields for values in psharp_table[field]]
+                                   if len(fields) > 1
+                                   else psharp_table[fields[0]],
+                                   record_path=data_field,
+                                   meta=[entity_col],
+                                   errors='ignore')
+
+            # reorder columns
+            offset = 0
+            reordered_columns = list(df.columns)
+            # first columns 'Date', 'Depth', 'Entity'
+            for col in [entity_col, depth_col, date_col]:
+                if col in reordered_columns:
+                    reordered_columns.remove(col)
+                    reordered_columns.insert(0, col)
+                    offset += 1
+            # arrange other columns according to results order
+            for idx, col in enumerate(columns_short):
+                full_column_name = columns_short_to_long[col]
+                if full_column_name in reordered_columns:
+                    reordered_columns.remove(full_column_name)
+                    reordered_columns.insert(offset + idx, full_column_name)
                 else:
-                    depths = {}
-                # check for 'Date' and 'Depth' column
-                has_date_depth_pairs = False
-                for e, d in date_depth_pair.items():
-                    if len(d) > 0:
-                        has_date_depth_pairs = True
-                        break
-                if has_date_depth_pairs:
-                    date_depth_pair = {e: sorted(list(d)) if (len(d) > 0) else [(None, None)] for e, d in
-                                       date_depth_pair.items()}
-                else:
-                    date_depth_pair = {}
+                    offset -= 1
 
-                # add index columns (order is important): 1-'Entity',2-'Date',3-'Depth'
-                if has_depths:
-                    columns.insert(0, depth_col)
-                if has_dates:
-                    columns.insert(0, date_col)
-                columns.insert(0, entity_col)
+            # arrange columns according to results order
+            df = df[reordered_columns]
 
-                # set index
-                def _get_value(entity, col_idx):
-                    return data[entity][col_idx]
+            # assign column types
+            df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
 
-                def _get_date_value(entity, col_idx, date):
-                    for d in data[entity][col_idx]:
-                        if d['Date'] == date:
-                            return d['Value']
-                    return None
+            # drop NaNs
+            if dropna:
+                # df = df.dropna(axis=0, how='all', inplace=False)
+                df.dropna(axis=0, how='all', inplace=True)
 
-                def _get_depth_value(entity, col_idx, depth):
-                    for d in data[entity][col_idx]:
-                        if d['Depth'] == depth:
-                            return d['Value']
-                    return None
-
-                def _get_date_depth_value(entity, col_idx, date, depth):
-                    # time-depth data
-                    if date is not None and depth is not None:
-                        for d in data[entity][col_idx]:
-                            if d['Date'] == date or d['Depth'] == depth:
-                                return d['Value']
-                    # time data
-                    elif date is not None:
-                        return _get_date_value(entity, col_idx, date)
-                    # depth data
-                    elif depth is not None:
-                        return _get_depth_value(entity, col_idx, date)
-                    return None
-
-                if has_dates and has_depths and has_date_depth_pairs:
-                    index_tuples = [(e, dt, dh)
-                                    for e in entities
-                                    for dt in [None, *dates[e]]
-                                    for dh in [None, *depths[e]]
-                                    if ((dt is None) or
-                                        (dh is None) or
-                                        (len(date_depth_pair[e]) > 0 and ((dt, dh) in date_depth_pair[e])))]
-                    _ = pd.MultiIndex.from_tuples(index_tuples, names=[entity_col, date_col, depth_col])
-                    data: List[Any] = [[e, dt, dh, *[_get_date_depth_value(e, col_idx, dt, dh)
-                                                     for col_idx in range(0, num_cols)]]
-                                       for e in entities
-                                       for dt in [None, *dates[e]]
-                                       for dh in [None, *depths[e]]
-                                       if ((dt is None) or
-                                           (dh is None) or
-                                           (len(date_depth_pair[e]) > 0 and ((dt, dh) in date_depth_pair[e])))]
-                elif has_dates and has_depths:
-                    index_tuples = [(e, dt, dh) for e in entities
-                                    for dt in [None, *dates[e]]
-                                    for dh in [None, *depths[e]]
-                                    if ((dt is None) or (dh is None))]
-                    _ = pd.MultiIndex.from_tuples(index_tuples, names=[entity_col, date_col, depth_col])
-                    data: List[Any] = [[e, dt, dh, *[_get_date_depth_value(e, col_idx, dt, dh)
-                                                     for col_idx in range(0, num_cols)]]
-                                       for e in entities
-                                       for dt in [None, *dates[e]]
-                                       for dh in [None, *depths[e]]
-                                       if((dt is None) or (dh is None))]
-                elif has_dates:
-                    index_tuples = [(e, dt) for e in entities for dt in dates[e]]
-                    _ = pd.MultiIndex.from_tuples(index_tuples, names=[entity_col, date_col])
-                    data: List[Any] = [[e, dt, *[_get_date_value(e, col_idx, dt)
-                                                 for col_idx in range(0, num_cols)]]
-                                       for e in entities
-                                       for dt in dates[e]]
-                elif has_depths:
-                    index_tuples = [(e, dh) for e in entities for dh in depths[e]]
-                    _ = pd.MultiIndex.from_tuples(index_tuples, names=[entity_col, depth_col])
-                    data: List[Any] = [[e, dh, *[_get_depth_value(e, col_idx, dh)
-                                                 for col_idx in range(0, num_cols)]]
-                                       for e in entities for dh in depths[e]]
-                else:
-                    index_tuples = [e for e in entities]
-                    _ = pd.Index(index_tuples, name=entity_col)
-                    data: List[Any] = [[e, [_get_value(e, col_idx)
-                                            for col_idx in range(0, num_cols)]]
-                                       for e in entities]
-
-                # create DataFrame
-                # df_dtype = [ (c,self.convert_to_dtype_name(columns_dtype[c])) for c in columns]
-                # df = pd.DataFrame(data,columns=columns,dtype=df_dtype)
-                df = pd.DataFrame(data, columns=columns)
-
-                # assign column types
-                df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
-
-                # set index
-                # df.set_index(index)
-                # df = df.reset_index(drop=False)
-
-                # group by entity
-                if groupby_entity:
-                    df = {e: df_group for e, df_group in df.groupby(entity_col)}
-            else:
-                raise RuntimeError("PetroVisor::convert_psharp_table_to_dataframe(): unknown P# table type!")
+            # group by entity
+            if groupby_entity:
+                df = {e: df_group for e, df_group in df.groupby(entity_col)}
+            # convert to wide format with columns format "{entity_name} : {column_name"
+            elif not with_entity_column:
+                df = self.convert_dataframe_from_long_to_wide(df)
         else:
             raise RuntimeError("PetroVisor::convert_psharp_table_to_dataframe(): unknown P# table type!")
 
@@ -489,7 +344,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         """
         # get columns
         columns = df.columns
-        num_cols = len(columns)
+        # num_cols = len(columns)
 
         # standard columns
         entity_col = self.get_entity_column_name()
@@ -512,24 +367,12 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         # collect data info
         with_entity_col = entity_col in columns
         if not with_entity_col:
-
-            # collect entities and column names
-            col_entities = []
-            col_names = []
-
-            # process columns and collect entities
-            for col in columns:
-                c = col.split(':')
-                if len(c) > 1:
-                    centity = c[0].strip()
-                    column_name = c[1].strip()
-                else:
-                    centity = ''
-                    column_name = col.strip()
-                col_entities.append(centity)
-                col_names.append(column_name)
-            # list of entities
-            entities = list(set([e for e in col_entities if e]))
+            # remove entity name from column names
+            col_names = DataFrameMixinHelper.remove_entities_from_columns(columns)
+            # extract entity name from column names
+            col_entities = DataFrameMixinHelper.get_entities_from_columns(columns)
+            # list of all entities
+            entities = DataFrameMixinHelper.get_unique_non_empty_names(col_entities)
             # get column data info
             col_data = {
                 e: [(cname, cidx) for cidx, (centity, cname) in enumerate(zip(col_entities, col_names)) if centity == e]
@@ -540,8 +383,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             # get list of entities
             entities = list(set(df[entity_col].tolist())) if (entity_col in columns) else []
             # get column data info
-            col_data = {e: [(cname, cidx) for cidx, cname in enumerate(columns)] for e in entities if
-                        (select_entities is None) or (e in select_entities)}
+            col_data = {e: [(cname, cidx) for cidx, cname in enumerate(columns)]
+                        for e in entities if (select_entities is None) or (e in select_entities)}
 
         # remap entities data
         if entities_map:
@@ -1203,3 +1046,57 @@ class DataFrameMixinHelper:
         # set indices
         df_with_index = df_with_index.set_index(idx)
         return df_with_index, index_col
+
+    # create DataFrame from list
+    @staticmethod
+    def create_dataframe_from_list(data: List[str], **kwargs) -> Optional[pd.DataFrame]:
+        """
+        Create DataFrame from list of tabulated string
+
+        Parameters
+        ----------
+        data : list
+            List of tabulated strings
+        """
+        if len(data) < 1:
+            return None
+        return pd.read_csv(io.StringIO('\n'.join(data)), delimiter='\t')
+
+    # remove entity name from column names
+    @staticmethod
+    def remove_entities_from_columns(columns: Iterable[str]) -> List[str]:
+        """
+        Remove entity name from column names
+
+        Parameters
+        ----------
+        columns : list
+            Column names
+        """
+        return [c[1] if len(c) > 1 else c[0] for c in (col.split(' : ') for col in columns)]
+
+    # extract entity name from column names
+    @staticmethod
+    def get_entities_from_columns(columns: Iterable[str]) -> List[str]:
+        """
+        Extract entity name from column names
+
+        Parameters
+        ----------
+        columns : list
+            Column names
+        """
+        return [c[0] if len(c) > 1 else '' for c in (col.split(' : ') for col in columns)]
+
+    # get list of unique non-empty names
+    @staticmethod
+    def get_unique_non_empty_names(x: List[str]) -> List[str]:
+        """
+        get list of unique non-empty names
+
+        Parameters
+        ----------
+        x : list
+            List of names
+        """
+        return list(set([e for e in x if e]))

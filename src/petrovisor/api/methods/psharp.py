@@ -162,6 +162,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
     def load_psharp_table(self,
                           script_name: str,
                           table: Optional[str] = None,
+                          dropna: bool = True,
                           with_entity_column: bool = True,
                           groupby_entity: bool = False,
                           load_full_table_info: bool = False,
@@ -176,6 +177,8 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         table : str, default None
             Table name or id. 0 is first table, -1 is last table.
             If None, all tables will be loaded and dictionary with table name as key will be returned
+        dropna : bool, default True
+            Whether rows filled with NaNs should be dropped
         with_entity_column : bool, default True
             Load table with 'Entity' column, otherwise columns will be named as "EntityName : ColumnName"
         groupby_entity : bool, default False
@@ -184,84 +187,83 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
             Load table using api call with full table content
         """
 
-        # get table id, table name, and existing table names
-        if table is None or not isinstance(table, str):
-            # get table id
-            table_id = None
-            if table is not None:
-                try:
-                    table_id = int(table)
-                except BaseException:
-                    raise RuntimeError(
-                        f"PetroVisor::load_table_from_psharp(): "
-                        f"{table} should be either 'string'(table name), 'integer'(table id) or 'None'(all tables) !")
-            # get table name
-            if with_entity_column or table_id != 0:
-                # get table names
-                table_names = self.get_psharp_script_table_names(script_name, **kwargs)
-                # get table name
-                if table_id is not None:
-                    num_tables = len(table_names)
-                    # if( table_id >= num_tables ):
-                    #     table_id = num_tables - 1
-                    # elif( table_id < 0 and (num_tables + table_id) < 0 ):
-                    #     table_id = 0
-                    if table_id >= num_tables or (num_tables + table_id) < 0:
-                        return None
-                    table_name = table_names[table_id]
-                else:
-                    table_name = None
-            else:
-                table_name = ''
-                table_names = []
+        # get available table names
+        table_names = self.get_psharp_script_table_names(script_name, **kwargs)
+
+        # get table name
+        if table is None:
+            table_name = None
+        elif isinstance(table, str):
+            table_name = table
+            if table_name not in table_names:
+                return None
         else:
-            table_id = None
-            table_name = table if isinstance(table, str) else ''
-            table_names = []
+            # get table id
+            try:
+                table_id = int(table)
+            except BaseException:
+                raise ValueError(
+                    f"PetroVisor::load_table_from_psharp(): "
+                    f"{table} should be either 'string'(table name), 'integer'(table id) or 'None'(all tables) !")
+            # return None if table id is out of range
+            num_tables = len(table_names)
+            if table_id >= num_tables or (num_tables + table_id) < 0:
+                raise ValueError(
+                    f"PetroVisor::load_table_from_psharp(): "
+                    f"table id '{table}' is out of range. There are {num_tables} tables in current P# script!")
+            # get table name
+            table_name = table_names[table_id]
 
         # read single table from P# script
-        if table_name or table_id == 0:
-            psharp_table = None
-            if with_entity_column and table_name:
+        if table_name and dropna:
+            if with_entity_column:
                 psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsBITable',
                                         query={'Table': table_name}, **kwargs)
-            elif not with_entity_column and (table_name or table_id == 0):
-                if table_id == 0:
-                    psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsTable', **kwargs)
-                else:
-                    psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
-                                            query={'Table': table_name}, **kwargs)
+            else:
+                psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
+                                        query={'Table': table_name}, **kwargs)
             if psharp_table is not None:
                 return self.convert_psharp_table_to_dataframe(psharp_table,
                                                               with_entity_column=with_entity_column,
                                                               groupby_entity=groupby_entity,
+                                                              dropna=dropna,
                                                               **kwargs)
-        # read multiple tables from P# script
         else:
-            # if with_entity_column:
-            #     psharp_tables = [self.get(f'PSharpScripts/{script_name}/ExecuteAsBITable',
-            #                               query={'Table': table_name}, **kwargs)
-            #                      for table_name in table_names]
-            # else:
-            #     psharp_tables = [self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
-            #                               query={'Table': table_name}, **kwargs)
-            #                      for table_name in table_names]
-            script_content = self.get_psharp_script_content(script_name, **kwargs)
-            if load_full_table_info:
-                psharp_tables = self.post(f'PSharpScripts/ExecuteScript',
-                                          data={'ScriptContent': script_content}, **kwargs)
-            else:
-                psharp_tables = self.post(f'PSharpScripts/Execute',
-                                          data={'ScriptContent': script_content}, **kwargs)
-            # convert tables
-            if psharp_tables is not None:
-                return {
-                    table_name: self.convert_psharp_table_to_dataframe(t,
-                                                                       groupby_entity=groupby_entity,
-                                                                       **kwargs)
-                    for table_name, t in zip(table_names, psharp_tables)
-                }
-        return None
+            psharp_table = None
+
+        # read multiple tables from P# script
+        # if with_entity_column:
+        #     psharp_tables = [self.get(f'PSharpScripts/{script_name}/ExecuteAsBITable',
+        #                               query={'Table': table_name}, **kwargs)
+        #                      for table_name in table_names]
+        # else:
+        #     psharp_tables = [self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
+        #                               query={'Table': table_name}, **kwargs)
+        #                      for table_name in table_names]
+        script_content = self.get_psharp_script_content(script_name, **kwargs)
+        if load_full_table_info:
+            psharp_tables = self.post(f'PSharpScripts/ExecuteScript',
+                                      data={'ScriptContent': script_content}, **kwargs)
+        else:
+            psharp_tables = self.post(f'PSharpScripts/Execute',
+                                      data={'ScriptContent': script_content}, **kwargs)
+
+        # return single table
+        if table_name:
+            return self.convert_psharp_table_to_dataframe(psharp_tables[table_names.index(table_name)],
+                                                          with_entity_column=with_entity_column,
+                                                          groupby_entity=groupby_entity,
+                                                          dropna=dropna,
+                                                          **kwargs)
+        # return multiple tables
+        return {
+            table_name: self.convert_psharp_table_to_dataframe(t,
+                                                               with_entity_column=with_entity_column,
+                                                               groupby_entity=groupby_entity,
+                                                               dropna=dropna,
+                                                               **kwargs)
+            for table_name, t in zip(table_names, psharp_tables)
+        }
 
     # save data from table to PetroVisor
     def save_table_data(self,
