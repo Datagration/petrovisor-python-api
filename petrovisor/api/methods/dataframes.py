@@ -116,7 +116,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                 df = {e: df_group for e, df_group in df.groupby(entity_col)}
         except BaseException:
             raise RuntimeError(f"PetroVisor::convert_pivot_table_to_dataframe(): "
-                               f"Couldn't convert PivotTable to DataFrame")
+                               f"couldn't convert PivotTable to DataFrame")
         return df
 
     # convert P# table to DataFrame
@@ -313,7 +313,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             elif not with_entity_column:
                 df = self.convert_dataframe_from_long_to_wide(df)
         else:
-            raise RuntimeError("PetroVisor::convert_psharp_table_to_dataframe(): unknown P# table type!")
+            raise ValueError(f"PetroVisor::convert_psharp_table_to_dataframe(): "
+                             f"unknown P# table type!")
 
         return df
 
@@ -470,7 +471,9 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                           not _is_index_column(cname)}
 
         # collect signals data
-        for entity_name, d in col_data.items():
+        for _entity_name, d in col_data.items():
+            # make sure that entity column is string
+            entity_name = str(_entity_name)
             # collect signals data
             for col in d:
                 # column name
@@ -521,11 +524,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                                                           _get_column_data(column_index, entity_name))]
                         })
                     else:
-                        print(f'Column signals: {column_signals}')
-                        print(f'Signal: {signal}')
-                        raise RuntimeError(
-                            f"PetroVisor::get_signal_data_from_dataframe(): "
-                            f"Signal type: '{signal_type}' is not supported yet.")
+                        raise ValueError(f"PetroVisor::get_signal_data_from_dataframe(): "
+                                         f"signal type: '{signal_type}' is not supported yet.")
         return data_to_save
 
     # convert dataframe from wide to long format
@@ -946,9 +946,9 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         if isinstance(signal_type, str):
             signal_type = self.get_signal_type_enum(signal_type, **kwargs)
         elif not isinstance(signal_type, SignalType):
-            raise RuntimeError(
-                f"PetroVisor::get_signal_data_type_name(): unknown 'signal_type'! "
-                f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
+            raise ValueError(f"PetroVisor::get_signal_data_type_name(): "
+                             f"unknown 'signal_type'! "
+                             f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
         if signal_type == SignalType.Static:
             return 'numeric'
         elif signal_type == SignalType.DepthDependent:
@@ -961,7 +961,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             return 'string'
         elif signal_type == SignalType.PVT:
             return 'numeric'
-        raise RuntimeError(f"PetroVisor::get_signal_data_type_name(): '{signal_type}' is not supported yet.")
+        raise ValueError(f"PetroVisor::get_signal_data_type_name(): "
+                         f"'{signal_type}' is not supported yet.")
 
     # get signal range name
     def get_signal_range_type_name(self, signal_type: Union[str, SignalType], **kwargs) -> str:
@@ -976,9 +977,9 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         if isinstance(signal_type, str):
             signal_type = self.get_signal_type_enum(signal_type, **kwargs)
         elif not isinstance(signal_type, SignalType):
-            raise RuntimeError(
-                f"PetroVisor::get_signal_range_type_name(): unknown 'signal_type'! "
-                f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
+            raise ValueError(f"PetroVisor::get_signal_range_type_name(): "
+                             f"unknown 'signal_type'! "
+                             f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
         if signal_type == SignalType.Static:
             return ''
         elif signal_type == SignalType.DepthDependent:
@@ -991,7 +992,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             return 'time'
         elif signal_type == SignalType.PVT:
             return ''
-        raise RuntimeError(f"PetroVisor::get_signal_range_type_name(): '{signal_type}' is not supported yet.")
+        raise ValueError(f"PetroVisor::get_signal_range_type_name(): "
+                         f"'{signal_type}' is not supported yet.")
 
 
 # DataFrame mixin helper

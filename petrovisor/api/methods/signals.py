@@ -54,10 +54,11 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             signal_name = ApiHelper.get_object_name(signal)
             signal = self.get_item('Signal', signal_name, **kwargs)
         if not signal:
-            raise RuntimeError(f"PetroVisor::get_signal_measurement_name(): Signal '{signal}' cannot be found!")
+            raise ValueError(f"PetroVisor::get_signal_measurement_name(): "
+                             f"signal '{signal}' cannot be found!")
         elif not ApiHelper.has_field(signal, field_name):
-            raise RuntimeError(f"PetroVisor::get_signal_measurement_name(): "
-                               f"Signal '{signal}' doesn't have '{field_name}' field!")
+            raise ValueError(f"PetroVisor::get_signal_measurement_name(): "
+                             f"signal '{signal}' doesn't have '{field_name}' field!")
         return signal[field_name]
 
     # get signal storage 'Unit'
@@ -287,7 +288,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal : str, dict
             Signal object or Signal name
         unit : str, dict
-            Unit object or UNit name
+            Unit object or Unit name
         entity : str, dict
             Entity object or Entity name
         cleansing_script : str
@@ -297,7 +298,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         route = self.get_signal_type_route(signal_type=data_type, **kwargs)
         if data_type != SignalType.TimeDependent and data_type != SignalType.Static:
             raise Warning("PetroVisor::cleanse_data(): "
-                          "Cleansing is only supported for 'Static' and 'TimeNumeric' data.")
+                          "cleansing is only supported for 'Static' and 'TimeNumeric' data.")
         options = {
             'UseDefaultCleansingScripts': True,
             'CleansingScript': cleansing_script,
@@ -384,7 +385,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
                     else:
                         range_step = TimeIncrement.EverySecond
                     if not ApiHelper.has_field(range_step, 'name'):
-                        raise ValueError(f"PetroVisor::load_data(): Invalid increment value: '{step}'")
+                        raise ValueError(f"PetroVisor::load_data(): "
+                                         f"invalid increment value: '{step}'")
                     range_step = str(range_step.name)
                     is_time_dependent = (data_type == SignalType.TimeDependent or
                                          data_type == SignalType.StringTimeDependent)
@@ -418,7 +420,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
                             return self.post(f'{route}/Interpolated', data=data, query={'Depth': load_point}, **kwargs)
                         return self.post(f'{route}/Saved', data=data, query={'Depth': load_point}, **kwargs)
             else:
-                raise ValueError(f"PetroVisor::load_data(): 'start', 'end' and 'step' should be provided! "
+                raise ValueError(f"PetroVisor::load_data(): "
+                                 f"'start', 'end' and 'step' should be provided! "
                                  f"'step' can be avoided if 'start' == 'end'.")
         # load 'Static' and 'PVT' data
         if with_logs and ApiHelper.has_field(data, 'Data') and data_type == SignalType.Static:
@@ -523,9 +526,9 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         if isinstance(signal_type, str):
             signal_type = self.get_signal_type_enum(signal_type, **kwargs)
         elif not isinstance(signal_type, SignalType):
-            raise RuntimeError(
-                f"PetroVisor::get_data_type_route(): Unknown SignalType! "
-                f"Should be either one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
+            raise ValueError(f"PetroVisor::get_data_type_route(): "
+                             f"unknown SignalType! "
+                             f"Should be either one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
         if signal_type == SignalType.Static:
             return 'Data/Static'
         elif signal_type == SignalType.DepthDependent:
@@ -538,7 +541,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return 'Data/StringTime'
         elif signal_type == SignalType.PVT:
             return 'Data/PVT'
-        raise RuntimeError(f"PetroVisor::get_signal_type_route(): '{signal_type}' is not supported yet.")
+        raise ValueError(f"PetroVisor::get_signal_type_route(): "
+                         f"'{signal_type}' is not supported yet.")
 
     # get valid signal type name
     def get_signal_type_enum(self, signal_type: Union[str, SignalType], **kwargs) -> SignalType:
@@ -566,9 +570,9 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return SignalType.StringTimeDependent
         elif signal_type in ('pvt', 'pvtnumeric'):
             return SignalType.PVT
-        raise RuntimeError(
-            f"PetroVisor::get_signal_type_name(): Unknown data type: '{signal_type}'! "
-            f"Should be one of: {[t.name for t in SignalType]}")
+        raise ValueError(f"PetroVisor::get_signal_type_name(): "
+                         f"unknown data type: '{signal_type}'! "
+                         f"Should be one of: {[t.name for t in SignalType]}")
 
     # get time or depth increment name
     def get_increment_enum(self,
@@ -624,9 +628,9 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return TimeIncrement.EveryFiveMinutes
         elif increment_type in ('everyfifteenminutes', '15min', '15minutes'):
             return TimeIncrement.EveryFifteenMinutes
-        raise RuntimeError(
-            f"PetroVisor::get_time_increment_enum(): Unknown time increment: '{increment_type}'! "
-            f"Should be one of: {[inc.name for inc in TimeIncrement]}")
+        raise ValueError(f"PetroVisor::get_time_increment_enum(): "
+                         f"unknown time increment: '{increment_type}'! "
+                         f"Should be one of: {[inc.name for inc in TimeIncrement]}")
 
     # get depth increment name
     def get_depth_increment_enum(self, increment_type: Union[str, DepthIncrement], **kwargs) -> DepthIncrement:
@@ -654,6 +658,6 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return DepthIncrement.Foot
         elif increment_type in ('halffoot', 'halfft', '.5foot', '.5feet', '.5ft', '0.5foot', '0.5feet', '0.5ft'):
             return DepthIncrement.HalfFoot
-        raise RuntimeError(
-            f"PetroVisor::get_depth_increment_enum(): Unknown depth increment: '{increment_type}'! "
-            f"Should be one of: {[inc.name for inc in DepthIncrement]}")
+        raise ValueError(f"PetroVisor::get_depth_increment_enum(): "
+                         f"unknown depth increment: '{increment_type}'! "
+                         f"Should be one of: {[inc.name for inc in DepthIncrement]}")

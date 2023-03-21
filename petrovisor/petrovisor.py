@@ -5,6 +5,7 @@ from petrovisor.api.base import RequestsMixin
 from petrovisor.api.methods.items import ItemsMixin
 from petrovisor.api.methods.entities import EntitiesMixin
 from petrovisor.api.methods.signals import SignalsMixin
+from petrovisor.api.methods.workspace_values import WorkspaceValuesMixin
 from petrovisor.api.methods.psharp import PsharpMixin
 from petrovisor.api.methods.reference_tables import RefTableMixin
 from petrovisor.api.methods.pivot_tables import PivotTableMixin
@@ -20,6 +21,7 @@ class PetroVisor(RequestsMixin,
                  ItemsMixin,
                  EntitiesMixin,
                  SignalsMixin,
+                 WorkspaceValuesMixin,
                  PsharpMixin,
                  RefTableMixin,
                  PivotTableMixin,
@@ -27,7 +29,7 @@ class PetroVisor(RequestsMixin,
                  WorkflowsMixin,
                  FilesMixin,
                  LogsMixin,
-                 DataFrameMixin,):
+                 DataFrameMixin, ):
     """
     PetroVisor API class
     """
