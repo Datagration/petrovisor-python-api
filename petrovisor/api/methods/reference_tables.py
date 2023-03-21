@@ -114,7 +114,8 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
                                      f"number of columns in the list should be either 2 or 1.")
                 ref_table = __list_to_dict(ApiHelper.to_list(data, **kwargs), num_cols, **kwargs)
             else:
-                raise ValueError(f"PetroVisor::save_ref_table_data(): invalid data format '{type(data)}'. "
+                raise ValueError(f"PetroVisor::save_ref_table_data(): "
+                                 f"invalid data format '{type(data)}'. "
                                  f"Should be either dict[float,float], list of iterables, DataFrame, Series or array.")
             return self.put(f'{route}/{name}/Data/{entity_name}/{date_str}', data=ref_table, **kwargs)
 

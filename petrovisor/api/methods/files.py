@@ -6,6 +6,7 @@ from typing import (
 )
 
 import io
+import json
 import pickle
 
 from petrovisor.api.protocols.protocols import SupportsRequests
@@ -57,30 +58,45 @@ class FilesMixin(SupportsRequests):
 
         Parameters
         ----------
-        file : Any
-            file object
+        file : str | stream
+            File name or file-like object
         """
-        return self.post('Files/Upload', files={'file': open(file, 'rb') if isinstance(file, str) else file}, **kwargs)
+        return self.post('Files/Upload',
+                         files={'file': open(file, 'rb') if isinstance(file, str) else file},
+                         **kwargs)
 
     # get object by name
-    def get_object(self, objectname: str, func: Optional[Callable] = None, **kwargs) -> Any:
+    def get_object(self,
+                   name: str,
+                   func: Optional[Callable] = None,
+                   binary: bool = True,
+                   **kwargs) -> Any:
         """
         Load object from blob storage using pickle.loads()
 
         Parameters
         ----------
-        objectname : str
+        name : str
             Object name
         func : Optional[Callable], default None
             Function to be called to prepare object after load. If None, then pickle.loads() is used
+        binary : bool, default True
+            Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
-        file_obj = self.get_file(objectname, format='bytes', **kwargs)
+        file_obj = self.get_file(name, format='bytes', **kwargs)
         if func and hasattr(func, '__call__'):
             return func(file_obj, **kwargs)
-        return pickle.loads(file_obj)
+        if binary:
+            return pickle.loads(file_obj)
+        return json.load(io.BytesIO(file_obj), **kwargs)
 
     # upload object
-    def upload_object(self, obj: Any, name: str, func: Optional[Callable] = None, **kwargs) -> Any:
+    def upload_object(self,
+                      obj: Any,
+                      name: str,
+                      func: Optional[Callable] = None,
+                      binary: bool = True,
+                      **kwargs) -> Any:
         """
         Upload object to blob storage using pickle.dumps()
 
@@ -92,12 +108,20 @@ class FilesMixin(SupportsRequests):
             Object name
         func : Optional[Callable], default None
             Function to be called to prepare object for upload. If None, then pickle.dumps() is used
+        binary : bool, default True
+            Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
         # upload file by full path
         if func and hasattr(func, '__call__'):
             file = func(obj, **kwargs)
-        else:
+        elif binary:
             file = pickle.dumps(obj)
-        file_obj = io.BytesIO(file)
+        else:
+            file = json.dumps(obj, **kwargs)
+        # binary stream
+        if binary:
+            file_obj = io.BytesIO(file)
+        else:
+            file_obj = io.StringIO(file)
         file_obj.name = name
         return self.upload_file(file=file_obj, **kwargs)

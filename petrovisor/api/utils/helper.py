@@ -406,10 +406,11 @@ class ApiHelper:
             return list(x.items())
         return [x]
 
+    # get file extension
     @staticmethod
     def get_file_extension(path: str, **kwargs) -> str:
         """
-        Convert object to list
+        Get file extension
 
         Parameters
         ----------
@@ -418,3 +419,18 @@ class ApiHelper:
         """
         _, file_extension = os.path.splitext(path)
         return file_extension
+
+    # get file name
+    @staticmethod
+    def get_file_name(path: str, **kwargs) -> str:
+        """
+        Get file name without extension
+
+        Parameters
+        ----------
+        path : str
+            File path.
+        """
+        full_name = os.path.basename(path)
+        file_name, _ = os.path.splitext(full_name)
+        return file_name

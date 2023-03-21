@@ -61,8 +61,8 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         elif 'Content' in script:
             script_content = script['Content']
         else:
-            raise RuntimeError(
-                f"PetroVisor::get_psharp_script_content(): Couldn't get content of P# script '{script}'.")
+            raise ValueError(f"PetroVisor::get_psharp_script_content(): "
+                             f"couldn't get content of P# script '{script}'.")
         return script_content
 
     # parse P# script
@@ -202,15 +202,15 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
             try:
                 table_id = int(table)
             except BaseException:
-                raise ValueError(
-                    f"PetroVisor::load_table_from_psharp(): "
-                    f"{table} should be either 'string'(table name), 'integer'(table id) or 'None'(all tables) !")
+                raise ValueError(f"PetroVisor::load_table_from_psharp(): "
+                                 f"{table} should be either 'string'(table name), 'integer'(table id) "
+                                 f"or 'None'(all tables) !")
             # return None if table id is out of range
             num_tables = len(table_names)
             if table_id >= num_tables or (num_tables + table_id) < 0:
-                raise ValueError(
-                    f"PetroVisor::load_table_from_psharp(): "
-                    f"table id '{table}' is out of range. There are {num_tables} tables in current P# script!")
+                raise ValueError(f"PetroVisor::load_table_from_psharp(): "
+                                 f"table id '{table}' is out of range. "
+                                 f"There are {num_tables} tables in current P# script!")
             # get table name
             table_name = table_names[table_id]
 

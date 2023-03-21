@@ -66,10 +66,12 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         ml_model = self.ml_model(model_name, **kwargs)
         if ml_model is None or not ml_model:
-            raise RuntimeError(f"PetroVisor::ml_model_attribute(): ML Model '{model_name}' cannot be found! ")
+            raise ValueError(f"PetroVisor::ml_model_attribute(): "
+                             f"ML Model '{model_name}' cannot be found!")
         if attribute in ml_model:
             return ml_model[attribute]
-        raise RuntimeError(f"PetroVisor::ml_model_attribute(): Unknown ML Model attribute '{attribute}'! ")
+        raise ValueError(f"PetroVisor::ml_model_attribute(): "
+                         f"unknown ML Model attribute '{attribute}'!")
 
     # get ML model type
     def ml_model_type(self, model_name: str, **kwargs) -> Any:
@@ -188,9 +190,10 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         model_type = self.get_ml_model_type_enum(model_type, **kwargs).name
         ml_trainers_and_metrics = self.ml_trainers_and_metrics(model_type, **kwargs)
-        if ml_trainers_and_metrics is not None and ml_trainers_and_metrics:
-            return ml_trainers_and_metrics['Trainers']
-        raise RuntimeError(f"PetroVisor::ml_trainers(): Unknown ML Model type: '{model_type}'!")
+        if not ml_trainers_and_metrics:
+            raise ValueError(f"PetroVisor::ml_trainers(): "
+                             f"unknown ML Model type: '{model_type}'!")
+        return ml_trainers_and_metrics['Trainers']
 
     # get ML metrics
     def ml_metrics(self, model_type: Union[str, MLModelType], **kwargs) -> Any:
@@ -206,9 +209,10 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         model_type = self.get_ml_model_type_enum(model_type, **kwargs).name
         ml_trainers_and_metrics = self.ml_trainers_and_metrics(model_type, **kwargs)
-        if ml_trainers_and_metrics is not None and ml_trainers_and_metrics:
-            return ml_trainers_and_metrics['Metrics']
-        raise RuntimeError(f"PetroVisor::ml_trainers(): Unknown ML Model type: '{model_type}'!")
+        if not ml_trainers_and_metrics:
+            raise ValueError(f"PetroVisor::ml_trainers(): "
+                             f"unknown ML Model type: '{model_type}'!")
+        return ml_trainers_and_metrics['Metrics']
 
     # get ML pre-training statistics
     def ml_pre_training_statistics(self, model_name: str, **kwargs) -> Any:
@@ -416,12 +420,13 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         mid = model_name_or_id
         if isinstance(model_name_or_id, str):
             ml_training_states = self.ml_get_model_training_states(exclude_processed=False, **kwargs)
+            mid = None
             for state in ml_training_states:
                 if state['ModelName'].lower() == model_name_or_id.lower():
                     mid = state['Id']
         if mid is None:
-            raise RuntimeError(f"PetroVisor::ml_get_model_training_id(): "
-                               f"cannot find '{model_name_or_id}' in the training list!")
+            raise ValueError(f"PetroVisor::ml_get_model_training_id(): "
+                             f"couldn't find '{model_name_or_id}' in the training list!")
         return ApiHelper.get_uuid(mid)
 
     # get ML model training state
@@ -452,41 +457,6 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         uuid = self.ml_get_model_training_id(model_name_or_id, **kwargs)
         return self.get(f"{route}/{uuid}", **kwargs)
 
-    # # update ML model training state
-    # def ml_update_model_training_state( self, model_name_or_id: Union[str,UUID], status: Any, output = '', **kwargs) -> Any:
-    #     """
-    #     Update ML model training state
-
-    #     Parameters
-    #     ----------
-    #     model_name_or_id : str, UUId
-    #         ML Model name or ML Model Training Process UUID
-    #     status : Any
-    #         ML Training State
-    #     """
-    #     route = 'ModelTraining/UpdateState'
-    #     uuid = self.ml_get_model_training_id(model_name_or_id,**kwargs)
-    #     query_string = {
-    #         'Status': status
-    #     }
-    #     if(output):
-    #         query_string['Output'] = output
-    #     return self.post(f"{route}/{uuid}", query = query_string, **kwargs)
-
-    # # update ML model training results
-    # def ml_update_model_training_results( self, model_name_or_id: Union[str,UUID], results: Any, **kwargs) -> Any:
-    #     """
-    #     Update ML model training results
-
-    #     Parameters
-    #     ----------
-    #     model_name_or_id : str, UUId
-    #         ML Model name or ML Model Training Process UUID
-    #     """
-    #     route = 'ModelTraining/UpdateResults'
-    #     uuid = self.ml_get_model_training_id(model_name_or_id,**kwargs)
-    #     return self.get(f"{route}/{uuid}", data = results, **kwargs)
-
     # get ML Model Type enum
     def get_ml_model_type_enum(self, type: Union[str, MLModelType], **kwargs) -> MLModelType:
         """
@@ -514,9 +484,9 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
             return MLModelType.NaiveBayes
         elif type in ('naivebayescategorical', 'bayescategorical'):
             return MLModelType.NaiveBayesCategorical
-        raise RuntimeError(
-            f"PetroVisor::get_ml_model_enum(): Unknown data type: '{type}'! "
-            f"Should be one of: {[t.name for t in MLModelType]}")
+        raise ValueError(f"PetroVisor::get_ml_model_enum(): "
+                         f"unknown data type: '{type}'! "
+                         f"Should be one of: {[t.name for t in MLModelType]}")
 
     # get ML Normalization Type enum
     def get_ml_normalization_type_enum(self, type: Union[str, MLNormalizationType], **kwargs) -> MLNormalizationType:
@@ -550,6 +520,6 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
             return MLNormalizationType.LpNorm
         elif type in ('globalcontrast', 'contrast'):
             return MLNormalizationType.GlobalContrast
-        raise RuntimeError(
-            f"PetroVisor::get_ml_normalization_enum(): Unknown data type: '{type}'! "
-            f"Should be one of: {[t.name for t in MLNormalizationType]}")
+        raise ValueError(f"PetroVisor::get_ml_normalization_enum(): "
+                         f"unknown data type: '{type}'! "
+                         f"Should be one of: {[t.name for t in MLNormalizationType]}")

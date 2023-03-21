@@ -152,7 +152,8 @@ class RequestsMixin(SupportsRequests):
                 default_discovery_url = ApiHelper.get_discovery_urls()
                 urls = [f"'{url}'" for url in default_discovery_url]
                 msg = f"Use one of the discovery urls: {urls}"
-                raise NameError("PetroVisor::__init__(): 'discovery_url' is undefined!" + " " + msg)
+                raise ValueError(f"PetroVisor::__init__(): "
+                                 f"'discovery_url' is undefined! {msg}")
             # api endpoint
             self.__api = api if api else RequestsMixin.get_web_api_endpoint(discovery_url)
 
@@ -168,9 +169,9 @@ class RequestsMixin(SupportsRequests):
                     key = RequestsMixin.generate_credentials_key(username=username, password=password)
                 # get access token
                 if not key:
-                    raise NameError(
-                        "PetroVisor::__init__(): "
-                        "neither 'token', nor 'key', nor 'username' and 'password' are defined!")
+                    raise ValueError(f"PetroVisor::__init__(): "
+                                     f"neither 'token', nor 'key', "
+                                     f"nor 'username' and 'password' are defined!")
                 access_response = ApiLogin.get_access_token(key=key, discovery_url=discovery_url)
                 self.__access_token = access_response['access_token']
                 self.__refresh_token = access_response['refresh_token'] if ('refresh_token' in access_response) else ''

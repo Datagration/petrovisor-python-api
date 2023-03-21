@@ -1,9 +1,10 @@
 *.DS_Store
 /build/
-/src/petrovisor.egg-info/
+/petrovisor.egg-info/
 /venv/
 /.vscode/
 /.idea/
 __pycache__/
 *.pyc
+*.ipynb_checkpoints
 

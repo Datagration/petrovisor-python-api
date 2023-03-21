@@ -288,7 +288,8 @@ class ApiLogin:
             Discovery url
         """
         if not discovery_url:
-            raise NameError("PetroVisorLogin::get_discovery_document(): 'discovery_url' is undefined!")
+            raise ValueError(f"PetroVisorLogin::get_discovery_document(): "
+                             f"'discovery_url' is undefined!")
         if not discovery_url.endswith('/'):
             discovery_url += '/'
         well_known_url = f'{discovery_url}.well-known/openid-configuration'
