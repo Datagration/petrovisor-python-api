@@ -4,3 +4,28 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = 'petrovisor'
+dynamic = [
+    'version'
+]
+description = 'Python API for PetroVisor platform.'
+readme = 'README.md'
+license = {file = 'LICENSE'}
+requires-python = '>=3.7'
+dependencies = [
+    "requests",
+    "pandas",
+    "numpy"
+]
+
+classifiers = [
+    'Operating System :: OS Independent',
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+]
+
+[project.urls]
+"repository" = "https://github.com/Datagration/petrovisor-python-api"
