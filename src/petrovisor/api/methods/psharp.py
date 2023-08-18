@@ -281,7 +281,8 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         Parameters
         ----------
         df : DataFrame, str
-            Table or filename
+            Table or filename. Table should contain necessary columns 'Entity', 'Date' or 'Depth',
+            depending on the type of the present signals.
         delimiter : str, default '\t'
             Delimiter used while reading table from file
         signals : dict, default None

@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setuptools.setup(
     name="petrovisor",
-    version="0.1.1",
+    version="0.1.2",
     author="Datagration Solutions Inc.",
     author_email="developers@datagration.com",
     description="Python API for PetroVisor platform.",

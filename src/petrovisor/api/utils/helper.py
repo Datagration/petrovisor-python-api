@@ -434,3 +434,33 @@ class ApiHelper:
         full_name = os.path.basename(path)
         file_name, _ = os.path.splitext(full_name)
         return file_name
+
+    # get Windows-like file path
+    @staticmethod
+    def get_windows_like_path(path: str, **kwargs) -> str:
+        """
+        Get Windows-like file path
+
+        Parameters
+        ----------
+        path : str
+            File path.
+        """
+        if '/' in path:
+            path = path.replace('/', '\\')
+        return path
+
+    # get Unix-like file path
+    @staticmethod
+    def get_unix_like_path(path: str, **kwargs) -> str:
+        """
+        Get Unix-like file path
+
+        Parameters
+        ----------
+        path : str
+            File path.
+        """
+        if '\\' in path:
+            path = path.replace('\\', '/')
+        return path
