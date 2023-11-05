@@ -159,7 +159,6 @@ class RequestsMixin(SupportsRequests):
             # api endpoint
             self.__api = api if api else RequestsMixin.get_web_api_endpoint(discovery_url)
 
-            
             # access token
             if token:
                 self.__access_token = token
