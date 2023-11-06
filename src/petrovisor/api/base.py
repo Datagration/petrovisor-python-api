@@ -154,6 +154,8 @@ class RequestsMixin(SupportsRequests):
                 msg = f"Use one of the discovery urls: {urls}"
                 raise ValueError(f"PetroVisor::__init__(): "
                                  f"'discovery_url' is undefined! {msg}")
+            
+            self.__discovery_url = discovery_url
             # api endpoint
             self.__api = api if api else RequestsMixin.get_web_api_endpoint(discovery_url)
 
@@ -176,7 +178,6 @@ class RequestsMixin(SupportsRequests):
                 self.__access_token = access_response['access_token']
                 self.__refresh_token = access_response['refresh_token'] if ('refresh_token' in access_response) else ''
                 self.__key = key
-                self.__discovery_url = discovery_url
                 self.__token_endpoint = RequestsMixin.get_token_endpoint(discovery_url)
 
         # 'NamedItem' routes
