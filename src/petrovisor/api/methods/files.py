@@ -5,9 +5,12 @@ from typing import (
     Callable,
 )
 
+import os
 import io
 import json
 import pickle
+
+from petrovisor.api.utils.helper import ApiHelper
 
 from petrovisor.api.protocols.protocols import SupportsRequests
 
@@ -37,9 +40,10 @@ class FilesMixin(SupportsRequests):
         format : str, default 'bytes'
             File format
         """
+        filename = ApiHelper.get_windows_like_path(filename)
         return self.get(f'Files/{filename}', format=format, **kwargs)
 
-    # get file by name
+    # delete file by given name
     def delete_file(self, filename: str, **kwargs) -> Any:
         """
         Delete file
@@ -49,21 +53,85 @@ class FilesMixin(SupportsRequests):
         filename : str
             File name
         """
+        filename = ApiHelper.get_windows_like_path(filename)
         return self.delete(f'Files/{filename}', **kwargs)
 
     # upload file
-    def upload_file(self, file: Any, **kwargs) -> Any:
+    def upload_file(self, file: Any, name: str = '', **kwargs) -> Any:
         """
         Upload file
 
         Parameters
         ----------
         file : str | stream
-            File name or file-like object
+            File path or file-like object
+        name : str
+            File name
         """
+        # upload file with specified name
+        if name:
+            name = ApiHelper.get_unix_like_path(name)
+            return self.post('Files/Upload',
+                             files={'file': (name, open(file, 'rb') if isinstance(file, str) else file)}, **kwargs)
+        # upload file with the same name as file's name or name specified in the file-like object
         return self.post('Files/Upload',
-                         files={'file': open(file, 'rb') if isinstance(file, str) else file},
-                         **kwargs)
+                         files={'file': open(file, 'rb') if isinstance(file, str) else file}, **kwargs)
+
+    # upload folder
+    def upload_folder(self, folder: str, name: str = '', **kwargs) -> Any:
+        """
+        Upload folder
+
+        Parameters
+        ----------
+        folder : str
+            Folder path
+        name : str
+            Folder name
+        """
+        if not os.path.isdir(folder):
+            return
+        # validate new folder name
+        if name:
+            name = ApiHelper.get_unix_like_path(name)
+        # upload folder with specified name
+        folder_relpath: str = os.path.dirname(folder)
+        for root, dirs, files in os.walk(folder):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+
+                # get file relative path
+                root_relpath = os.path.relpath(root, folder_relpath)
+                if name:
+                    parts = root_relpath.split(os.sep)
+                    parts[0] = name
+                    root_relpath = os.sep.join(parts)
+
+                # get file relative path
+                file_relpath = os.path.join(root_relpath, filename)
+                file_relpath = os.path.normpath(file_relpath)
+
+                # upload file
+                self.upload_file(file_path, name=file_relpath, **kwargs)
+
+    # delete folder by given name
+    def delete_folder(self, folder: str, **kwargs) -> Any:
+        """
+        Delete folder
+
+        Parameters
+        ----------
+        folder : str
+            Folder name
+        """
+        # get all files
+        files = self.get_file_names(**kwargs)
+        # validate folder name (path is returned in Unix-like style)
+        if folder:
+            folder = ApiHelper.get_unix_like_path(folder)
+        for filename in files:
+            if filename.startswith(folder):
+                self.delete_file(filename, **kwargs)
 
     # get object by name
     def get_object(self,
@@ -124,4 +192,4 @@ class FilesMixin(SupportsRequests):
         else:
             file_obj = io.StringIO(file)
         file_obj.name = name
-        return self.upload_file(file=file_obj, **kwargs)
+        return self.upload_file(file=file_obj, name=name, **kwargs)
