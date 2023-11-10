@@ -4,13 +4,16 @@ from typing import (
     Union,
     Dict,
 )
+import warnings
 
 from petrovisor.api.utils.helper import ApiHelper
 
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
-from petrovisor.api.protocols.protocols import SupportsSignalsRequests
-from petrovisor.api.protocols.protocols import SupportsDataFrames
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+    SupportsSignalsRequests,
+    SupportsDataFrames,
+)
 
 
 # Pivot Table API calls
@@ -29,16 +32,16 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
                               groupby_entity: bool = False,
                               **kwargs) -> Any:
         """
-        Load PivotTable and return DataFrame
+        Load pivot table and return DataFrame
 
         Parameters
         ----------
         name : str
-            Reference table name
-        entity_set : str, dict
-            EntitySet object or EntitySet name
-        scope : str, dict
-            Scope object or Scope name
+            Pivot table name
+        entity_set : str, dict, default None
+            EntitySet object or EntitySet name. If None, the EntitySet from PivotTable definition is used.
+        scope : str, dict, default None
+            Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         num_rows : int, default 0
             Number of rows to load
         generate : bool, default False
@@ -47,15 +50,18 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
             Return dictionary of DataFrames grouped by entity name
         """
         route = 'PivotTables'
-        if entity_set or scope:
+        if generate or entity_set or scope:
             options = {}
             if entity_set:
-                options['OverrideEntitySet'] = ApiHelper.get_object_name(entity_set, **kwargs)
+                entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
+                options['OverrideEntitySet'] = self.get_item('EntitySet', entity_set_name, **kwargs)
             if scope:
-                options['OverrideScope'] = ApiHelper.get_object_name(scope, **kwargs)
-            pivot_table_data = self.get(f'{route}/{name}/Generated/Options', data=options, **kwargs)
-        elif generate:
-            pivot_table_data = self.get(f'{route}/{name}/Generated', **kwargs)
+                scope_name = ApiHelper.get_object_name(scope, **kwargs)
+                options['OverrideScope'] = self.get_item('Scope', scope_name, **kwargs)
+            if options:
+                pivot_table_data = self.get(f'{route}/{name}/Generated/Options', data=options, **kwargs)
+            else:
+                pivot_table_data = self.get(f'{route}/{name}/Generated', **kwargs)
         else:
             pivot_table_data = self.get(f'{route}/{name}/Saved',
                                         query={
@@ -64,6 +70,11 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
                                         **kwargs)
         if pivot_table_data:
             return self.convert_pivot_table_to_dataframe(pivot_table_data, groupby_entity=groupby_entity, **kwargs)
+
+        warnings.warn(f"PetroVisor::load_pivot_table_data(): "
+                      f"Pivot table '{name}' might be not saved, please try to generate data instead.",
+                      RuntimeWarning, stacklevel=1)
+
         return None
 
     # save pivot table data
@@ -73,31 +84,33 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
                               scope: Optional[str] = None,
                               **kwargs) -> Any:
         """
-        Save PivotTable data
+        Save pivot table data
 
         Parameters
         ----------
         name : str
-            Reference table name
-        entity_set : str, dict
-            EntitySet object or EntitySet name
-        scope : str, dict
-            Scope object or Scope name
+            Pivot table name
+        entity_set : str, dict, default None
+            EntitySet object or EntitySet name. If None, the EntitySet from PivotTable definition is used.
+        scope : str, dict, default None
+            Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         """
         route = 'PivotTables'
-        if entity_set or scope:
-            options = {}
-            if entity_set:
-                options['OverrideEntitySet'] = ApiHelper.get_object_name(entity_set, **kwargs)
-            if scope:
-                options['OverrideScope'] = ApiHelper.get_object_name(scope, **kwargs)
+        options = {}
+        if entity_set:
+            entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
+            options['OverrideEntitySet'] = self.get_item('EntitySet', entity_set_name, **kwargs)
+        if scope:
+            scope_name = ApiHelper.get_object_name(scope, **kwargs)
+            options['OverrideScope'] = self.get_item('Scope', scope_name, **kwargs)
+        if options:
             self.post(f'{route}/{name}/Save/Options', data=options, **kwargs)
         return self.get(f'{route}/{name}/Save', **kwargs)
 
     # delete pivot table data
     def delete_pivot_table_data(self, name: str, **kwargs) -> Any:
         """
-        Delete PivotTable data
+        Delete pivot table data
 
         Parameters
         ----------
