@@ -32,14 +32,14 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         Get ML Models
         """
-        return self.get_items(ItemType.MLModel, **kwargs)
+        return self.get_items(ItemType.MLModel.value, **kwargs)
 
     # get ML models
     def ml_model_names(self, **kwargs) -> Any:
         """
         Get ML Model names
         """
-        return self.get_item_names(ItemType.MLModel, **kwargs)
+        return self.get_item_names(ItemType.MLModel.value, **kwargs)
 
     # get ML model
     def ml_model(self, model_name: str, **kwargs) -> Any:
@@ -51,7 +51,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         model_name : str
             ML Model name
         """
-        return self.get_item(ItemType.MLModel, model_name, **kwargs)
+        return self.get_item(ItemType.MLModel.value, model_name, **kwargs)
 
     # get ML model attribute
     def ml_model_attribute(self, model_name: str, attribute: str, **kwargs) -> Any:
@@ -365,12 +365,12 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         # define training 'EntitySet'
         if entity_set:
             if isinstance(entity_set, str):
-                entity_set = self.get_item(ItemType.EntitySet, entity_set, **kwargs)
+                entity_set = self.get_item(ItemType.EntitySet.value, entity_set, **kwargs)
             request['EntitySet'] = entity_set
         # define training 'Scope'
         if scope:
             if isinstance(scope, str):
-                scope = self.get_item(ItemType.Scope, scope, **kwargs)
+                scope = self.get_item(ItemType.Scope.value, scope, **kwargs)
             request['Scope'] = scope
         # update options
         request['Options'] = ApiHelper.update_dict(request['Options'], **kwargs)

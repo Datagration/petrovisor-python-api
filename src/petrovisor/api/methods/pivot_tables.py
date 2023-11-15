@@ -49,15 +49,15 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         groupby_entity : bool, default False
             Return dictionary of DataFrames grouped by entity name
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = self.get_item_route(ItemType.PivotTable.value)
         if generate or entity_set or scope:
             options = {}
             if entity_set:
                 entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
-                options['OverrideEntitySet'] = self.get_item(ItemType.EntitySet, entity_set_name, **kwargs)
+                options['OverrideEntitySet'] = self.get_item(ItemType.EntitySet.value, entity_set_name, **kwargs)
             if scope:
                 scope_name = ApiHelper.get_object_name(scope, **kwargs)
-                options['OverrideScope'] = self.get_item(ItemType.Scope, scope_name, **kwargs)
+                options['OverrideScope'] = self.get_item(ItemType.Scope.value, scope_name, **kwargs)
             if options:
                 pivot_table_data = self.get(f'{route}/{name}/Generated/Options', data=options, **kwargs)
             else:
@@ -95,14 +95,14 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         scope : str, dict, default None
             Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = self.get_item_route(ItemType.PivotTable.value)
         options = {}
         if entity_set:
             entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
-            options['OverrideEntitySet'] = self.get_item(ItemType.EntitySet, entity_set_name, **kwargs)
+            options['OverrideEntitySet'] = self.get_item(ItemType.EntitySet.value, entity_set_name, **kwargs)
         if scope:
             scope_name = ApiHelper.get_object_name(scope, **kwargs)
-            options['OverrideScope'] = self.get_item(ItemType.Scope, scope_name, **kwargs)
+            options['OverrideScope'] = self.get_item(ItemType.Scope.value, scope_name, **kwargs)
         if options:
             self.post(f'{route}/{name}/Save/Options', data=options, **kwargs)
         return self.get(f'{route}/{name}/Save', **kwargs)
@@ -117,5 +117,5 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         name : str
             Reference table name
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = self.get_item_route(ItemType.PivotTable.value)
         return self.get(f'{route}/{name}/Delete', **kwargs)
