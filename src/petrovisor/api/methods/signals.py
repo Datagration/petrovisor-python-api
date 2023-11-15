@@ -9,16 +9,18 @@ from typing import (
 from datetime import datetime
 
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.dtypes.signals import SignalType
 from petrovisor.api.dtypes.increments import (
     TimeIncrement,
     DepthIncrement,
 )
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
-from petrovisor.api.protocols.protocols import SupportsDataFrames
-from petrovisor.api.protocols.protocols import SupportsSignalsRequests
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+    SupportsDataFrames,
+    SupportsSignalsRequests,
+)
 
 
 # Signals API calls
@@ -37,7 +39,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal : str, dict
             Signal object or Signal name
         """
-        return self.get_item_field('Signal', signal, 'SignalType', **kwargs)
+        return self.get_item_field(ItemType.Signal, signal, 'SignalType', **kwargs)
 
     # get signal 'MeasurementName'
     def get_signal_measurement_name(self, signal: Union[str, Dict], **kwargs) -> Any:
@@ -52,7 +54,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         field_name = 'MeasurementName'
         if isinstance(signal, str):
             signal_name = ApiHelper.get_object_name(signal)
-            signal = self.get_item('Signal', signal_name, **kwargs)
+            signal = self.get_item(ItemType.Signal, signal_name, **kwargs)
         if not signal:
             raise ValueError(f"PetroVisor::get_signal_measurement_name(): "
                              f"signal '{signal}' cannot be found!")
@@ -71,7 +73,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal : str, dict
             Signal object or Signal name
         """
-        return self.get_item_field('Signal', signal, 'StorageUnitName', **kwargs)
+        return self.get_item_field(ItemType.Signal, signal, 'StorageUnitName', **kwargs)
 
     # get signal 'Units'
     def get_signal_units(self, signal: Union[str, Dict], **kwargs) -> Any:
@@ -109,7 +111,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         measurement : str
             Measurement name
         """
-        route = self.get_item_route('Unit')
+        route = self.get_item_route(ItemType.Unit)
         return self.get(f'{route}/{measurement}/Units', **kwargs)
 
     # get measurement 'Unit' names
@@ -137,7 +139,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         short_name : str
             Signal short name
         """
-        route = self.get_item_route('Signal')
+        route = self.get_item_route(ItemType.Signal)
         if short_name:
             signal = self.get(f'{route}/{short_name}/Signal', **kwargs)
         else:
@@ -161,7 +163,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         entity : str
             Entity object or Entity name
         """
-        route = self.get_item_route('Signal')
+        route = self.get_item_route(ItemType.Signal)
         # get signals by signal type
         if signal_type:
             signal_type = self.get_signal_type_enum(signal_type, **kwargs).name
@@ -191,10 +193,10 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         entity : str
             Entity object or Entity name
         """
-        route = self.get_item_route('Signal')
+        route = self.get_item_route(ItemType.Signal)
         # get signals by 'Entity' name
         if entity:
-            entities_route = self.get_item_route('Entity')
+            entities_route = self.get_item_route(ItemType.Entity)
             entity_name = ApiHelper.get_object_name(entity)
             signal_names = self.get(f'{entities_route}/{entity_name}/Signals', **kwargs)
             if signal_type and signal_names is not None:
@@ -220,7 +222,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signals : list
             List of entities
         """
-        route = self.get_item_route('Signal')
+        route = self.get_item_route(ItemType.Signal)
         return self.post(f'{route}/Add', data=signals, **kwargs)
 
     # delete 'Signals'

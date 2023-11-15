@@ -15,11 +15,12 @@ from datetime import datetime
 import pandas as pd
 
 from petrovisor.api.dtypes.signals import SignalType
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsSignalsRequests
-from petrovisor.api.protocols.protocols import SupportsEntitiesRequests
-from petrovisor.api.protocols.protocols import SupportsDataFrames
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsSignalsRequests,
+    SupportsEntitiesRequests,
+    SupportsDataFrames,
+)
 
 
 # DataFrames utilities

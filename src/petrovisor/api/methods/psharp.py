@@ -8,11 +8,12 @@ from typing import (
 import pandas as pd
 
 from petrovisor.api.utils.helper import ApiHelper
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsSignalsRequests
-from petrovisor.api.protocols.protocols import SupportsDataFrames
-from petrovisor.api.protocols.protocols import SupportsPsharpRequests
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsSignalsRequests,
+    SupportsDataFrames,
+    SupportsPsharpRequests,
+)
 
 
 # P# API class

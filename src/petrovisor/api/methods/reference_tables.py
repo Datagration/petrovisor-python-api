@@ -11,11 +11,12 @@ import numpy as np
 from datetime import datetime
 
 from petrovisor.api.utils.helper import ApiHelper
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
-from petrovisor.api.protocols.protocols import SupportsSignalsRequests
-from petrovisor.api.protocols.protocols import SupportsDataFrames
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+    SupportsSignalsRequests,
+    SupportsDataFrames,
+)
 
 
 # Reference Table API calls

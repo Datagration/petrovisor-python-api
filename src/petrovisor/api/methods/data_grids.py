@@ -4,8 +4,10 @@ from typing import (
     List,
 )
 
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+)
 
 
 # DataGrid API calls

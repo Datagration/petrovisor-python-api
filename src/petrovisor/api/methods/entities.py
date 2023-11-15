@@ -6,9 +6,11 @@ from typing import (
 )
 
 from petrovisor.api.utils.helper import ApiHelper
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
+from petrovisor.api.dtypes.items import ItemType
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+)
 
 
 # Entities API calls
@@ -29,7 +31,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         alias : str
             Entity alias
         """
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         if alias:
             return self.get(f'{route}/{alias}/Entity', **kwargs)
         return self.get(f'{route}/{name}', **kwargs)
@@ -46,7 +48,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         signal : str, default ''
             Signal object or Signal name
         """
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         # get entities by 'Entity' type
         if entity_type:
             entities = self.get(f'{route}/{entity_type}/Entities', **kwargs)
@@ -73,10 +75,10 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
             Signal object or Signal name
         """
 
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         # get entities by 'Signal' name
         if signal:
-            signals_route = self.get_item_route('Signal')
+            signals_route = self.get_item_route(ItemType.Signal)
             signal_name = ApiHelper.get_object_name(signal)
             entity_names = self.get(f'{signals_route}/{signal_name}/Entities', **kwargs)
             if entity_type and entity_names is not None:
@@ -102,7 +104,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entities : list
             List of entities
         """
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         return self.post(f'{route}/AddOrEdit', data=entities, **kwargs)
 
     # delete entities
@@ -115,7 +117,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entities : list
             List of entities
         """
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         return self.post(f'{route}/Delete', data=entities, **kwargs)
 
     # rename entity type
@@ -130,7 +132,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         new_name : str
             New name
         """
-        route = self.get_item_route('EntityType')
+        route = self.get_item_route(ItemType.EntityType)
         return self.post(f'{route}/Rename', query={'OldName': old_name, 'NewName': new_name}, **kwargs)
 
     # rename entity
@@ -145,5 +147,5 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         new_name : str
             New name
         """
-        route = self.get_item_route('Entity')
+        route = self.get_item_route(ItemType.Entity)
         return self.post(f'{route}/Rename', query={'OldName': old_name, 'NewName': new_name}, **kwargs)
