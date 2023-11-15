@@ -11,7 +11,6 @@ import json
 import pickle
 
 from petrovisor.api.utils.helper import ApiHelper
-
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 

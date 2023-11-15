@@ -8,16 +8,17 @@ from typing import (
 
 from uuid import UUID
 
+from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.dtypes.ml import (
     MLModelType,
     MLNormalizationType,
 )
-
 from petrovisor.api.utils.helper import ApiHelper
-
-from petrovisor.api.protocols.protocols import SupportsRequests
-from petrovisor.api.protocols.protocols import SupportsItemRequests
-from petrovisor.api.protocols.protocols import SupportsPsharpRequests
+from petrovisor.api.protocols.protocols import (
+    SupportsRequests,
+    SupportsItemRequests,
+    SupportsPsharpRequests,
+)
 
 
 # PetroVisor ML API calls
@@ -31,14 +32,14 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         Get ML Models
         """
-        return self.get_items('MLModel', **kwargs)
+        return self.get_items(ItemType.MLModel, **kwargs)
 
     # get ML models
     def ml_model_names(self, **kwargs) -> Any:
         """
         Get ML Model names
         """
-        return self.get_item_names('MLModel', **kwargs)
+        return self.get_item_names(ItemType.MLModel, **kwargs)
 
     # get ML model
     def ml_model(self, model_name: str, **kwargs) -> Any:
@@ -50,7 +51,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         model_name : str
             ML Model name
         """
-        return self.get_item('MLModel', model_name, **kwargs)
+        return self.get_item(ItemType.MLModel, model_name, **kwargs)
 
     # get ML model attribute
     def ml_model_attribute(self, model_name: str, attribute: str, **kwargs) -> Any:
@@ -364,12 +365,12 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         # define training 'EntitySet'
         if entity_set:
             if isinstance(entity_set, str):
-                entity_set = self.get_item('EntitySet', entity_set, **kwargs)
+                entity_set = self.get_item(ItemType.EntitySet, entity_set, **kwargs)
             request['EntitySet'] = entity_set
         # define training 'Scope'
         if scope:
             if isinstance(scope, str):
-                scope = self.get_item('Scope', scope, **kwargs)
+                scope = self.get_item(ItemType.Scope, scope, **kwargs)
             request['Scope'] = scope
         # update options
         request['Options'] = ApiHelper.update_dict(request['Options'], **kwargs)

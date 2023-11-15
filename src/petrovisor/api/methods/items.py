@@ -6,8 +6,8 @@ from typing import (
     Dict,
 )
 
+from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.utils.helper import ApiHelper
-
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
@@ -24,7 +24,7 @@ class ItemsMixin(SupportsRequests):
 
         Returns
         -------
-        All know item types
+        All known item types
         """
         return ItemsMixinHelper.get_item_types()
 
@@ -336,22 +336,39 @@ class ItemsMixinHelper:
         Get routes of NamedItems
         """
         return {
-            'Unit': 'Units',
-            'UnitMeasurement': 'UnitMeasurements',
-            'Entity': 'Entities',
-            'EntityType': 'EntityTypes',
-            'Signal': 'Signals',
-            'ConfigurationSettingValue': 'ConfigurationSettings',
-            'ConfigurationSettings': 'ConfigurationSettings',
-            'Tag': 'Tags',
-            'ProcessTemplate': 'ProcessTemplates',
-            'MessageEntry': 'MessageEntries',
-            'Ticket': 'Tickets',
-            'UserSetting': 'UserSettings',
-            'CustomWorkflowActivity': 'CustomWorkflowActivities',
-            'WebWorkflowActivity': 'WebWorkflowActivities',
-            'EventSubscription': 'EventSubscriptions',
-            'WorkspacePackage': 'WorkspacePackages',
+            ItemType.Unit: 'Units',
+            ItemType.UnitMeasurement: 'UnitMeasurements',
+            ItemType.Entity: 'Entities',
+            ItemType.EntityType: 'EntityTypes',
+            ItemType.Signal: 'Signals',
+            ItemType.ConfigurationSettingValue: 'ConfigurationSettings',
+            ItemType.ConfigurationSettings: 'ConfigurationSettings',
+            ItemType.Tag: 'Tags',
+            ItemType.ProcessTemplate: 'ProcessTemplates',
+            ItemType.MessageEntry: 'MessageEntries',
+            ItemType.Ticket: 'Tickets',
+            ItemType.UserSetting: 'UserSettings',
+            ItemType.CustomWorkflowActivity: 'CustomWorkflowActivities',
+            ItemType.WebWorkflowActivity: 'WebWorkflowActivities',
+            ItemType.EventSubscription: 'EventSubscriptions',
+            ItemType.WorkspacePackage: 'WorkspacePackages',
+        }
+
+    # get 'PetroVisorItem' routes
+    @staticmethod
+    def get_info_item_routes() -> Dict:
+        """
+        Get routes of InfoItems
+        """
+        return {
+            ItemType.MachineLearningModel: 'MLModels',
+            ItemType.MLModel: 'MLModels',
+            ItemType.DataGrid: 'DataGrids',
+            ItemType.DataGridSet: 'DataGridSets',
+            ItemType.DataConnection: 'DataConnections',
+            ItemType.DataSource: 'DataSources',
+            ItemType.Scenario: 'Scenarios',
+            ItemType.DataIntegrationSession: 'DataIntegrationSessions',
         }
 
     # get 'PetroVisorItem' routes
@@ -361,48 +378,31 @@ class ItemsMixinHelper:
         Get routes of PetroVisorItems
         """
         return dict(**{
-            'Hierarchy': 'Hierarchies',
-            'Scope': 'Scopes',
-            'EntitySet': 'EntitySets',
-            'Context': 'Contexts',
-            'TableCalculation': 'TableCalculations',
-            'EventCalculation': 'EventCalculations',
-            'CleansingCalculation': 'CleansingCalculations',
-            'Plot': 'Plots',
-            'PSharpScript': 'PSharpScripts',
-            'CleansingScript': 'CleansingScripts',
-            'WorkflowSchedule': 'WorkflowSchedules',
-            'RWorkflowActivity': 'RWorkflowActivities',
-            'Workflow': 'Workflows',
-            'FilterDefinition': 'Filters',
-            'Filter': 'Filters',
-            'DCA': 'DCA',
-            'ChartDefinition': 'Charts',
-            'Chart': 'Charts',
-            'VoronoiGrid': 'VoronoiGrids',
-            'GeoDataGrid': 'GeoDataGrids',
-            'Polygon': 'Polygons',
-            'PivotTableDefinition': 'PivotTables',
-            'PivotTable': 'PivotTables',
-            'DataIntegrationSet': 'DataIntegrationSets',
-            'ReferenceTableDefinition': 'ReferenceTables',
-            'ReferenceTable': 'ReferenceTables',
-            'PowerBIItem': 'PowerBIItems',
+            ItemType.Hierarchy: 'Hierarchies',
+            ItemType.Scope: 'Scopes',
+            ItemType.EntitySet: 'EntitySets',
+            ItemType.Context: 'Contexts',
+            ItemType.TableCalculation: 'TableCalculations',
+            ItemType.EventCalculation: 'EventCalculations',
+            ItemType.CleansingCalculation: 'CleansingCalculations',
+            ItemType.Plot: 'Plots',
+            ItemType.PSharpScript: 'PSharpScripts',
+            ItemType.CleansingScript: 'CleansingScripts',
+            ItemType.WorkflowSchedule: 'WorkflowSchedules',
+            ItemType.RWorkflowActivity: 'RWorkflowActivities',
+            ItemType.Workflow: 'Workflows',
+            ItemType.FilterDefinition: 'Filters',
+            ItemType.Filter: 'Filters',
+            ItemType.DCA: 'DCA',
+            ItemType.ChartDefinition: 'Charts',
+            ItemType.Chart: 'Charts',
+            ItemType.VoronoiGrid: 'VoronoiGrids',
+            ItemType.GeoDataGrid: 'GeoDataGrids',
+            ItemType.Polygon: 'Polygons',
+            ItemType.PivotTableDefinition: 'PivotTables',
+            ItemType.PivotTable: 'PivotTables',
+            ItemType.DataIntegrationSet: 'DataIntegrationSets',
+            ItemType.ReferenceTableDefinition: 'ReferenceTables',
+            ItemType.ReferenceTable: 'ReferenceTables',
+            ItemType.PowerBIItem: 'PowerBIItems',
         }, **ItemsMixinHelper.get_info_item_routes())
-
-    # get 'PetroVisorItem' routes
-    @staticmethod
-    def get_info_item_routes() -> Dict:
-        """
-        Get routes of InfoItems
-        """
-        return {
-            'MachineLearningModel': 'MLModels',
-            'MLModel': 'MLModels',
-            'DataGrid': 'DataGrids',
-            'DataGridSet': 'DataGridSets',
-            'DataConnection': 'DataConnections',
-            'DataSource': 'DataSources',
-            'Scenario': 'Scenarios',
-            'DataIntegrationSession': 'DataIntegrationSessions',
-        }
