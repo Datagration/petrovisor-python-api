@@ -111,7 +111,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         measurement : str
             Measurement name
         """
-        route = self.get_item_route(ItemType.Unit)
+        route = 'Units'
         return self.get(f'{route}/{measurement}/Units', **kwargs)
 
     # get measurement 'Unit' names
@@ -139,7 +139,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         short_name : str
             Signal short name
         """
-        route = self.get_item_route(ItemType.Signal)
+        route = 'Signals'
         if short_name:
             signal = self.get(f'{route}/{short_name}/Signal', **kwargs)
         else:
@@ -163,7 +163,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         entity : str
             Entity object or Entity name
         """
-        route = self.get_item_route(ItemType.Signal)
+        route = 'Signals'
         # get signals by signal type
         if signal_type:
             signal_type = self.get_signal_type_enum(signal_type, **kwargs).name
@@ -193,10 +193,10 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         entity : str
             Entity object or Entity name
         """
-        route = self.get_item_route(ItemType.Signal)
+        route = 'Signals'
         # get signals by 'Entity' name
         if entity:
-            entities_route = self.get_item_route(ItemType.Entity)
+            entities_route = 'Entities'
             entity_name = ApiHelper.get_object_name(entity)
             signal_names = self.get(f'{entities_route}/{entity_name}/Signals', **kwargs)
             if signal_type and signal_names is not None:
@@ -222,7 +222,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signals : list
             List of entities
         """
-        route = self.get_item_route(ItemType.Signal)
+        route = 'Signals'
         return self.post(f'{route}/Add', data=signals, **kwargs)
 
     # delete 'Signals'
@@ -235,7 +235,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signals : list
             List of entities
         """
-        route = self.get_item_route('Signal')
+        route = 'Signals'
         for signal_name in signals:
             self.delete(f'{route}/{signal_name}', **kwargs)
 
