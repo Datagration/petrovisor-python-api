@@ -1,11 +1,9 @@
-from enum import (
-    Enum,
-    auto,
-)
+from enum import Enum
 
 
-# PetroVisor named item types
-class NamedItemType(str, Enum):
+# Item types
+class ItemType(str, Enum):
+    # named item types
     Unit = 'Unit'
     UnitMeasurement = 'UnitMeasurement'
     Entity = 'Entity'
@@ -22,10 +20,7 @@ class NamedItemType(str, Enum):
     WebWorkflowActivity = 'WebWorkflowActivity'
     EventSubscription = 'EventSubscription'
     WorkspacePackage = 'WorkspacePackage'
-
-
-# PetroVisor item types
-class PetroVisorItemType(str, Enum):
+    # PetroVisor item types
     Hierarchy = 'Hierarchy'
     Scope = 'Scope'
     EntitySet = 'EntitySet'
@@ -53,10 +48,7 @@ class PetroVisorItemType(str, Enum):
     ReferenceTableDefinition = 'ReferenceTableDefinition'
     ReferenceTable = 'ReferenceTable'
     PowerBIItem = 'PowerBIItem'
-
-
-# PetroVisor info types
-class PetroVisorInfoItemType(str, Enum):
+    # PetroVisor info types
     MachineLearningModel = 'MachineLearningModel'
     MLModel = 'MLModel'
     DataGrid = 'DataGrid'
@@ -65,8 +57,3 @@ class PetroVisorInfoItemType(str, Enum):
     DataSource = 'DataSource'
     Scenario = 'Scenario'
     DataIntegrationSession = 'DataIntegrationSession'
-
-
-# Item types
-class ItemType(NamedItemType, PetroVisorItemType, PetroVisorInfoItemType):
-    pass
