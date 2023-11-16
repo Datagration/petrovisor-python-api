@@ -1,26 +1,28 @@
-from enum import Enum
+from petrovisor.api.utils.datastructs import strconstants
 
 
 # Item types
-class ItemType(str, Enum):
+@strconstants(supress_warnings=True)
+class ItemType:
     # named item types
     Unit = 'Unit'
     UnitMeasurement = 'UnitMeasurement'
     Entity = 'Entity'
     EntityType = 'EntityType'
     Signal = 'Signal'
-    ConfigurationSettingValue = 'ConfigurationSettingValue'
-    ConfigurationSettings = 'ConfigurationSettings'
     Tag = 'Tag'
-    ProcessTemplate = 'ProcessTemplate'
+    Label = 'Label'
     MessageEntry = 'MessageEntry'
     Ticket = 'Ticket'
+    ProcessTemplate = 'ProcessTemplate'
     UserSetting = 'UserSetting'
-    CustomWorkflowActivity = 'CustomWorkflowActivity'
-    WebWorkflowActivity = 'WebWorkflowActivity'
     EventSubscription = 'EventSubscription'
-    WorkspacePackage = 'WorkspacePackage'
     # PetroVisor item types
+    ConfigurationSettings = 'ConfigurationSettings'
+    ConfigurationSettingValue = 'ConfigurationSettingValue'  # alias ConfigurationSettings
+    RefTable = 'RefTable'
+    PivotTable = 'PivotTable'
+    PivotTableDefinition = 'PivotTableDefinition'  # alias PivotTable
     Hierarchy = 'Hierarchy'
     Scope = 'Scope'
     EntitySet = 'EntitySet'
@@ -28,32 +30,37 @@ class ItemType(str, Enum):
     TableCalculation = 'TableCalculation'
     EventCalculation = 'EventCalculation'
     CleansingCalculation = 'CleansingCalculation'
-    Plot = 'Plot'
     PSharpScript = 'PSharpScript'
     CleansingScript = 'CleansingScript'
-    WorkflowSchedule = 'WorkflowSchedule'
-    RWorkflowActivity = 'RWorkflowActivity'
-    Workflow = 'Workflow'
-    FilterDefinition = 'FilterDefinition'
-    Filter = 'Filter'
-    DCA = 'DCA'
-    ChartDefinition = 'ChartDefinition'
+    Plot = 'Plot'
     Chart = 'Chart'
+    ChartDefinition = 'ChartDefinition'  # alias Chart
+    Filter = 'Filter'
+    FilterDefinition = 'FilterDefinition'  # alias Filter
+    Workflow = 'Workflow'
+    WorkflowSchedule = 'WorkflowSchedule'
+    CustomWorkflowActivity = 'CustomWorkflowActivity'
+    RWorkflowActivity = 'RWorkflowActivity'
+    WebWorkflowActivity = 'WebWorkflowActivity'
+    DataIntegrationSet = 'DataIntegrationSet'
+    WorkspacePackage = 'WorkspacePackage'
+    DCA = 'DCA'
+    PowerBIItem = 'PowerBIItem'
+    Dashboard = 'Dashboard'
+    # PetroVisor info types
+    MLModel = 'MLModel'
+    MachineLearningModel = 'MachineLearningModel'  # alias MLModel
+    DataGrid = 'DataGrid'
+    DataConnection = 'DataConnection'
+    DataSourceMapping = 'DataSourceMapping'
+    DataIntegrationSession = 'DataIntegrationSession'
+    Scenario = 'Scenario'
+    # will be deprecated
+    ReferenceTable = 'ReferenceTable'
+    ReferenceTableDefinition = 'ReferenceTableDefinition'  # alias ReferenceTable
+    # deprecated
+    DataGridSet = 'DataGridSet'
+    DataSource = 'DataSource'
     VoronoiGrid = 'VoronoiGrid'
     GeoDataGrid = 'GeoDataGrid'
     Polygon = 'Polygon'
-    PivotTableDefinition = 'PivotTableDefinition'
-    PivotTable = 'PivotTable'
-    DataIntegrationSet = 'DataIntegrationSet'
-    ReferenceTableDefinition = 'ReferenceTableDefinition'
-    ReferenceTable = 'ReferenceTable'
-    PowerBIItem = 'PowerBIItem'
-    # PetroVisor info types
-    MachineLearningModel = 'MachineLearningModel'
-    MLModel = 'MLModel'
-    DataGrid = 'DataGrid'
-    DataGridSet = 'DataGridSet'
-    DataConnection = 'DataConnection'
-    DataSource = 'DataSource'
-    Scenario = 'Scenario'
-    DataIntegrationSession = 'DataIntegrationSession'

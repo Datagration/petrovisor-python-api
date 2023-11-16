@@ -336,22 +336,18 @@ class ItemsMixinHelper:
         Get routes of NamedItems
         """
         return {
-            ItemType.Unit.value: 'Units',
-            ItemType.UnitMeasurement.value: 'UnitMeasurements',
-            ItemType.Entity.value: 'Entities',
-            ItemType.EntityType.value: 'EntityTypes',
-            ItemType.Signal.value: 'Signals',
-            ItemType.ConfigurationSettingValue.value: 'ConfigurationSettings',
-            ItemType.ConfigurationSettings.value: 'ConfigurationSettings',
-            ItemType.Tag.value: 'Tags',
-            ItemType.ProcessTemplate.value: 'ProcessTemplates',
-            ItemType.MessageEntry.value: 'MessageEntries',
-            ItemType.Ticket.value: 'Tickets',
-            ItemType.UserSetting.value: 'UserSettings',
-            ItemType.CustomWorkflowActivity.value: 'CustomWorkflowActivities',
-            ItemType.WebWorkflowActivity.value: 'WebWorkflowActivities',
-            ItemType.EventSubscription.value: 'EventSubscriptions',
-            ItemType.WorkspacePackage.value: 'WorkspacePackages',
+            ItemType.Unit: 'Units',
+            ItemType.UnitMeasurement: 'UnitMeasurements',
+            ItemType.Entity: 'Entities',
+            ItemType.EntityType: 'EntityTypes',
+            ItemType.Signal: 'Signals',
+            ItemType.Tag: 'Tags',
+            ItemType.Label: 'Labels',
+            ItemType.MessageEntry: 'MessageEntries',
+            ItemType.Ticket: 'Tickets',
+            ItemType.ProcessTemplate: 'ProcessTemplates',
+            ItemType.UserSetting: 'UserSettings',
+            ItemType.EventSubscription: 'EventSubscriptions',
         }
 
     # get 'PetroVisorItem' routes
@@ -360,16 +356,19 @@ class ItemsMixinHelper:
         """
         Get routes of InfoItems
         """
-        return {
-            ItemType.MachineLearningModel.value: 'MLModels',
-            ItemType.MLModel.value: 'MLModels',
-            ItemType.DataGrid.value: 'DataGrids',
-            ItemType.DataGridSet.value: 'DataGridSets',
-            ItemType.DataConnection.value: 'DataConnections',
-            ItemType.DataSource.value: 'DataSources',
-            ItemType.Scenario.value: 'Scenarios',
-            ItemType.DataIntegrationSession.value: 'DataIntegrationSessions',
-        }
+        return dict(**{
+            ItemType.MLModel: 'MLModels',
+            ItemType.DataGrid: 'DataGrids',
+            ItemType.DataConnection: 'DataConnections',
+            ItemType.DataSourceMapping: 'DataSourceMappings',
+            ItemType.DataIntegrationSession: 'DataIntegrationSessions',
+            ItemType.Scenario: 'Scenarios',
+        }, **{  # alias
+            ItemType.MachineLearningModel: 'MLModels',  # alias MLModel
+        }, **{  # deprecated
+            ItemType.DataGridSet: 'DataGridSets',
+            ItemType.DataSource: 'DataSources',
+        })
 
     # get 'PetroVisorItem' routes
     @staticmethod
@@ -378,31 +377,41 @@ class ItemsMixinHelper:
         Get routes of PetroVisorItems
         """
         return dict(**{
-            ItemType.Hierarchy.value: 'Hierarchies',
-            ItemType.Scope.value: 'Scopes',
-            ItemType.EntitySet.value: 'EntitySets',
-            ItemType.Context.value: 'Contexts',
-            ItemType.TableCalculation.value: 'TableCalculations',
-            ItemType.EventCalculation.value: 'EventCalculations',
-            ItemType.CleansingCalculation.value: 'CleansingCalculations',
-            ItemType.Plot.value: 'Plots',
-            ItemType.PSharpScript.value: 'PSharpScripts',
-            ItemType.CleansingScript.value: 'CleansingScripts',
-            ItemType.WorkflowSchedule.value: 'WorkflowSchedules',
-            ItemType.RWorkflowActivity.value: 'RWorkflowActivities',
-            ItemType.Workflow.value: 'Workflows',
-            ItemType.FilterDefinition.value: 'Filters',
-            ItemType.Filter.value: 'Filters',
-            ItemType.DCA.value: 'DCA',
-            ItemType.ChartDefinition.value: 'Charts',
-            ItemType.Chart.value: 'Charts',
-            ItemType.VoronoiGrid.value: 'VoronoiGrids',
-            ItemType.GeoDataGrid.value: 'GeoDataGrids',
-            ItemType.Polygon.value: 'Polygons',
-            ItemType.PivotTableDefinition.value: 'PivotTables',
-            ItemType.PivotTable.value: 'PivotTables',
-            ItemType.DataIntegrationSet.value: 'DataIntegrationSets',
-            ItemType.ReferenceTableDefinition.value: 'ReferenceTables',
-            ItemType.ReferenceTable.value: 'ReferenceTables',
-            ItemType.PowerBIItem.value: 'PowerBIItems',
+            ItemType.ConfigurationSettings: 'ConfigurationSettings',
+            ItemType.RefTable: 'RefTables',
+            ItemType.PivotTable: 'PivotTables',
+            ItemType.Hierarchy: 'Hierarchies',
+            ItemType.Scope: 'Scopes',
+            ItemType.EntitySet: 'EntitySets',
+            ItemType.Context: 'Contexts',
+            ItemType.TableCalculation: 'TableCalculations',
+            ItemType.EventCalculation: 'EventCalculations',
+            ItemType.CleansingCalculation: 'CleansingCalculations',
+            ItemType.PSharpScript: 'PSharpScripts',
+            ItemType.CleansingScript: 'CleansingScripts',
+            ItemType.Plot: 'Plots',
+            ItemType.Chart: 'Charts',
+            ItemType.Filter: 'Filters',
+            ItemType.Workflow: 'Workflows',
+            ItemType.WorkflowSchedule: 'WorkflowSchedules',
+            ItemType.CustomWorkflowActivity: 'CustomWorkflowActivities',
+            ItemType.RWorkflowActivity: 'RWorkflowActivities',
+            ItemType.WebWorkflowActivity: 'WebWorkflowActivities',
+            ItemType.DataIntegrationSet: 'DataIntegrationSets',
+            ItemType.WorkspacePackage: 'WorkspacePackages',
+            ItemType.DCA: 'DCA',
+            ItemType.PowerBIItem: 'PowerBIItems',
+            ItemType.Dashboard: 'Dashboards',
+        }, **{  # alias
+            ItemType.ConfigurationSettingValue: 'ConfigurationSettings',  # alias ConfigurationSettings
+            ItemType.PivotTableDefinition: 'PivotTables',  # alias PivotTable
+            ItemType.ChartDefinition: 'Charts',  # alias Chart
+            ItemType.FilterDefinition: 'Filters',  # alias Filter
+        }, **{  # will be deprecated
+            ItemType.ReferenceTable: 'ReferenceTables',
+            ItemType.ReferenceTableDefinition: 'ReferenceTables',  # alias ReferenceTable
+        }, **{  # deprecated
+            ItemType.VoronoiGrid: 'VoronoiGrids',  # deprecated
+            ItemType.GeoDataGrid: 'GeoDataGrids',  # deprecated
+            ItemType.Polygon: 'Polygons',  # deprecated
         }, **ItemsMixinHelper.get_info_item_routes())

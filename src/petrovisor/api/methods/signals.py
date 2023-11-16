@@ -39,7 +39,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal : str, dict
             Signal object or Signal name
         """
-        return self.get_item_field(ItemType.Signal.value, signal, 'SignalType', **kwargs)
+        return self.get_item_field(ItemType.Signal, signal, 'SignalType', **kwargs)
 
     # get signal 'MeasurementName'
     def get_signal_measurement_name(self, signal: Union[str, Dict], **kwargs) -> Any:
@@ -54,7 +54,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         field_name = 'MeasurementName'
         if isinstance(signal, str):
             signal_name = ApiHelper.get_object_name(signal)
-            signal = self.get_item(ItemType.Signal.value, signal_name, **kwargs)
+            signal = self.get_item(ItemType.Signal, signal_name, **kwargs)
         if not signal:
             raise ValueError(f"PetroVisor::get_signal_measurement_name(): "
                              f"signal '{signal}' cannot be found!")
@@ -73,7 +73,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal : str, dict
             Signal object or Signal name
         """
-        return self.get_item_field(ItemType.Signal.value, signal, 'StorageUnitName', **kwargs)
+        return self.get_item_field(ItemType.Signal, signal, 'StorageUnitName', **kwargs)
 
     # get signal 'Units'
     def get_signal_units(self, signal: Union[str, Dict], **kwargs) -> Any:
