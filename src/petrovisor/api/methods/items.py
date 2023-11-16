@@ -365,9 +365,6 @@ class ItemsMixinHelper:
             ItemType.Scenario: 'Scenarios',
         }, **{  # alias
             ItemType.MachineLearningModel: 'MLModels',  # alias MLModel
-        }, **{  # deprecated
-            ItemType.DataGridSet: 'DataGridSets',
-            ItemType.DataSource: 'DataSources',
         })
 
     # get 'PetroVisorItem' routes
@@ -410,8 +407,4 @@ class ItemsMixinHelper:
         }, **{  # will be deprecated
             ItemType.ReferenceTable: 'ReferenceTables',
             ItemType.ReferenceTableDefinition: 'ReferenceTables',  # alias ReferenceTable
-        }, **{  # deprecated
-            ItemType.VoronoiGrid: 'VoronoiGrids',  # deprecated
-            ItemType.GeoDataGrid: 'GeoDataGrids',  # deprecated
-            ItemType.Polygon: 'Polygons',  # deprecated
         }, **ItemsMixinHelper.get_info_item_routes())

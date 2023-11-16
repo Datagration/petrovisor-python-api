@@ -58,9 +58,3 @@ class ItemType:
     # will be deprecated
     ReferenceTable = 'ReferenceTable'
     ReferenceTableDefinition = 'ReferenceTableDefinition'  # alias ReferenceTable
-    # deprecated
-    DataGridSet = 'DataGridSet'
-    DataSource = 'DataSource'
-    VoronoiGrid = 'VoronoiGrid'
-    GeoDataGrid = 'GeoDataGrid'
-    Polygon = 'Polygon'
