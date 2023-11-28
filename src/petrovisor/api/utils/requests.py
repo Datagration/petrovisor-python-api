@@ -304,8 +304,8 @@ class ApiRequests:
             # check if unauthorized request (401)
             if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                 return response
-            raise requests.exceptions.HTTPError(err)
-            # response = None
+            # raise requests.exceptions.HTTPError(err)
+            response = None
         if response is not None:
             try:
                 if format in ('json',):
