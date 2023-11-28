@@ -225,8 +225,10 @@ class ApiRequests:
         if token:
             request_headers['authorization'] = f'Bearer {token}'
         # content type to headers
-        if data:
+        if data or isinstance(data, dict):
             request_headers['content-type'] = 'application/json'
+            if not data:
+                data = json.dumps(data)
         # elif(files):
         #     request_headers['content-type'] = 'multipart/form-data'
         # add workspace
@@ -298,12 +300,12 @@ class ApiRequests:
                 pass
             # raise exception if error occurred
             response.raise_for_status()
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as err:
             # check if unauthorized request (401)
             if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                 return response
-            # raise requests.exceptions.HTTPError(err)
-            response = None
+            raise requests.exceptions.HTTPError(err)
+            # response = None
         if response is not None:
             try:
                 if format in ('json',):
