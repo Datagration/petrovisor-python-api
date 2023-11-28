@@ -301,6 +301,7 @@ class ApiRequests:
             # The TRACE method performs a message loop-back test along the path to the target resource.
             elif method_name == 'TRACE':
                 pass
+            # raise exception if error occurred
             response.raise_for_status()
         except requests.exceptions.HTTPError as err:
             # check if unauthorized request (401)
