@@ -5,7 +5,7 @@ from typing import (
 import json
 
 import requests
-from requests.utils import requote_uri
+from urllib.parse import quote
 
 
 # requests functionality
@@ -304,8 +304,8 @@ class ApiRequests:
             # check if unauthorized request (401)
             if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                 return response
-            # raise requests.exceptions.HTTPError(err)
-            response = None
+            raise requests.exceptions.HTTPError(err)
+            # response = None
         if response is not None:
             try:
                 if format in ('json',):
@@ -368,10 +368,6 @@ class ApiRequests:
         request : str
             Request
         """
-        # import urllib
-        # return urllib.parse.urlencode(request)
-        # from requests.utils import quote
-        # return requests.utils.quote(request)
-        encoded_req = requote_uri(request)
+        encoded_req = quote(request)
         encoded_req = encoded_req.replace('#', '%23').replace('$', '%24').replace('^', '%5E')
         return encoded_req
