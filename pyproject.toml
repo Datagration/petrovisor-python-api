@@ -1,7 +1,7 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel"
+    "setuptools>=48",
+    "wheel >= 0.29.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -12,6 +12,9 @@ dynamic = [
 ]
 description = 'Python API for PetroVisor platform.'
 readme = 'README.md'
+authors = [
+    { name = 'Datagration Solutions Inc.', email = 'developers@datagration.com' }
+]
 license = {file = 'LICENSE'}
 requires-python = '>=3.7'
 dependencies = [
@@ -29,3 +32,6 @@ classifiers = [
 
 [project.urls]
 "repository" = "https://github.com/Datagration/petrovisor-python-api"
+
+[tool.setuptools.dynamic]
+version = {attr = "petrovisor.__version__"}
