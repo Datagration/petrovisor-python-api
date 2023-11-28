@@ -368,6 +368,4 @@ class ApiRequests:
         request : str
             Request
         """
-        encoded_req = quote(request)
-        encoded_req = encoded_req.replace('#', '%23').replace('$', '%24').replace('^', '%5E')
-        return encoded_req
+        return quote(request)
