@@ -148,14 +148,15 @@ class RequestsMixin(SupportsRequests):
             self.__discovery_url = ''
             self.__token_endpoint = ''
         else:
+            # discovery url (identity service)
             if not discovery_url:
                 default_discovery_url = ApiHelper.get_discovery_urls()
                 urls = [f"'{url}'" for url in default_discovery_url]
                 msg = f"Use one of the discovery urls: {urls}"
                 raise ValueError(f"PetroVisor::__init__(): "
                                  f"'discovery_url' is undefined! {msg}")
-            
             self.__discovery_url = discovery_url
+
             # api endpoint
             self.__api = api if api else RequestsMixin.get_web_api_endpoint(discovery_url)
 
