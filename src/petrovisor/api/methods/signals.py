@@ -218,7 +218,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         Parameters
         ----------
         signals : list
-            List of entities
+            List of signals
         """
         route = self.get_item_route('Signal')
         return self.post(f'{route}/Add', data=signals, **kwargs)
@@ -231,7 +231,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         Parameters
         ----------
         signals : list
-            List of entities
+            List of signals
         """
         route = self.get_item_route('Signal')
         for signal_name in signals:
