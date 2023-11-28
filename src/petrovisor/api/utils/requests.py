@@ -3,9 +3,7 @@ from typing import (
     Optional,
 )
 import json
-
 import requests
-from urllib.parse import quote
 
 
 # requests functionality
@@ -368,4 +366,4 @@ class ApiRequests:
         request : str
             Request
         """
-        return quote(request)
+        return request
