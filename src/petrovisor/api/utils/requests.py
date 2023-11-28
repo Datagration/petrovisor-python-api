@@ -184,6 +184,7 @@ class ApiRequests:
                      route: str = 'PetroVisor/API/',
                      format: str = 'json',
                      retry_on_unauthorized: bool = True,
+                     errors: str = 'coerce',
                      verbose: bool = False,
                      **kwargs) -> Any:
         """
@@ -213,6 +214,10 @@ class ApiRequests:
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
         retry_on_unauthorized : bool, default True
             Retry if request was unauthorized(401)
+        errors : str, default 'coerce'
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will be return None.
+            If ‘ignore’, then invalid request will return the response.
         verbose : bool, default False
             Print mode
         """
@@ -296,14 +301,18 @@ class ApiRequests:
             # The TRACE method performs a message loop-back test along the path to the target resource.
             elif method_name == 'TRACE':
                 pass
-            # raise exception if error occurred
             response.raise_for_status()
         except requests.exceptions.HTTPError as err:
             # check if unauthorized request (401)
             if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                 return response
-            # raise requests.exceptions.HTTPError(err)
-            response = None
+            if isinstance(errors, str):
+                error_type = errors.lower()
+                if error_type == 'coerce':
+                    return None
+                elif error_type == 'ignore':
+                    return response
+            raise requests.exceptions.HTTPError(err)
         if response is not None:
             try:
                 if format in ('json',):
