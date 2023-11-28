@@ -1,3 +1,5 @@
+__version__ = "0.1.2"
+
 # api
 from petrovisor.petrovisor import PetroVisor
 
