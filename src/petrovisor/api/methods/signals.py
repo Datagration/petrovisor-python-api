@@ -470,7 +470,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
                                      'PressureUnit': pressure_unit,
                                      'TemperatureUnit': temperature_unit
                                  }, **kwargs)
-            return self.post(f'{route}/Load',
+            return self.post(f'{route}/Save',
                              data=data,
                              query={
                                  'PressureUnit': pressure_unit,
