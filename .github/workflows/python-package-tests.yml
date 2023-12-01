@@ -37,4 +37,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        TEST_WORKSPACE="${{ secrets.TEST_WORKSPACE }}" TEST_URL="${{ secrets.TEST_URL }}" TEST_KEY="${{ secrets.TEST_KEY }}" pytest
+        TEST_WORKSPACE="${{ secrets.TEST_WORKSPACE }}" TEST_URL="${{ secrets.TEST_URL }}" TEST_KEY="${{ secrets.TEST_KEY }}" PYTHONPATH='src' pytest
