@@ -38,17 +38,17 @@ class WorkspaceValuesMixin(SupportsRequests):
         route = 'ConfigurationSettings'
         if value_type:
             t = ApiHelper.get_comparison_string(value_type)
-            if t in ('numeric',):
+            if t in {'numeric',}:
                 value_type = 'Numeric'
-            elif t in ('numericwithunit',):
+            elif t in {'numericwithunit'}:
                 value_type = 'NumericWithUnit'
-            elif t in ('string', 'str',):
+            elif t in {'string', 'str'}:
                 value_type = 'String'
-            elif t in ('list',):
+            elif t in {'list'}:
                 value_type = 'List'
-            elif t in ('dictionary', 'dict',):
+            elif t in {'dictionary', 'dict'}:
                 value_type = 'Dictionary'
-            elif t in ('enumeration', 'enum',):
+            elif t in {'enumeration', 'enum'}:
                 value_type = 'Enumeration'
             else:
                 raise ValueError(f"PetroVisor::get_workspace_values(): "
@@ -72,7 +72,7 @@ class WorkspaceValuesMixin(SupportsRequests):
         """
         route = 'ConfigurationSettings'
         # get workspace value
-        value = self.get(f'{route}/{name}', **kwargs)
+        value = self.get(f'{route}/{self.encode(name)}', **kwargs)
         return WorkspaceValueMixinHelper.get_workspace_value(value, **kwargs)
 
     # add workspace value
@@ -106,7 +106,7 @@ class WorkspaceValuesMixin(SupportsRequests):
         # get existing workspace values names
         workspace_value_names = self.get_workspace_value_names(**kwargs)
         if name in workspace_value_names:
-            return self.put(f'{route}/{name}', data=value_specs, **kwargs)
+            return self.put(f'{route}/{self.encode(name)}', data=value_specs, **kwargs)
         return self.post(f'{route}', data=value_specs, **kwargs)
 
     # rename workspace value
@@ -138,7 +138,7 @@ class WorkspaceValuesMixin(SupportsRequests):
             Variable name
         """
         route = 'ConfigurationSettings'
-        return self.delete(f'{route}/{name}', **kwargs)
+        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
 
 
 # Workspace value mixin Helper

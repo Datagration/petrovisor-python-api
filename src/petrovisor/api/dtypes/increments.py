@@ -1,11 +1,11 @@
 from enum import (
-    Enum,
+    IntEnum,
     auto,
 )
 
 
 # Time increment for aggregation
-class TimeIncrement(Enum):
+class TimeIncrement(IntEnum):
     """
     PetroVisor time increments
     """
@@ -30,7 +30,7 @@ class TimeIncrement(Enum):
 
 
 # Depth increment for aggregation
-class DepthIncrement(Enum):
+class DepthIncrement(IntEnum):
     """
     PetroVisor depth increments
     """

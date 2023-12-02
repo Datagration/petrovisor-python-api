@@ -35,7 +35,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             Reference table name
         """
         route = 'ReferenceTables'
-        return self.get(f'{route}/{name}/ExistingData', **kwargs)
+        return self.get(f'{route}/{self.encode(name)}/ExistingData', **kwargs)
 
     # load reference table data
     def load_ref_table_data(self,
@@ -60,7 +60,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         date_str = self.get_json_valid_value(date, 'time', **kwargs)
         if date_str is None:
             date_str = ''
-        return self.get(f'{route}/{name}/Data/{entity_name}/{date_str}', **kwargs)
+        return self.get(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', **kwargs)
 
     # save reference table data
     def save_ref_table_data(self,
@@ -90,7 +90,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             date_str = ''
         # prepare data
         if isinstance(data, dict):
-            return self.put(f'{route}/{name}/Data/{entity_name}/{date_str}', data=data, **kwargs)
+            return self.put(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', data=data, **kwargs)
         else:
             # convert list to dictionary
             def __list_to_dict(x, num_cols, **kwargs):
@@ -110,14 +110,15 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             if isinstance(data, (list, np.ndarray, pd.DataFrame, pd.Series)):
                 num_cols = ApiHelper.get_num_cols(data)
                 if num_cols is None:
-                    raise ValueError(f"PetroVisor::save_ref_table_data(): "
-                                     f"number of columns in the list should be either 2 or 1.")
+                    raise ValueError("PetroVisor::save_ref_table_data(): "
+                                     "number of columns in the list should be either 2 or 1.")
                 ref_table = __list_to_dict(ApiHelper.to_list(data, **kwargs), num_cols, **kwargs)
             else:
                 raise ValueError(f"PetroVisor::save_ref_table_data(): "
                                  f"invalid data format '{type(data)}'. "
                                  f"Should be either dict[float,float], list of iterables, DataFrame, Series or array.")
-            return self.put(f'{route}/{name}/Data/{entity_name}/{date_str}', data=ref_table, **kwargs)
+            return self.put(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}',
+                            data=ref_table, **kwargs)
 
     # delete reference table data
     def delete_ref_table_data(self,
@@ -142,5 +143,4 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         date_str = self.get_json_valid_value(date, 'time', **kwargs)
         if date_str is None:
             date_str = ''
-        return self.delete(f'{route}/{name}/Data/{entity_name}/{date_str}', **kwargs)
-    
+        return self.delete(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', **kwargs)

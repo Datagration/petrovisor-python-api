@@ -1,9 +1,13 @@
 from typing import (
     Any,
     Optional,
+    Union,
 )
 import json
 import requests
+from requests.utils import requote_uri
+from urllib.parse import quote
+import warnings
 
 
 # requests functionality
@@ -185,7 +189,6 @@ class ApiRequests:
                      format: str = 'json',
                      retry_on_unauthorized: bool = True,
                      errors: str = 'coerce',
-                     verbose: bool = False,
                      **kwargs) -> Any:
         """
         Get response from request
@@ -216,10 +219,8 @@ class ApiRequests:
             Retry if request was unauthorized(401)
         errors : str, default 'coerce'
             If ‘raise’, then invalid request will raise an exception.
-            If ‘coerce’, then invalid request will be return None.
+            If ‘coerce’, then invalid request will issue a warning and return None.
             If ‘ignore’, then invalid request will return the response.
-        verbose : bool, default False
-            Print mode
         """
         request_headers = {
             'accept': 'application/json',
@@ -244,9 +245,9 @@ class ApiRequests:
                 rqst = rqst + '?' + '&'.join([f'{v}' for v in query])
             # generalized dictionary
             elif callable(getattr(query, 'items', None)):
-                rqst = rqst + '?' + '&'.join([f'{k}={v}' for k, v in query.items()])
+                rqst = rqst + '?' + '&'.join([f'{k}={ApiRequests.encode(v)}' for k, v in query.items()])
         # get request url
-        request_url = ApiRequests.get_request_url(route, api, rqst, verbose=verbose)
+        request_url = ApiRequests.get_request_url(route, api, rqst)
 
         # method name
         method_name = method.upper().strip()
@@ -307,13 +308,25 @@ class ApiRequests:
             # check if unauthorized request (401)
             if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                 return response
+
+            response_content = getattr(err.response, 'text', getattr(err.response, 'content', None)) or None
+            if response_content:
+                err.args = (f"{err.args[0]}, Response: \n{response_content}",)
+
+            def issue_warning(error):
+                error_message = f"{error}"
+                # print(error_message, file=sys.stderr)
+                warnings.warn(error_message, RuntimeWarning, stacklevel=1)
+
             if isinstance(errors, str):
                 error_type = errors.lower()
                 if error_type == 'coerce':
+                    issue_warning(err)
                     return None
                 elif error_type == 'ignore':
                     return response
-            raise requests.exceptions.HTTPError(err)
+            raise err
+
         if response is not None:
             try:
                 if format in ('json',):
@@ -327,13 +340,13 @@ class ApiRequests:
                 elif not format:
                     return response
                 return response.content
-            except:
+            except (AttributeError, requests.exceptions.JSONDecodeError):
                 return response
         return None
 
     # get request url
     @staticmethod
-    def get_request_url(route: str, api: str, rqst: str, encode: bool = True, verbose: bool = False) -> str:
+    def get_request_url(route: str, api: str, rqst: str, **kwargs) -> str:
         """
         Get request url
 
@@ -345,35 +358,43 @@ class ApiRequests:
             Api endpoint
         rqst : str
             Request
-        encode : bool, default True
-            Encode request
-        verbose : bool, default False
-            Print mode
         """
         # get web api service url
         web_api_service_url = api
         if not web_api_service_url.endswith('/'):
             web_api_service_url += '/'
-        # add request
-        request_url = route
-        request_url += rqst.strip()
-        # encode request
-        if encode:
-            request_url = ApiRequests.encode_request(request_url)
-        # show url
-        if verbose:
-            print(f'\nRequest: {web_api_service_url + request_url}')
+        # form request url
+        request_url = route + rqst.strip()
+        # validate request url
+        request_url = ApiRequests.validate_url(request_url)
         return web_api_service_url + request_url
 
-    # encode request
+    # validate request url
     @staticmethod
-    def encode_request(request: str) -> str:
+    def validate_url(request: str) -> str:
         """
-        Encode request
+        Validate request url
 
         Parameters
         ----------
         request : str
             Request
         """
-        return request
+        return requote_uri(request)
+
+    # encode url component
+    @staticmethod
+    def encode(url_component: str, safe: Union[str, bytes] = '~', **kwargs) -> str:
+        """
+        Encode url component
+
+        Parameters
+        ----------
+        url_component : str
+            URL component
+        safe : str
+            Safe symbols which doesn't need to be encoded
+        """
+        if not isinstance(url_component, str):
+            return url_component
+        return quote(url_component, safe=safe, **kwargs)
