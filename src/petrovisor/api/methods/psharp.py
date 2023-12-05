@@ -223,7 +223,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
                 psharp_table = self.get(f'PSharpScripts/{self.encode(script_name)}/ExecuteAsBITable',
                                         query={'Table': table_name}, **kwargs)
             else:
-                psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
+                psharp_table = self.get(f'PSharpScripts/{self.encode(script_name)}/ExecuteAsTable',
                                         query={'Table': table_name}, **kwargs)
             if psharp_table is not None:
                 return self.convert_psharp_table_to_dataframe(psharp_table,

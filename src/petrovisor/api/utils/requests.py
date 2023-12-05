@@ -1,3 +1,4 @@
+import time
 from typing import (
     Any,
     Optional,
@@ -251,81 +252,103 @@ class ApiRequests:
 
         # method name
         method_name = method.upper().strip()
-        # get response
+
+        # convert data to json string
+        if data and not isinstance(data, str):
+            data = json.dumps(data)
+
+        # request secs
         timeout = 59 * 60  # time out limit in seconds (3540)
+        max_retries = 1
+        waiting_time = 3  # in seconds
+
+        # get response
         response = None
-        try:
-            if data and not isinstance(data, str):
-                data = json.dumps(data)
-            # GET: read resource
-            # The GET method requests a representation of the specified resource.
-            # Requests using GET should only retrieve data.
-            if method_name == 'GET':
-                response = requests.get(request_url,
-                                        headers=request_headers, data=data, files=files, timeout=timeout)
-            # POST: create resource
-            # The POST method submits an entity to the specified resource,
-            # often causing a change in state or side effects on the server.
-            elif method_name == 'POST':
-                response = requests.post(request_url,
-                                         headers=request_headers, data=data, files=files, timeout=timeout)
-            # PUT: update resource
-            # The PUT method replaces all current representations of the target resource with the request payload.
-            elif method_name == 'PUT':
-                response = requests.put(request_url,
-                                        headers=request_headers, data=data, files=files, timeout=timeout)
-            # DELETE: delete resource
-            # The DELETE method deletes the specified resource.
-            elif method_name == 'DELETE':
-                response = requests.delete(request_url,
-                                           headers=request_headers, data=data, files=files, timeout=timeout)
-            # PATCH: modify resource
-            # The PATCH method applies partial modifications to a resource.
-            elif method_name == 'PATCH':
-                response = requests.patch(request_url,
-                                          headers=request_headers, data=data, files=files, timeout=timeout)
-            # HEAD: read resource, response without body
-            # The HEAD method asks for a response identical to a GET request, but without the response body.
-            elif method_name == 'HEAD':
-                response = requests.head(request_url,
-                                         headers=request_headers, data=data, files=files, timeout=timeout)
-            # OPTIONS: specify communication options
-            # The OPTIONS method describes the communication options for the target resource.
-            elif method_name == 'OPTIONS':
-                response = requests.options(request_url,
+        attempt = 0
+        while attempt < max_retries:
+            attempt += 1
+            try:
+                # GET: read resource
+                # The GET method requests a representation of the specified resource.
+                # Requests using GET should only retrieve data.
+                if method_name == 'GET':
+                    response = requests.get(request_url,
                                             headers=request_headers, data=data, files=files, timeout=timeout)
-            # CONNECT:
-            # The CONNECT method establishes a tunnel to the server identified by the target resource.
-            elif method_name == 'CONNECT':
-                pass
-            # TRACE:
-            # The TRACE method performs a message loop-back test along the path to the target resource.
-            elif method_name == 'TRACE':
-                pass
-            # raise exception if error occurred
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            # check if unauthorized request (401)
-            if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
-                return response
+                # POST: create resource
+                # The POST method submits an entity to the specified resource,
+                # often causing a change in state or side effects on the server.
+                elif method_name == 'POST':
+                    response = requests.post(request_url,
+                                             headers=request_headers, data=data, files=files, timeout=timeout)
+                # PUT: update resource
+                # The PUT method replaces all current representations of the target resource with the request payload.
+                elif method_name == 'PUT':
+                    response = requests.put(request_url,
+                                            headers=request_headers, data=data, files=files, timeout=timeout)
+                # DELETE: delete resource
+                # The DELETE method deletes the specified resource.
+                elif method_name == 'DELETE':
+                    response = requests.delete(request_url,
+                                               headers=request_headers, data=data, files=files, timeout=timeout)
+                # PATCH: modify resource
+                # The PATCH method applies partial modifications to a resource.
+                elif method_name == 'PATCH':
+                    response = requests.patch(request_url,
+                                              headers=request_headers, data=data, files=files, timeout=timeout)
+                # HEAD: read resource, response without body
+                # The HEAD method asks for a response identical to a GET request, but without the response body.
+                elif method_name == 'HEAD':
+                    response = requests.head(request_url,
+                                             headers=request_headers, data=data, files=files, timeout=timeout)
+                # OPTIONS: specify communication options
+                # The OPTIONS method describes the communication options for the target resource.
+                elif method_name == 'OPTIONS':
+                    response = requests.options(request_url,
+                                                headers=request_headers, data=data, files=files, timeout=timeout)
+                # CONNECT:
+                # The CONNECT method establishes a tunnel to the server identified by the target resource.
+                elif method_name == 'CONNECT':
+                    pass
+                # TRACE:
+                # The TRACE method performs a message loop-back test along the path to the target resource.
+                elif method_name == 'TRACE':
+                    pass
+                # raise exception if error occurred
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as err:
 
-            response_content = getattr(err.response, 'text', getattr(err.response, 'content', None)) or None
-            if response_content:
-                err.args = (f"{err.args[0]}, Response: \n{response_content}",)
-
-            def issue_warning(error):
-                error_message = f"{error}"
-                # print(error_message, file=sys.stderr)
-                warnings.warn(error_message, RuntimeWarning, stacklevel=1)
-
-            if isinstance(errors, str):
-                error_type = errors.lower()
-                if error_type == 'coerce':
-                    issue_warning(err)
-                    return None
-                elif error_type == 'ignore':
+                # check if unauthorized request (401)
+                if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
                     return response
-            raise err
+
+                if response.status_code in {requests.codes.bad_request, requests.codes.not_found}:
+                    max_retries = 3
+
+                # retry request
+                if attempt < max_retries:
+                    time.sleep(waiting_time)
+                    response = None
+                    continue
+
+                # get more informative error message
+                response_content = getattr(err.response, 'text', getattr(err.response, 'content', None)) or None
+                if response_content:
+                    err.args = (f"{err.args[0]}, Response: \n{response_content}",)
+
+                def issue_warning(error):
+                    error_message = f"{error}"
+                    # print(error_message, file=sys.stderr)
+                    warnings.warn(error_message, RuntimeWarning, stacklevel=1)
+
+                if isinstance(errors, str):
+                    error_type = errors.lower()
+                    if error_type == 'coerce':
+                        issue_warning(err)
+                        return None
+                    elif error_type == 'ignore':
+                        return response
+                raise err
+            break
 
         if response is not None:
             try:

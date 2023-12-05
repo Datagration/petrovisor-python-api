@@ -175,7 +175,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                 # group by entity
                 if groupby_entity:
                     df = {e: df_group for e, df_group in df.groupby(entity_col)}
-                # convert to wide format with columns format "{entity_name} : {column_name"
+                # convert to wide format with columns format "{entity_name} : {column_name}"
                 elif has_entity_col and not with_entity_column:
                     df = self.convert_dataframe_from_long_to_wide(df)
                 # convert to long format with 'Entity' column

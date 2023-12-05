@@ -38,7 +38,7 @@ class WorkspaceValuesMixin(SupportsRequests):
         route = 'ConfigurationSettings'
         if value_type:
             t = ApiHelper.get_comparison_string(value_type)
-            if t in {'numeric',}:
+            if t in {'numeric'}:
                 value_type = 'Numeric'
             elif t in {'numericwithunit'}:
                 value_type = 'NumericWithUnit'
