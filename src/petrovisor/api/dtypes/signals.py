@@ -1,8 +1,8 @@
-from enum import Enum
+from enum import IntEnum
 
 
 # Signal types
-class SignalType(Enum):
+class SignalType(IntEnum):
     """
     PetroVisor signal types
     """

@@ -110,7 +110,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             Measurement name
         """
         route = self.get_item_route('Unit')
-        return self.get(f'{route}/{measurement}/Units', **kwargs)
+        return self.get(f'{route}/{self.encode(measurement)}/Units', **kwargs)
 
     # get measurement 'Unit' names
     def get_measurement_unit_names(self, measurement: str, **kwargs) -> Any:
@@ -139,11 +139,11 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         """
         route = self.get_item_route('Signal')
         if short_name:
-            signal = self.get(f'{route}/{short_name}/Signal', **kwargs)
+            signal = self.get(f'{route}/{self.encode(short_name)}/Signal', **kwargs)
         else:
             signal = None
         if signal is None:
-            return self.get(f'{route}/{name}', **kwargs)
+            return self.get(f'{route}/{self.encode(name)}', **kwargs)
         return None
 
     # get 'Signals'
@@ -172,9 +172,10 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         # get signals by 'Entity' name
         if entity:
             signal_names = self.get_signal_names(signal_type=None, entity=entity, **kwargs)
-            if signal_names:
-                return [s for s in signals if(s['Name'] in signal_names)]
-        return signals if(signals is not None) else []
+            if signal_names and signals:
+                return [s for s in signals if s['Name'] in signal_names]
+            return []
+        return signals if signals is not None else []
 
     # get 'Signal' names
     def get_signal_names(self,
@@ -196,11 +197,11 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         if entity:
             entities_route = self.get_item_route('Entity')
             entity_name = ApiHelper.get_object_name(entity)
-            signal_names = self.get(f'{entities_route}/{entity_name}/Signals', **kwargs)
+            signal_names = self.get(f'{entities_route}/{self.encode(entity_name)}/Signals', **kwargs)
             if signal_type and signal_names is not None:
                 signal_type_names = self.get_signal_names(signal_type=signal_type, entity=None, **kwargs)
                 if signal_type_names:
-                    return [s for s in signal_names if(s in signal_type_names)]
+                    return [s for s in signal_names if s in signal_type_names]
         # get signals by 'Signal' type
         elif signal_type:
             signals = self.get_signals(signal_type=signal_type, entity=None, **kwargs)
@@ -208,7 +209,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         # get all signals
         else:
             signal_names = self.get(f'{route}', **kwargs)
-        return signal_names if(signal_names is not None) else []
+        return signal_names if signal_names is not None else []
 
     # add 'Signals'
     def add_signals(self, signals: List, **kwargs) -> Any:
@@ -218,7 +219,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         Parameters
         ----------
         signals : list
-            List of entities
+            List of signals
         """
         route = self.get_item_route('Signal')
         return self.post(f'{route}/Add', data=signals, **kwargs)
@@ -231,11 +232,11 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         Parameters
         ----------
         signals : list
-            List of entities
+            List of signals
         """
         route = self.get_item_route('Signal')
         for signal_name in signals:
-            self.delete(f'{route}/{signal_name}', **kwargs)
+            self.delete(f'{route}/{self.encode(signal_name)}', **kwargs)
 
     # get data range
     def get_data_range(self,
@@ -259,7 +260,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         if signal and entity:
             signal_name = ApiHelper.get_object_name(signal)
             entity_name = ApiHelper.get_object_name(entity)
-            return self.get(f'{route}/Range/{signal_name}/{entity_name}', **kwargs)
+            return self.get(f'{route}/Range/{self.encode(signal_name)}/{self.encode(entity_name)}', **kwargs)
         elif signal:
             signal_name = ApiHelper.get_object_name(signal)
             return self.get(f'{route}/Range/{signal_name}', **kwargs)
@@ -388,16 +389,14 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
                         raise ValueError(f"PetroVisor::load_data(): "
                                          f"invalid increment value: '{step}'")
                     range_step = str(range_step.name)
-                    is_time_dependent = (data_type == SignalType.TimeDependent or
-                                         data_type == SignalType.StringTimeDependent)
+                    is_time_dependent = data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}
                     range_type = 'time' if is_time_dependent else 'numeric'
                     data_range = {
                         'Start': self.get_json_valid_value(start, range_type, **kwargs),
                         'End': self.get_json_valid_value(end, range_type, **kwargs),
                         'Increment': range_step}
                     if hierarchy is not None and hierarchy and \
-                            (data_type == SignalType.TimeDependent or
-                             data_type == SignalType.StringTimeDependent):
+                            data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}:
                         data_range['Hierarchy'] = hierarchy
                     # load with filling gaps
                     if gap_value is not None:
@@ -420,9 +419,9 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
                             return self.post(f'{route}/Interpolated', data=data, query={'Depth': load_point}, **kwargs)
                         return self.post(f'{route}/Saved', data=data, query={'Depth': load_point}, **kwargs)
             else:
-                raise ValueError(f"PetroVisor::load_data(): "
-                                 f"'start', 'end' and 'step' should be provided! "
-                                 f"'step' can be avoided if 'start' == 'end'.")
+                raise ValueError("PetroVisor::load_data(): "
+                                 "'start', 'end' and 'step' should be provided! "
+                                 "'step' can be avoided if 'start' == 'end'.")
         # load 'Static' and 'PVT' data
         if with_logs and ApiHelper.has_field(data, 'Data') and data_type == SignalType.Static:
             return self.post(f'{route}/AquireWithLogs', data=data, **kwargs)
@@ -504,13 +503,13 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         data_type = self.get_signal_type_enum(data_type, **kwargs)
         route = self.get_signal_type_route(signal_type=data_type, **kwargs)
         if data_type in (SignalType.TimeDependent, SignalType.StringTimeDependent, SignalType.DepthDependent):
-            is_time_dependent = (data_type == SignalType.TimeDependent or data_type == SignalType.StringTimeDependent)
+            is_time_dependent = data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}
             range_type = 'time' if is_time_dependent else 'numeric'
             data_range = {
                 'Start': self.get_json_valid_value(start, range_type, **kwargs),
                 'End': self.get_json_valid_value(end, range_type, **kwargs)
             }
-            self.post(f'{route}/Delete', data=data, query=data_range, **kwargs)
+            return self.post(f'{route}/Delete', data=data, query=data_range, **kwargs)
         return self.post(f'{route}/Delete', data=data, **kwargs)
 
     # get signal type route
@@ -590,7 +589,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             Signal type
         """
         signal_type = self.get_signal_type_enum(signal_type, **kwargs)
-        if signal_type == SignalType.TimeDependent or signal_type == SignalType.StringTimeDependent:
+        if signal_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}:
             return self.get_time_increment_enum(increment, **kwargs)
         elif signal_type == SignalType.DepthDependent:
             return self.get_depth_increment_enum(increment, **kwargs)

@@ -1,11 +1,14 @@
+import time
 from typing import (
     Any,
     Optional,
+    Union,
 )
 import json
-
 import requests
 from requests.utils import requote_uri
+from urllib.parse import quote
+import warnings
 
 
 # requests functionality
@@ -186,7 +189,7 @@ class ApiRequests:
                      route: str = 'PetroVisor/API/',
                      format: str = 'json',
                      retry_on_unauthorized: bool = True,
-                     verbose: bool = False,
+                     errors: str = 'coerce',
                      **kwargs) -> Any:
         """
         Get response from request
@@ -215,8 +218,10 @@ class ApiRequests:
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
         retry_on_unauthorized : bool, default True
             Retry if request was unauthorized(401)
-        verbose : bool, default False
-            Print mode
+        errors : str, default 'coerce'
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
         """
         request_headers = {
             'accept': 'application/json',
@@ -241,71 +246,110 @@ class ApiRequests:
                 rqst = rqst + '?' + '&'.join([f'{v}' for v in query])
             # generalized dictionary
             elif callable(getattr(query, 'items', None)):
-                rqst = rqst + '?' + '&'.join([f'{k}={v}' for k, v in query.items()])
+                rqst = rqst + '?' + '&'.join([f'{k}={ApiRequests.encode(v)}' for k, v in query.items()])
         # get request url
-        request_url = ApiRequests.get_request_url(route, api, rqst, verbose=verbose)
+        request_url = ApiRequests.get_request_url(route, api, rqst)
 
         # method name
         method_name = method.upper().strip()
-        # get response
+
+        # convert data to json string
+        if data and not isinstance(data, str):
+            data = json.dumps(data)
+
+        # request secs
         timeout = 59 * 60  # time out limit in seconds (3540)
+        max_retries = 1
+        waiting_time = 3  # in seconds
+
+        # get response
         response = None
-        try:
-            if data and not isinstance(data, str):
-                data = json.dumps(data)
-            # GET: read resource
-            # The GET method requests a representation of the specified resource.
-            # Requests using GET should only retrieve data.
-            if method_name == 'GET':
-                response = requests.get(request_url,
-                                        headers=request_headers, data=data, files=files, timeout=timeout)
-            # POST: create resource
-            # The POST method submits an entity to the specified resource,
-            # often causing a change in state or side effects on the server.
-            elif method_name == 'POST':
-                response = requests.post(request_url,
-                                         headers=request_headers, data=data, files=files, timeout=timeout)
-            # PUT: update resource
-            # The PUT method replaces all current representations of the target resource with the request payload.
-            elif method_name == 'PUT':
-                response = requests.put(request_url,
-                                        headers=request_headers, data=data, files=files, timeout=timeout)
-            # DELETE: delete resource
-            # The DELETE method deletes the specified resource.
-            elif method_name == 'DELETE':
-                response = requests.delete(request_url,
-                                           headers=request_headers, data=data, files=files, timeout=timeout)
-            # PATCH: modify resource
-            # The PATCH method applies partial modifications to a resource.
-            elif method_name == 'PATCH':
-                response = requests.patch(request_url,
-                                          headers=request_headers, data=data, files=files, timeout=timeout)
-            # HEAD: read resource, response without body
-            # The HEAD method asks for a response identical to a GET request, but without the response body.
-            elif method_name == 'HEAD':
-                response = requests.head(request_url,
-                                         headers=request_headers, data=data, files=files, timeout=timeout)
-            # OPTIONS: specify communication options
-            # The OPTIONS method describes the communication options for the target resource.
-            elif method_name == 'OPTIONS':
-                response = requests.options(request_url,
+        attempt = 0
+        while attempt < max_retries:
+            attempt += 1
+            try:
+                # GET: read resource
+                # The GET method requests a representation of the specified resource.
+                # Requests using GET should only retrieve data.
+                if method_name == 'GET':
+                    response = requests.get(request_url,
                                             headers=request_headers, data=data, files=files, timeout=timeout)
-            # CONNECT:
-            # The CONNECT method establishes a tunnel to the server identified by the target resource.
-            elif method_name == 'CONNECT':
-                pass
-            # TRACE:
-            # The TRACE method performs a message loop-back test along the path to the target resource.
-            elif method_name == 'TRACE':
-                pass
-            # raise exception if error occurred
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            # check if unauthorized request (401)
-            if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
-                return response
-            # raise requests.exceptions.HTTPError(err)
-            response = None
+                # POST: create resource
+                # The POST method submits an entity to the specified resource,
+                # often causing a change in state or side effects on the server.
+                elif method_name == 'POST':
+                    response = requests.post(request_url,
+                                             headers=request_headers, data=data, files=files, timeout=timeout)
+                # PUT: update resource
+                # The PUT method replaces all current representations of the target resource with the request payload.
+                elif method_name == 'PUT':
+                    response = requests.put(request_url,
+                                            headers=request_headers, data=data, files=files, timeout=timeout)
+                # DELETE: delete resource
+                # The DELETE method deletes the specified resource.
+                elif method_name == 'DELETE':
+                    response = requests.delete(request_url,
+                                               headers=request_headers, data=data, files=files, timeout=timeout)
+                # PATCH: modify resource
+                # The PATCH method applies partial modifications to a resource.
+                elif method_name == 'PATCH':
+                    response = requests.patch(request_url,
+                                              headers=request_headers, data=data, files=files, timeout=timeout)
+                # HEAD: read resource, response without body
+                # The HEAD method asks for a response identical to a GET request, but without the response body.
+                elif method_name == 'HEAD':
+                    response = requests.head(request_url,
+                                             headers=request_headers, data=data, files=files, timeout=timeout)
+                # OPTIONS: specify communication options
+                # The OPTIONS method describes the communication options for the target resource.
+                elif method_name == 'OPTIONS':
+                    response = requests.options(request_url,
+                                                headers=request_headers, data=data, files=files, timeout=timeout)
+                # CONNECT:
+                # The CONNECT method establishes a tunnel to the server identified by the target resource.
+                elif method_name == 'CONNECT':
+                    pass
+                # TRACE:
+                # The TRACE method performs a message loop-back test along the path to the target resource.
+                elif method_name == 'TRACE':
+                    pass
+                # raise exception if error occurred
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+
+                # check if unauthorized request (401)
+                if retry_on_unauthorized and response.status_code == requests.codes.unauthorized:
+                    return response
+
+                if response.status_code in {requests.codes.bad_request, requests.codes.not_found}:
+                    max_retries = 3
+
+                # retry request
+                if attempt < max_retries:
+                    time.sleep(waiting_time)
+                    response = None
+                    continue
+
+                # get more informative error message
+                response_content = getattr(err.response, 'text', getattr(err.response, 'content', None)) or None
+                if response_content:
+                    err.args = (f"{err.args[0]}, Response: \n{response_content}",)
+
+                def issue_warning(error):
+                    error_message = f"{error}"
+                    # print(error_message, file=sys.stderr)
+                    warnings.warn(error_message, RuntimeWarning, stacklevel=1)
+
+                if isinstance(errors, str):
+                    error_type = errors.lower()
+                    if error_type == 'coerce':
+                        issue_warning(err)
+                        return None
+                    elif error_type == 'ignore':
+                        return response
+                raise err
+            break
+
         if response is not None:
             try:
                 if format in ('json',):
@@ -319,13 +363,13 @@ class ApiRequests:
                 elif not format:
                     return response
                 return response.content
-            except:
+            except (AttributeError, requests.exceptions.JSONDecodeError):
                 return response
         return None
 
     # get request url
     @staticmethod
-    def get_request_url(route: str, api: str, rqst: str, encode: bool = True, verbose: bool = False) -> str:
+    def get_request_url(route: str, api: str, rqst: str, **kwargs) -> str:
         """
         Get request url
 
@@ -337,41 +381,43 @@ class ApiRequests:
             Api endpoint
         rqst : str
             Request
-        encode : bool, default True
-            Encode request
-        verbose : bool, default False
-            Print mode
         """
         # get web api service url
         web_api_service_url = api
         if not web_api_service_url.endswith('/'):
             web_api_service_url += '/'
-        # add request
-        request_url = route
-        request_url += rqst.strip()
-        # encode request
-        if encode:
-            request_url = ApiRequests.encode_request(request_url)
-        # show url
-        if verbose:
-            print(f'\nRequest: {web_api_service_url + request_url}')
+        # form request url
+        request_url = route + rqst.strip()
+        # validate request url
+        request_url = ApiRequests.validate_url(request_url)
         return web_api_service_url + request_url
 
-    # encode request
+    # validate request url
     @staticmethod
-    def encode_request(request: str) -> str:
+    def validate_url(request: str) -> str:
         """
-        Encode request
+        Validate request url
 
         Parameters
         ----------
         request : str
             Request
         """
-        # import urllib
-        # return urllib.parse.urlencode(request)
-        # from requests.utils import quote
-        # return requests.utils.quote(request)
-        encoded_req = requote_uri(request)
-        encoded_req = encoded_req.replace('#', '%23').replace('$', '%24').replace('^', '%5E')
-        return encoded_req
+        return requote_uri(request)
+
+    # encode url component
+    @staticmethod
+    def encode(url_component: str, safe: Union[str, bytes] = '~', **kwargs) -> str:
+        """
+        Encode url component
+
+        Parameters
+        ----------
+        url_component : str
+            URL component
+        safe : str
+            Safe symbols which doesn't need to be encoded
+        """
+        if not isinstance(url_component, str):
+            return url_component
+        return quote(url_component, safe=safe, **kwargs)
