@@ -5,6 +5,9 @@ import pytest
 
 
 def test_signals_by_entity(pv_api: PetroVisor):
+    """
+    Test retrieving signals by entity type
+    """
     # add new entity
     entity_name = r"_entity with special characters %*,$&^§()#//=2!~*'"  # except '?', ';'
     pv_api.add_item('Entity', {
