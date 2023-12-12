@@ -112,6 +112,7 @@ class RequestsMixin(SupportsRequests):
                  key: Optional[str] = '',
                  username: Optional[str] = '',
                  password: Optional[str] = '',
+                 errors: Optional[str] = 'coerce',
                  **kwargs):
         """
         Parameters
@@ -130,6 +131,10 @@ class RequestsMixin(SupportsRequests):
             Username
         password : str, default None
             Password
+        errors : str, default 'coerce'
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
         """
         # workspace
         self.__workspace = workspace
@@ -172,9 +177,9 @@ class RequestsMixin(SupportsRequests):
                     key = RequestsMixin.generate_credentials_key(username=username, password=password)
                 # get access token
                 if not key:
-                    raise ValueError(f"PetroVisor::__init__(): "
-                                     f"neither 'token', nor 'key', "
-                                     f"nor 'username' and 'password' are defined!")
+                    raise ValueError("PetroVisor::__init__(): "
+                                     "neither 'token', nor 'key', "
+                                     "nor 'username' and 'password' are defined!")
                 access_response = ApiLogin.get_access_token(key=key, discovery_url=discovery_url)
                 self.__access_token = access_response['access_token']
                 self.__refresh_token = access_response['refresh_token'] if ('refresh_token' in access_response) else ''
@@ -188,11 +193,20 @@ class RequestsMixin(SupportsRequests):
         # 'InfoItem' routes
         self.__info_item_routes = ItemsMixinHelper.get_info_item_routes()
 
+        # errors handling
+        error_handling_types = ['raise', 'coerce', 'ignore']
+        self.__errors = errors if errors in error_handling_types else 'coerce'
+
         super().__init__(**kwargs)
 
     # 'GET' request
-    def get(self, rqst: str, data: Optional[Any] = None, query: Optional[Any] = None, files: Optional[Any] = None,
-            format: Optional[str] = 'json', **kwargs) -> Any:
+    def get(self,
+            rqst: str, data: Optional[Any] = None,
+            query: Optional[Any] = None,
+            files: Optional[Any] = None,
+            format: Optional[str] = 'json',
+            errors: Optional[str] = None,
+            **kwargs) -> Any:
         """
         Get request
 
@@ -208,17 +222,24 @@ class RequestsMixin(SupportsRequests):
             File objects
         format : str, default 'json'
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
+        errors : str | None, default None
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
+            If None, then the 'errors' parameter defined in api session constructor is used.
         """
         response = ApiRequests.get(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                    files=files, format=format, route=self.Route, token=self.Token,
                                    refresh_token=self.RefreshToken, key=self.Key,
-                                   discovery_url=self.DiscoveryUrl, **kwargs)
+                                   discovery_url=self.DiscoveryUrl,
+                                   errors=errors or self.__errors, **kwargs)
         if ApiHelper.has_field(response, 'status_code') and response.status_code == requests.codes.unauthorized:
             self.__reset_token(**kwargs)
             response = ApiRequests.get(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                        files=files, format=format, route=self.Route, token=self.Token,
                                        refresh_token=self.RefreshToken, key=self.Key,
-                                       discovery_url=self.DiscoveryUrl, **kwargs)
+                                       discovery_url=self.DiscoveryUrl,
+                                       errors=errors or self.__errors, **kwargs)
         return response
 
     # 'POST' request
@@ -228,6 +249,7 @@ class RequestsMixin(SupportsRequests):
              query: Optional[Any] = None,
              files: Optional[Any] = None,
              format: str = 'json',
+             errors: Optional[str] = None,
              **kwargs) -> Any:
         """
         Post request
@@ -244,17 +266,24 @@ class RequestsMixin(SupportsRequests):
             File objects
         format : str, default 'json'
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
+        errors : str, default None
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
+            If None, then the 'errors' parameter defined in api session constructor is used.
         """
         response = ApiRequests.post(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                     files=files, format=format, route=self.Route, token=self.Token,
                                     refresh_token=self.RefreshToken, key=self.Key,
-                                    discovery_url=self.DiscoveryUrl, **kwargs)
+                                    discovery_url=self.DiscoveryUrl,
+                                    errors=errors or self.__errors, **kwargs)
         if ApiHelper.has_field(response, 'status_code') and response.status_code == requests.codes.unauthorized:
             self.__reset_token(**kwargs)
             response = ApiRequests.post(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                         files=files, format=format, route=self.Route, token=self.Token,
                                         refresh_token=self.RefreshToken, key=self.Key,
-                                        discovery_url=self.DiscoveryUrl, **kwargs)
+                                        discovery_url=self.DiscoveryUrl,
+                                        errors=errors or self.__errors, **kwargs)
         return response
 
     # 'PUT' request
@@ -264,6 +293,7 @@ class RequestsMixin(SupportsRequests):
             query: Optional[Any] = None,
             files: Optional[Any] = None,
             format: str = 'json',
+            errors: Optional[str] = None,
             **kwargs) -> Any:
         """
         Put request
@@ -280,17 +310,24 @@ class RequestsMixin(SupportsRequests):
             File objects
         format : str, default 'json'
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
+        errors : str, default None
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
+            If None, then the 'errors' parameter defined in api session constructor is used.
         """
         response = ApiRequests.put(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                    files=files, format=format, route=self.Route, token=self.Token,
                                    refresh_token=self.RefreshToken, key=self.Key,
-                                   discovery_url=self.DiscoveryUrl, **kwargs)
+                                   discovery_url=self.DiscoveryUrl,
+                                   errors=errors or self.__errors, **kwargs)
         if ApiHelper.has_field(response, 'status_code') and response.status_code == requests.codes.unauthorized:
             self.__reset_token(**kwargs)
             response = ApiRequests.put(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                        files=files, format=format, route=self.Route, token=self.Token,
                                        refresh_token=self.RefreshToken, key=self.Key,
-                                       discovery_url=self.DiscoveryUrl, **kwargs)
+                                       discovery_url=self.DiscoveryUrl,
+                                       errors=errors or self.__errors, **kwargs)
         return response
 
     # 'DELETE' request
@@ -300,6 +337,7 @@ class RequestsMixin(SupportsRequests):
                query: Optional[Any] = None,
                files: Optional[Any] = None,
                format: str = 'json',
+               errors: Optional[str] = None,
                **kwargs) -> Any:
         """
         Delete request
@@ -316,18 +354,40 @@ class RequestsMixin(SupportsRequests):
             File objects
         format : str, default 'json'
             Response format: 'json', 'text', 'content', 'raw', 'bytes', 'binary'
+        errors : str, default None
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
+            If None, then the 'errors' parameter defined in api session constructor is used.
         """
         response = ApiRequests.delete(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                       files=files, format=format, route=self.Route, token=self.Token,
                                       refresh_token=self.RefreshToken, key=self.Key,
-                                      discovery_url=self.DiscoveryUrl, **kwargs)
+                                      discovery_url=self.DiscoveryUrl,
+                                      errors=errors or self.__errors, **kwargs)
         if ApiHelper.has_field(response, 'status_code') and response.status_code == requests.codes.unauthorized:
             self.__reset_token(**kwargs)
             response = ApiRequests.delete(self.Api, rqst, workspace=self.Workspace, data=data, query=query,
                                           files=files, format=format, route=self.Route, token=self.Token,
                                           refresh_token=self.RefreshToken, key=self.Key,
-                                          discovery_url=self.DiscoveryUrl, **kwargs)
+                                          discovery_url=self.DiscoveryUrl,
+                                          errors=errors or self.__errors, **kwargs)
         return response
+
+    # encode url component
+    @staticmethod
+    def encode(url_component: str, safe: Union[str, bytes] = '~', **kwargs: Any) -> str:
+        """
+        Encode url component
+
+        Parameters
+        ----------
+        url_component : str
+            URL component
+        safe : str
+            Safe symbols which do not need to be encoded
+        """
+        return ApiRequests.encode(url_component, safe=safe, **kwargs)
 
     # generate credentials key
     @staticmethod

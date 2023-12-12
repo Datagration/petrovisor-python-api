@@ -41,7 +41,7 @@ class FilesMixin(SupportsRequests):
             File format
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.get(f'Files/{filename}', format=format, **kwargs)
+        return self.get(f'Files/{self.encode(filename)}', format=format, **kwargs)
 
     # delete file by given name
     def delete_file(self, filename: str, **kwargs) -> Any:
@@ -54,7 +54,7 @@ class FilesMixin(SupportsRequests):
             File name
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.delete(f'Files/{filename}', **kwargs)
+        return self.delete(f'Files/{self.encode(filename)}', **kwargs)
 
     # upload file
     def upload_file(self, file: Any, name: str = '', **kwargs) -> Any:

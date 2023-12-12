@@ -56,7 +56,7 @@ class DataGridsMixin(SupportsItemRequests, SupportsRequests):
         options = {
             'CRS': crs
         }
-        return self.post(f'{route}/{name}/CRS', query=options)
+        return self.post(f'{route}/{self.encode(name)}/CRS', query=options)
 
     # project DataGrid to specified CRS
     def project_data_grid_to_crs(self,
@@ -77,4 +77,4 @@ class DataGridsMixin(SupportsItemRequests, SupportsRequests):
         options = {
             'CRS': crs
         }
-        return self.get(f'{route}/{name}/Project', query=options)
+        return self.get(f'{route}/{self.encode(name)}/Project', query=options)

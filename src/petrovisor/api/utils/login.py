@@ -288,8 +288,8 @@ class ApiLogin:
             Discovery url
         """
         if not discovery_url:
-            raise ValueError(f"PetroVisorLogin::get_discovery_document(): "
-                             f"'discovery_url' is undefined!")
+            raise ValueError("PetroVisorLogin::get_discovery_document(): "
+                             "'discovery_url' is undefined!")
         if not discovery_url.endswith('/'):
             discovery_url += '/'
         well_known_url = f'{discovery_url}.well-known/openid-configuration'
@@ -332,7 +332,7 @@ class ApiLogin:
                 message_bytes = base64.b64decode(base64_bytes, altchars)
             else:
                 message_bytes = base64.b64decode(base64_bytes)
-        except:
+        except ValueError:
             pass
         finally:
             if message_bytes:
