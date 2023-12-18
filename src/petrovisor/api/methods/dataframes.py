@@ -116,8 +116,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             if groupby_entity:
                 df = {e: df_group for e, df_group in df.groupby(entity_col)}
         except BaseException:
-            raise RuntimeError(f"PetroVisor::convert_pivot_table_to_dataframe(): "
-                               f"couldn't convert PivotTable to DataFrame")
+            raise RuntimeError("PetroVisor::convert_pivot_table_to_dataframe(): "
+                               "couldn't convert PivotTable to DataFrame")
         return df
 
     # convert P# table to DataFrame
@@ -157,7 +157,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             depth_col: 'Numeric',
         }
 
-        # read P# table from list 
+        # read P# table from list
         if isinstance(psharp_table, list):
             if len(psharp_table) < 2:
                 return None
@@ -176,7 +176,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                 # group by entity
                 if groupby_entity:
                     df = {e: df_group for e, df_group in df.groupby(entity_col)}
-                # convert to wide format with columns format "{entity_name} : {column_name"
+                # convert to wide format with columns format "{entity_name} : {column_name}"
                 elif has_entity_col and not with_entity_column:
                     df = self.convert_dataframe_from_long_to_wide(df)
                 # convert to long format with 'Entity' column
@@ -314,8 +314,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             elif not with_entity_column:
                 df = self.convert_dataframe_from_long_to_wide(df)
         else:
-            raise ValueError(f"PetroVisor::convert_psharp_table_to_dataframe(): "
-                             f"unknown P# table type!")
+            raise ValueError("PetroVisor::convert_psharp_table_to_dataframe(): "
+                             "unknown P# table type!")
 
         return df
 
@@ -407,7 +407,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                 break
 
         # get signal info
-        def _get_signal_info(column_name: str, signals: Optional[Dict] = None):
+        def _get_signal_info(column_name: str, signal_names: List[str], signals: Optional[Dict] = None):
             column_name_without_unit = self.get_column_name_without_unit(column_name)
             column_unit_name = self.get_column_unit(column_name)
             if signals:
@@ -444,21 +444,21 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                         signal_unit = signal[fname.lower()]
                         break
             # get signal
-            signal_obj = self.get_signal(signal_name, **kwargs)
-            if signal_obj:
-                if not signal_unit and 'StorageUnitName' in signal_obj:
-                    signal_unit = signal_obj['StorageUnitName']
-                signal_type = signal_obj['SignalType'] if ('SignalType' in signal_obj) else None
-                return {
-                    'Signal': signal_name,
-                    'Unit': signal_unit,
-                    'SignalType': signal_type}
+            if signal_name in signal_names:
+                signal_obj = self.get_signal(signal_name, **kwargs)
+                if signal_obj:
+                    if not signal_unit and 'StorageUnitName' in signal_obj:
+                        signal_unit = signal_obj['StorageUnitName']
+                    signal_type = signal_obj['SignalType'] if ('SignalType' in signal_obj) else None
+                    return {
+                        'Signal': signal_name,
+                        'Unit': signal_unit,
+                        'SignalType': signal_type}
             return None
 
         # check whether non index column
         def _is_index_column(column_name: str) -> bool:
-            return (column_name == date_col) or (column_name == depth_col) or (column_name == entity_col) or (
-                        column_name == alias_col)
+            return column_name in {date_col, depth_col, entity_col, alias_col}
 
         # get column data
         def _get_column_data(column_index: int, entity_name: str) -> List:
@@ -468,8 +468,9 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
 
         # get signals
         col_names = list(set(col_names))
-        column_signals = {cname: _get_signal_info(cname, signals=signals) for cname in col_names if
-                          not _is_index_column(cname)}
+        existing_signal_names = self.get_signal_names(**kwargs)
+        column_signals = {cname: _get_signal_info(cname, existing_signal_names, signals=signals)
+                          for cname in col_names if not _is_index_column(cname)}
 
         # collect signals data
         for _entity_name, d in col_data.items():
@@ -489,7 +490,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                     signal_type = signal['SignalType']
 
                     # static signal
-                    if signal_type == SignalType.Static.name or signal_type == SignalType.String.name:
+                    if signal_type in {SignalType.Static.name, SignalType.String.name}:
                         dtype = 'Numeric' if (signal_type == 'Static') else 'String'
                         static_data = _get_column_data(column_index, entity_name)
                         if static_data and len(static_data) > 0:
@@ -577,7 +578,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
     # convert dataframe from long to wide format
     def convert_dataframe_from_long_to_wide(self,
                                             df: pd.DataFrame,
-                                            indices: Optional[Union[str,List[str]]] = None,
+                                            indices: Optional[Union[str, List[str]]] = None,
                                             inplace: bool = False,
                                             **kwargs):
         """
@@ -637,17 +638,21 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         if not isinstance(dtype, str):
             dtype = self.get_signal_data_type_name(dtype, **kwargs)
         dtype = dtype.lower()
-        if dtype == 'numeric' or dtype == 'float64':
-            return None if is_null else None if (isinstance(value, str) and not value.strip()) else value
-        elif dtype == 'time' or dtype == 'datetime64[ns]':
-            return None if is_null else None if (
-                        isinstance(value, str) and not value.strip()) else self.datetime_to_string(value, **kwargs)
-        elif dtype == 'string' or dtype == 'str':
+        if dtype in {'numeric', 'float64'}:
+            # nan_value = pd.NA
+            # nan_value = np.nan
+            # nan_value = float('NaN')
+            nan_value = 'NaN'
+            return nan_value if is_null or (isinstance(value, str) and not value.strip()) else value
+        elif dtype in {'time', 'datetime64[ns]'}:
+            return None if is_null or (
+                    isinstance(value, str) and not value.strip()) else self.datetime_to_string(value, **kwargs)
+        elif dtype in {'string', 'str'}:
             return '' if is_null else value
-        elif dtype == 'bool' or dtype == 'boolean':
-            return None if is_null else None if (isinstance(value, str) and not value.strip()) else value
-        elif dtype == 'unknown' or dtype == 'object':
-            return None if is_null else None if (isinstance(value, str) and not value.strip()) else value
+        elif dtype in {'bool', 'boolean'}:
+            return None if is_null or (isinstance(value, str) and not value.strip()) else value
+        elif dtype in {'unknown', 'object'}:
+            return None if is_null or (isinstance(value, str) and not value.strip()) else value
         return None if is_null else value
 
     # assign DataFrame column to corresponding types
@@ -687,15 +692,15 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             data type: 'numeric' or 'float64', 'time', 'bool' or 'boolean', 'unknown' or 'object'
         """
         dtype = dtype.lower()
-        if dtype in ('numeric', 'float64'):
+        if dtype in {'numeric', 'float64'}:
             return 'float64'
-        elif dtype in ('time', 'datetime64[ns]'):
+        elif dtype in {'time', 'datetime64[ns]'}:
             return 'datetime64[ns]'
-        elif dtype in ('string',):
+        elif dtype in {'string'}:
             return 'string'
-        elif dtype in ('boolean', 'bool'):
+        elif dtype in {'boolean', 'bool'}:
             return 'bool'
-        elif dtype in ('unknown', 'object'):
+        elif dtype in {'unknown', 'object'}:
             return 'object'
         return 'object'
 
@@ -714,15 +719,15 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             data type: 'numeric' or 'float64', 'time', 'bool' or 'boolean', 'unknown' or 'object'
         """
         dtype = dtype.lower()
-        if dtype in ('numeric', 'float64'):
+        if dtype in {'numeric', 'float64'}:
             df[column] = self.column_to_numeric(df, column, **kwargs)
-        elif dtype in ('time', 'datetime64[ns]'):
+        elif dtype in {'time', 'datetime64[ns]'}:
             df[column] = self.column_to_datetime(df, column, **kwargs)
-        elif dtype in ('string', 'str'):
+        elif dtype in {'string', 'str'}:
             df[column] = self.column_to_string(df, column, **kwargs)
-        elif dtype in ('bool', 'boolean'):
+        elif dtype in {'bool', 'boolean'}:
             df[column] = self.column_to_bool(df, column, **kwargs)
-        elif dtype in ('unknown', 'object'):
+        elif dtype in {'unknown', 'object'}:
             df[column] = self.column_to_object(df, column, **kwargs)
         return df[column]
 
@@ -822,7 +827,21 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         format : str, default '%Y-%m-%dT%H:%M:%S.%f'
             Time format
         """
-        return '' if pd.isnull(d) else d.strftime(format) if isinstance(d, datetime) else str(d)
+        def parse_date(date_string: str, desired_format: str) -> str:
+            formats_to_try = [
+                '%Y-%m-%d',
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%dT%H:%M:%S.%f',
+                # other formats might be added
+            ]
+            for format_str in formats_to_try:
+                try:
+                    date_object = datetime.strptime(date_string, format_str)
+                    return date_object.strftime(desired_format)
+                except ValueError:
+                    pass
+            return str(date_string).strip()
+        return '' if pd.isnull(d) else d.strftime(format) if isinstance(d, datetime) else parse_date(d, format)
 
     # convert string to datetime
     def string_to_datetime(self,
@@ -871,7 +890,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         return ''
 
     # get column name and unit
-    def get_column_name_and_unit(self, column_name: str, **kwargs) -> Tuple[str,str]:
+    def get_column_name_and_unit(self, column_name: str, **kwargs) -> Tuple[str, str]:
         """
         Get column name and unit from column name
 

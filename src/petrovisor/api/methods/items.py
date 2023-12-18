@@ -47,7 +47,7 @@ class ItemsMixin(SupportsRequests):
                              f"Known item types: {list(self.ItemRoutes.keys())}")
         if route == 'Units' and name == ' ':
             name = '_'
-        return self.get(f'{route}/{name}', **kwargs)
+        return self.get(f'{route}/{self.encode(name)}', **kwargs)
 
     # delete item
     def delete_item(self, item_type: str, item: Union[str, Dict], **kwargs) -> Any:
@@ -67,7 +67,7 @@ class ItemsMixin(SupportsRequests):
                              f"unknown item type: '{item_type}'. "
                              f"Known item types: {list(self.ItemRoutes.keys())}")
         name = self.get_item_name(item, **kwargs)
-        return self.delete(f'{route}/{name}', **kwargs)
+        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
 
     # add or edit item
     def add_item(self, item_type: str, item: Dict, **kwargs) -> Any:
@@ -87,7 +87,7 @@ class ItemsMixin(SupportsRequests):
                              f"unknown item type: '{item_type}'. "
                              f"Known item types: {list(self.ItemRoutes.keys())}")
         name = self.get_item_name(item, **kwargs)
-        return self.put(f'{route}/{name}', data=item, **kwargs)
+        return self.put(f'{route}/{self.encode(name)}', data=item, **kwargs)
 
     # update item metadata
     def update_item_metadata(self, item_type: str, item: Dict, **kwargs) -> Any:
@@ -107,7 +107,7 @@ class ItemsMixin(SupportsRequests):
                              f"unknown 'PetroVisor' item type: '{item_type}'. "
                              f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
         name = self.get_item_name(item, **kwargs)
-        return self.put(f'{route}/{name}/Metadata', data=item, **kwargs)
+        return self.put(f'{route}/{self.encode(name)}/Metadata', data=item, **kwargs)
 
     # get items
     def get_items(self, item_type: str, **kwargs) -> List:
@@ -165,7 +165,7 @@ class ItemsMixin(SupportsRequests):
         return self.get(f'{route}', **kwargs)
 
     # get item labels
-    def get_item_labels(self, item_type: str, **kwargs) -> List[str]:
+    def get_item_labels(self, item_type: str, name: Optional[str] = None, **kwargs) -> List:
         """
         Get item labels of given type
 
@@ -173,16 +173,24 @@ class ItemsMixin(SupportsRequests):
         ----------
         item_type : str
             Item type
+        name : str
+            Item name
         """
-        route = self.get_petrovisor_item_route(item_type, **kwargs)
+        route = self.get_item_route(item_type, **kwargs)
         if not route:
             raise ValueError(f"PetroVisor::get_item_labels(): "
                              f"unknown 'PetroVisor' item type: '{item_type}'. "
                              f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
-        return self.get(f'{route}/Labels', **kwargs)
+        if self.is_petrovisor_item(item_type, **kwargs):
+            if name:
+                item = self.get_item(item_type, name, **kwargs)
+                return item['Labels']
+            items = self.get(f'{route}/PetroVisorItems', **kwargs)
+            return [{item['Name']: item['Labels']} for item in items]
+        return []
 
     # get item infos
-    def get_item_infos(self, item_type: str, **kwargs) -> List:
+    def get_item_infos(self, item_type: str, name: Optional[str] = None, **kwargs) -> Union[List, Dict]:
         """
         Get item infos of given type
 
@@ -190,15 +198,23 @@ class ItemsMixin(SupportsRequests):
         ----------
         item_type : str
             Item type
+        name : str
+            Item name
         """
-        route = self.get_info_item_route(item_type, **kwargs)
+        route = self.get_item_route(item_type, **kwargs)
         if not route:
             raise ValueError(f"PetroVisor::get_item_infos(): "
                              f"unknown 'PetroVisor' item type: '{item_type}'. "
                              f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
         if self.is_info_item(item_type, **kwargs):
+            if name:
+                return self.get(f'{route}/{self.encode(name)}/Info', **kwargs)
             return self.get(f'{route}/Info', **kwargs)
-        return self.get(f'{route}/PetroVisorItems', **kwargs)
+        elif self.is_petrovisor_item(item_type, **kwargs):
+            if name:
+                return self.get(f'{route}/{self.encode(name)}/PetroVisorItem', **kwargs)
+            return self.get(f'{route}/PetroVisorItems', **kwargs)
+        return {} if name else []
 
     # get item name
     def get_item_name(self, item: Union[str, Dict], **kwargs) -> str:
