@@ -19,38 +19,55 @@ from petrovisor.api.dtypes.signals import SignalType
 class SupportsRequests(Protocol):
     @property
     def Api(self) -> str: ...
+
     @property
     def Workspace(self) -> str: ...
+
     @property
     def Key(self) -> str: ...
+
     @property
     def Token(self) -> str: ...
+
     @property
     def RefreshToken(self) -> str: ...
+
     @property
     def TokenEndpoint(self) -> str: ...
+
     @property
     def DiscoveryUrl(self) -> str: ...
+
     @property
     def Route(self) -> str: ...
+
     # 'NamedItem' routes
     @property
     def ItemRoutes(self): ...
+
     # 'PetroVisorItem' routes
     @property
     def PetroVisorItemRoutes(self): ...
+
     # 'InfoItem' routes
     @property
     def InfoItemRoutes(self): ...
 
     # get method
     def get(self, rqst: str, **kwargs) -> Any: ...
+
     # post method
     def post(self, rqst: str, **kwargs) -> Any: ...
+
     # put method
     def put(self, rqst: str, **kwargs) -> Any: ...
+
     # delete method
     def delete(self, rqst: str, **kwargs) -> Any: ...
+
+    # encode url component
+    @staticmethod
+    def encode(url_component: str, safe: Optional[Union[str, bytes]] = '~', **kwargs) -> str: ...
 
 
 # PetroVisor Items requests protocol
@@ -60,24 +77,31 @@ class SupportsItemRequests(Protocol):
 
     # get item
     def get_item(self, item_type: str, name: str, **kwargs) -> Any: ...
+
     # delete item
     def delete_item(self, item_type: str, item: Union[str, Dict], **kwargs) -> Any: ...
+
     # add or edit item
     def add_item(self, item_type: str, item: Dict, **kwargs) -> Any: ...
+
     # update item metadata
     def update_item_metadata(self, item_type: str, item: Dict, **kwargs) -> Any: ...
 
     # get items
     def get_items(self, item_type: str, **kwargs) -> List: ...
+
     # get item names
     def get_item_names(self, item_type: str, **kwargs) -> List[str]: ...
 
     # get item paged
     def get_items_paged(self, item_type: str, page: int = 1, page_size: int = 10, **kwargs) -> List: ...
+
     # get item labels
     def get_item_labels(self, item_type: str, **kwargs) -> List[str]: ...
+
     # get item infos
     def get_item_infos(self, item_type: str, **kwargs) -> List: ...
+
     # get item name
     def get_item_name(self, item: Union[str, Dict], **kwargs) -> str: ...
 
@@ -90,15 +114,19 @@ class SupportsItemRequests(Protocol):
 
     # get 'NamedItem' route
     def get_item_route(self, data_type: str, **kwargs) -> str: ...
+
     # get 'PetroVisorItems' route
     def get_petrovisor_item_route(self, data_type: str, **kwargs) -> str: ...
+
     # get 'InfoItems' route
     def get_info_item_route(self, data_type: str, **kwargs) -> str: ...
 
     # is 'NamedItem'
     def is_named_item(self, data_type: str, **kwargs) -> bool: ...
+
     # is 'PetroVisorItem'
     def is_petrovisor_item(self, data_type: str, **kwargs) -> bool: ...
+
     # is 'InfoItem'
     def is_info_item(self, data_type: str, **kwargs) -> bool: ...
 
@@ -107,14 +135,19 @@ class SupportsItemRequests(Protocol):
 class SupportsEntitiesRequests(Protocol):
     # get entity
     def get_entity(self, name: str, alias: Optional[str] = '', **kwargs) -> Dict: ...
+
     # get entities
     def get_entities(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[Dict]: ...
+
     # get entity names
     def get_entity_names(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[str]: ...
+
     # add entities
     def add_entities(self, entities: List, **kwargs) -> Any: ...
+
     # rename entity type
     def rename_entity_type(self, old_name: str, new_name: str, **kwargs) -> Any: ...
+
     # rename entity
     def rename_entity(self, old_name: str, new_name: str, **kwargs) -> Any: ...
 
@@ -124,8 +157,16 @@ class SupportsSignalsRequests(Protocol):
 
     # get 'Signal'
     def get_signal(self, name: str, short_name: Optional[str] = '', **kwargs) -> Optional[Dict]: ...
+
+    # get 'Signal' names
+    def get_signal_names(self,
+                         signal_type: Optional[str] = '',
+                         entity: Optional[Union[Any, str]] = None,
+                         **kwargs) -> List[str]: ...
+
     # get valid signal type name
     def get_signal_type_enum(self, signal_type: Union[str, SignalType], **kwargs) -> SignalType: ...
+
     # get signal type route
     def get_signal_type_route(self, signal_type: Union[str, SignalType], **kwargs) -> str: ...
 
@@ -178,4 +219,4 @@ class SupportsDataFrames(Protocol):
                                           dropna: bool = True,
                                           with_entity_column: bool = True,
                                           groupby_entity: bool = False,
-                                          **kwargs) -> Optional[Union[pd.DataFrame,Dict[str, pd.DataFrame]]]: ...
+                                          **kwargs) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...

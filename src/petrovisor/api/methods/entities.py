@@ -33,8 +33,8 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         """
         route = 'Entities'
         if alias:
-            return self.get(f'{route}/{alias}/Entity', **kwargs)
-        return self.get(f'{route}/{name}', **kwargs)
+            return self.get(f'{route}/{self.encode(alias)}/Entity', **kwargs)
+        return self.get(f'{route}/{self.encode(name)}', **kwargs)
 
     # get entities
     def get_entities(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[Dict]:
@@ -59,8 +59,8 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         if signal:
             entity_names = self.get_entity_names(signal_type=None, signal=signal, **kwargs)
             if entity_names:
-                return [e for e in entities if(e['Name'] in entity_names)]
-        return entities if(entities is not None) else []
+                return [e for e in entities if e['Name'] in entity_names]
+        return entities if entities is not None else []
 
     # get entity names
     def get_entity_names(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[str]:
@@ -80,11 +80,11 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         if signal:
             signals_route = 'Signals'
             signal_name = ApiHelper.get_object_name(signal)
-            entity_names = self.get(f'{signals_route}/{signal_name}/Entities', **kwargs)
+            entity_names = self.get(f'{signals_route}/{self.encode(signal_name)}/Entities', **kwargs)
             if entity_type and entity_names is not None:
                 entity_type_names = self.get_entity_names(entity_type=entity_type, signal=None, **kwargs)
                 if entity_type_names:
-                    return [e for e in entity_names if(e in entity_type_names)]
+                    return [e for e in entity_names if e in entity_type_names]
         # get entities by 'Entity' type
         elif entity_type:
             entities = self.get_entities(entity_type=entity_type, signal=None, **kwargs)
@@ -92,7 +92,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         # get all entities
         else:
             entity_names = self.get(f'{route}', **kwargs)
-        return entity_names if(entity_names is not None) else []
+        return entity_names if entity_names is not None else []
 
     # add entities
     def add_entities(self, entities: List, **kwargs) -> Any:

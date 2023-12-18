@@ -216,7 +216,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         return ml_trainers_and_metrics['Metrics']
 
     # get ML pre-training statistics
-    def ml_pre_training_statistics(self, model_name: str, **kwargs) -> Any:
+    def ml_pre_training_statistics(self, model_name: str, skip_pre_processing: bool = True, **kwargs) -> Any:
         """
         Get ML pre-training statistics
 
@@ -224,9 +224,14 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         ----------
         model_name : str
             ML Model name
+        skip_pre_processing : bool, default True
+            Skip pre-processing of the data
         """
         route = 'MLModels/PreTrainingStatistics'
-        return self.get(route, query={'ModelName': model_name}, **kwargs)
+        return self.post(route, data={
+            'ModelName': model_name,
+            'SkipPreProcessing': skip_pre_processing,
+        }, **kwargs)
 
     # get ML post-training statistics
     def ml_post_training_statistics(self, model_name: str, entity: Optional[Union[str, dict]] = None, **kwargs) -> Any:
@@ -248,7 +253,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
             entity_name = ApiHelper.get_object_name(entity)
             request['EntityName'] = entity_name
             return self.post(route, data=request, **kwargs)
-        return self.get(route, query={'ModelName': model_name}, **kwargs)
+        return self.post(route, data={'ModelName': model_name}, **kwargs)
 
     # predict ML model
     def ml_predict(self, model_name: str, entity: Union[str, dict], data: dict, **kwargs) -> Any:
@@ -442,7 +447,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         route = 'ModelTraining'
         uuid = self.ml_get_model_training_id(model_name_or_id, **kwargs)
-        return self.get(f"{route}/{uuid}", **kwargs)
+        return self.get(f"{route}/{self.encode(uuid)}", **kwargs)
 
     # get ML model training results
     def ml_get_model_training_results(self, model_name_or_id: Union[str, UUID], **kwargs) -> Any:
@@ -456,7 +461,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         """
         route = 'ModelTraining/Results'
         uuid = self.ml_get_model_training_id(model_name_or_id, **kwargs)
-        return self.get(f"{route}/{uuid}", **kwargs)
+        return self.get(f"{route}/{self.encode(uuid)}", **kwargs)
 
     # get ML Model Type enum
     def get_ml_model_type_enum(self, type: Union[str, MLModelType], **kwargs) -> MLModelType:

@@ -13,11 +13,12 @@ from petrovisor.api.protocols.protocols import (
     SupportsSignalsRequests,
     SupportsDataFrames,
     SupportsPsharpRequests,
+    SupportsItemRequests,
 )
 
 
 # P# API class
-class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsRequests, SupportsRequests):
+class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsRequests, SupportsItemRequests, SupportsRequests):
     """
     P# API class
     """
@@ -27,7 +28,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         """
         Get P# script names
         """
-        return self.get(f'Configuration/PSharpFunctions', **kwargs)
+        return self.get_item_names('PSharpScript', **kwargs)
 
     # get P# script
     def get_psharp_script(self, name: str, **kwargs) -> Dict:
@@ -39,7 +40,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         name : str
             P# script name
         """
-        return self.get(f'PSharpScripts/{name}', **kwargs)
+        return self.get(f'PSharpScripts/{self.encode(name)}', **kwargs)
 
     # get P# script content
     def get_psharp_script_content(self, script: Union[str, Dict], **kwargs) -> str:
@@ -54,7 +55,9 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         # get P# script content
         if isinstance(script, str):
             script_content = script
-            script = self.get_psharp_script(script, **kwargs)
+            # check is script is the name of P# script
+            script_names = self.get_psharp_script_names(**kwargs)
+            script = self.get_psharp_script(script, **kwargs) if script in script_names else None
         else:
             script_content = None
         if script is None and script_content:
@@ -90,7 +93,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
                 'NoMissedObjects': True
             }
             options = ApiHelper.update_dict(options, **kwargs)
-        return self.post(f'Parsing/Parsed', data={'ScriptContent': script_content, 'Options': options}, **kwargs)
+        return self.post('Parsing/Parsed', data={'ScriptContent': script_content, 'Options': options}, **kwargs)
 
     # get P# script table names
     def get_psharp_script_table_names(self,
@@ -146,7 +149,7 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
                 for col in table_columns:
                     col_name = col['Name']
                     unit_name = col['Unit']['Name']
-                    full_column_name = col_name + ' ' + '[' + unit_name + ']'
+                    # full_column_name = col_name + ' ' + '[' + unit_name + ']'
                     col_formula = col['Formula']
                     col_signal = col_formula.split('"')
                     signal_name = col_signal[1] if len(col_signal) > 1 else ''
@@ -218,10 +221,10 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         # read single table from P# script
         if table_name and dropna:
             if with_entity_column:
-                psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsBITable',
+                psharp_table = self.get(f'PSharpScripts/{self.encode(script_name)}/ExecuteAsBITable',
                                         query={'Table': table_name}, **kwargs)
             else:
-                psharp_table = self.get(f'PSharpScripts/{script_name}/ExecuteAsTable',
+                psharp_table = self.get(f'PSharpScripts/{self.encode(script_name)}/ExecuteAsTable',
                                         query={'Table': table_name}, **kwargs)
             if psharp_table is not None:
                 return self.convert_psharp_table_to_dataframe(psharp_table,
@@ -243,10 +246,10 @@ class PsharpMixin(SupportsDataFrames, SupportsPsharpRequests, SupportsSignalsReq
         #                      for table_name in table_names]
         script_content = self.get_psharp_script_content(script_name, **kwargs)
         if load_full_table_info:
-            psharp_tables = self.post(f'PSharpScripts/ExecuteScript',
+            psharp_tables = self.post('PSharpScripts/ExecuteScript',
                                       data={'ScriptContent': script_content}, **kwargs)
         else:
-            psharp_tables = self.post(f'PSharpScripts/Execute',
+            psharp_tables = self.post('PSharpScripts/Execute',
                                       data={'ScriptContent': script_content}, **kwargs)
 
         # return single table

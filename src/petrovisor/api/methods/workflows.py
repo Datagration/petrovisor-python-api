@@ -67,4 +67,4 @@ class WorkflowsMixin(SupportsRequests):
             Workflow id
         """
         uuid = ApiHelper.get_uuid(uid)
-        return self.get(f"WorkflowExecution/{uuid}", **kwargs)
+        return self.get(f"WorkflowExecution/{self.encode(str(uuid))}", **kwargs)

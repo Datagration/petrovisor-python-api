@@ -59,11 +59,11 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
                 scope_name = ApiHelper.get_object_name(scope, **kwargs)
                 options['OverrideScope'] = self.get_item(ItemType.Scope, scope_name, **kwargs)
             if options:
-                pivot_table_data = self.get(f'{route}/{name}/Generated/Options', data=options, **kwargs)
+                pivot_table_data = self.get(f'{route}/{self.encode(name)}/Generated/Options', data=options, **kwargs)
             else:
-                pivot_table_data = self.get(f'{route}/{name}/Generated', **kwargs)
+                pivot_table_data = self.get(f'{route}/{self.encode(name)}/Generated', **kwargs)
         else:
-            pivot_table_data = self.get(f'{route}/{name}/Saved',
+            pivot_table_data = self.get(f'{route}/{self.encode(name)}/Saved',
                                         query={
                                             'RowCount': self.get_json_valid_value(num_rows, 'numeric')
                                         },
@@ -104,8 +104,8 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
             scope_name = ApiHelper.get_object_name(scope, **kwargs)
             options['OverrideScope'] = self.get_item(ItemType.Scope, scope_name, **kwargs)
         if options:
-            self.post(f'{route}/{name}/Save/Options', data=options, **kwargs)
-        return self.get(f'{route}/{name}/Save', **kwargs)
+            self.post(f'{route}/{self.encode(name)}/Save/Options', data=options, **kwargs)
+        return self.get(f'{route}/{self.encode(name)}/Save', **kwargs)
 
     # delete pivot table data
     def delete_pivot_table_data(self, name: str, **kwargs) -> Any:
@@ -118,4 +118,4 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
             Reference table name
         """
         route = self.get_item_route(ItemType.PivotTable)
-        return self.get(f'{route}/{name}/Delete', **kwargs)
+        return self.get(f'{route}/{self.encode(name)}/Delete', **kwargs)

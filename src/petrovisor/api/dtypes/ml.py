@@ -1,11 +1,11 @@
 from enum import (
-    Enum,
+    IntEnum,
     auto,
 )
 
 
 # PetroVisor Machine Learning model types
-class MLModelType(Enum):
+class MLModelType(IntEnum):
     # Regression
     Regression = 0
     # Binary classification
@@ -21,7 +21,7 @@ class MLModelType(Enum):
 
 
 # PetroVisor Machine Learning normalization types
-class MLNormalizationType(Enum):
+class MLNormalizationType(IntEnum):
     # ML engine will automatically pick a normalization method
     Auto = auto()
     # MinMax

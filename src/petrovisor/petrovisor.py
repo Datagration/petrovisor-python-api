@@ -42,6 +42,7 @@ class PetroVisor(RequestsMixin,
                  key: Optional[str] = '',
                  username: Optional[str] = '',
                  password: Optional[str] = '',
+                 errors: Optional[str] = 'coerce',
                  **kwargs):
         """
         Parameters
@@ -60,6 +61,10 @@ class PetroVisor(RequestsMixin,
             Username
         password : str, default None
             Password
+        errors : str, default 'coerce'
+            If ‘raise’, then invalid request will raise an exception.
+            If ‘coerce’, then invalid request will issue a warning and return None.
+            If ‘ignore’, then invalid request will return the response.
         """
 
         super().__init__(workspace=workspace,
@@ -69,4 +74,5 @@ class PetroVisor(RequestsMixin,
                          key=key,
                          username=username,
                          password=password,
+                         errors=errors,
                          **kwargs)

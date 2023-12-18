@@ -258,7 +258,7 @@ class ApiHelper:
         """
         try:
             int(value)
-        except:
+        except ValueError:
             return False
         return True
 
@@ -275,7 +275,7 @@ class ApiHelper:
         """
         try:
             float(value)
-        except:
+        except ValueError:
             return False
         return True
 
@@ -305,7 +305,7 @@ class ApiHelper:
         """
         try:
             UUID(value)
-        except:
+        except ValueError:
             return False
         return True
 
