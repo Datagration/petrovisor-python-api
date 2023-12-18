@@ -49,7 +49,7 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         groupby_entity : bool, default False
             Return dictionary of DataFrames grouped by entity name
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = 'PivotTables'
         if generate or entity_set or scope:
             options = {}
             if entity_set:
@@ -95,7 +95,7 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         scope : str, dict, default None
             Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = 'PivotTables'
         options = {}
         if entity_set:
             entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
@@ -117,5 +117,5 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
         name : str
             Reference table name
         """
-        route = self.get_item_route(ItemType.PivotTable)
+        route = 'PivotTables'
         return self.get(f'{route}/{self.encode(name)}/Delete', **kwargs)

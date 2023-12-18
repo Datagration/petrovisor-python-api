@@ -6,7 +6,6 @@ from typing import (
 )
 
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,

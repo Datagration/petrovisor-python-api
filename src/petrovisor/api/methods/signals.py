@@ -111,7 +111,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         measurement : str
             Measurement name
         """
-        route = self.get_item_route('Unit')
+        route = 'Units'
         return self.get(f'{route}/{self.encode(measurement)}/Units', **kwargs)
 
     # get measurement 'Unit' names
