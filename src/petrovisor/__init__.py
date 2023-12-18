@@ -13,6 +13,7 @@ from petrovisor.api.dtypes.data_grids import DataGridType, PointSetType
 # Use __all__ to let type checkers know what is part of the public API.
 __all__ = [
     "PetroVisor",
+    "ItemType",
     "SignalType",
     "TimeIncrement",
     "DepthIncrement",
