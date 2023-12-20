@@ -409,6 +409,7 @@ class ItemsMixinHelper:
             ItemType.WorkflowSchedule: 'WorkflowSchedules',
             ItemType.CustomWorkflowActivity: 'CustomWorkflowActivities',
             ItemType.RWorkflowActivity: 'RWorkflowActivities',
+            ItemType.PythonWorkflowActivity: 'PythonWorkflowActivities',
             ItemType.WebWorkflowActivity: 'WebWorkflowActivities',
             ItemType.DataIntegrationSet: 'DataIntegrationSets',
             ItemType.WorkspacePackage: 'WorkspacePackages',

@@ -41,6 +41,7 @@ class ItemType:
     WorkflowSchedule = 'WorkflowSchedule'
     CustomWorkflowActivity = 'CustomWorkflowActivity'
     RWorkflowActivity = 'RWorkflowActivity'
+    PythonWorkflowActivity = 'PythonWorkflowActivity'
     WebWorkflowActivity = 'WebWorkflowActivity'
     DataIntegrationSet = 'DataIntegrationSet'
     WorkspacePackage = 'WorkspacePackage'
