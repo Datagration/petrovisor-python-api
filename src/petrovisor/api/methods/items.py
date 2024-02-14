@@ -28,6 +28,24 @@ class ItemsMixin(SupportsRequests):
         """
         return ItemsMixinHelper.get_item_types()
 
+    # items exists
+    def item_exists(self, item_type: str, item: Union[str, Dict], **kwargs) -> bool:
+        """
+        Get item
+
+        Parameters
+        ----------
+        item_type : str
+            Item type
+        item: Union[str, Dict]
+            Item object
+        """
+        item_names = self.get_item_names(item_type, **kwargs)
+        if not item_names:
+            return False
+        item_name = self.get_item_name(item, **kwargs)
+        return item_name in item_names
+
     # get item
     def get_item(self, item_type: str, name: str, **kwargs) -> Any:
         """
@@ -421,7 +439,4 @@ class ItemsMixinHelper:
             ItemType.PivotTableDefinition: 'PivotTables',  # alias PivotTable
             ItemType.ChartDefinition: 'Charts',  # alias Chart
             ItemType.FilterDefinition: 'Filters',  # alias Filter
-        }, **{  # will be deprecated
-            ItemType.ReferenceTable: 'ReferenceTables',
-            ItemType.ReferenceTableDefinition: 'ReferenceTables',  # alias ReferenceTable
         }, **ItemsMixinHelper.get_info_item_routes())

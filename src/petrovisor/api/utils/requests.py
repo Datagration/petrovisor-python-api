@@ -6,6 +6,7 @@ from typing import (
 )
 import json
 import requests
+from requests import Response
 from requests.utils import requote_uri
 from urllib.parse import quote
 import warnings
@@ -421,3 +422,14 @@ class ApiRequests:
         if not isinstance(url_component, str):
             return url_component
         return quote(url_component, safe=safe, **kwargs)
+
+    # return success response
+    @staticmethod
+    def success():
+        """
+        Return success response
+        """
+        response = Response()
+        response.status_code = 200
+        response._content = json.dumps({"message": "Success!"}).encode('utf-8')
+        return response

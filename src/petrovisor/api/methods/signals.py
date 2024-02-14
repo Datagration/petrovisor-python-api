@@ -10,7 +10,7 @@ from datetime import datetime
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.signals import SignalType
+from petrovisor.api.dtypes.internal_dtypes import SignalType
 from petrovisor.api.dtypes.increments import (
     TimeIncrement,
     DepthIncrement,

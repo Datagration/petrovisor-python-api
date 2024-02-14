@@ -12,7 +12,7 @@ except BaseException:
 
 import pandas as pd
 
-from petrovisor.api.dtypes.signals import SignalType
+from petrovisor.api.dtypes.internal_dtypes import SignalType
 
 
 # PetroVisor requests protocol
@@ -130,6 +130,9 @@ class SupportsItemRequests(Protocol):
     # is 'InfoItem'
     def is_info_item(self, data_type: str, **kwargs) -> bool: ...
 
+    # items exists
+    def item_exists(self, item_type: str, item: Union[str, Dict], **kwargs) -> bool: ...
+
 
 # PetroVisor Entities requests protocol
 class SupportsEntitiesRequests(Protocol):
@@ -220,3 +223,6 @@ class SupportsDataFrames(Protocol):
                                           with_entity_column: bool = True,
                                           groupby_entity: bool = False,
                                           **kwargs) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...
+
+    # get column unit
+    def get_column_unit(self, column_name: str, **kwargs) -> str: ...
