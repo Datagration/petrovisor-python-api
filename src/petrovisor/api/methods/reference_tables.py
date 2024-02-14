@@ -167,8 +167,10 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
     # load reference table data
     def load_ref_table_data(self,
                             name: str,
-                            entity: Optional[Union[str, Dict]] = None,
-                            date: Optional[Union[datetime, str]] = None,
+                            entity: Optional[Union[str, Dict, List[str], List[Dict]]] = None,
+                            date_start: Optional[Union[datetime, str]] = None,
+                            date_end: Optional[Union[datetime, str]] = None,
+                            where_expression: Optional[str] = None,
                             date_col: Optional[str] = 'Timestamp',
                             entity_col: Optional[str] = 'Entity',
                             options: Optional[Dict] = None,
@@ -180,10 +182,14 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         ----------
         name : str
             Reference table name
-        entity : str, dict
-            Entity object or Entity name
-        date : str, datetime, None
-            Date or None
+        entity : str, dict or list[str], list[dict]
+            Entity object(s) or Entity name(s)
+        date_start : str, datetime, None
+            Start Date or None
+        date_end : str, datetime, None
+            End Date or None
+        where_expression : str, default None
+            SQL like WHERE expression
         date_col : str, default 'Date'
             Date column name. Default names 'Date' (compatible with date column in P# table), 'Timestamp' (compatible with the internal time column name in RefTable), 'Time' (typically used as displayed name)
         entity_col : str, default 'Entity'
@@ -193,38 +199,31 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         """
         route = 'RefTables'
         filter_options = options if options else {}
-        # filter_options = {
-        #   "Entity": "string",
-        #   "Entities": [
-        #     "string"
-        #   ],
-        #   "Timestamp": "2023-11-27T19:21:59.250Z",
-        #   "StartTimestamp": "2023-11-27T19:21:59.250Z",
-        #   "EndTimestamp": "2023-11-27T19:21:59.250Z",
-        #   "TopRows": 0,
-        #   "KeyUnitName": "string",
-        #   "ValuesUnitNames": {
-        #     "additionalProp1": "string",
-        #     "additionalProp2": "string",
-        #     "additionalProp3": "string"
-        #   },
-        # .  "WhereExpression": "string",
-        # }
         if entity:
-            entity_name = ApiHelper.get_object_name(entity)
-            filter_options['Entity'] = entity_name
-        if date:
-            date_str = self.get_json_valid_value(date, 'time', **kwargs)
-            if date_str is None:
-                date_str = ''
-            filter_options['Timestamp'] = date_str
+            if isinstance(entity, (list, tuple, set, )):
+                filter_options['Entities'] = [ApiHelper.get_object_name(entity) for e in entity]
+            else:
+                filter_options['Entity'] = ApiHelper.get_object_name(entity)
+        if date_start and date_end:
+            date_start = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+            date_end = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+            if date_start and not date_end:
+                filter_options['Timestamp'] = date_end
+            elif not date_start and date_end:
+                filter_options['Timestamp'] = date_end
+            elif date_start and date_end:
+                filter_options['StartTimestamp'] = date_start
+                filter_options['EndTimestamp'] = date_end
+        if where_expression:
+            filter_options['WhereExpression'] = where_expression
         filter_options = ApiHelper.update_dict(filter_options, **kwargs)
+
         # get filtered data
         data = self.post(f'{route}/{self.encode(name)}/Data', data=filter_options, **kwargs)
         ref_table_info = self.get_ref_table_data_info(name)
         columns = [f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info['Values']]
         key_column = f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
-        columns = ['Entity', 'Date', key_column, *columns]
+        columns = [entity_col or 'Entity', date_col or 'Date', key_column, *columns]
         df = pd.DataFrame(data=data, columns=columns)
         return df
 
@@ -232,9 +231,6 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
     def save_ref_table_data(self,
                             name: str,
                             df: pd.DataFrame,
-                            entity: Union[str, Dict] = None,
-                            date: Optional[Union[datetime, float]] = None,
-                            data: Union[Dict[float, float], List, pd.DataFrame] = None,
                             skip_existing_data: Optional[bool] = False,
                             chunksize: Optional[int] = None,
                             **kwargs):
@@ -251,12 +247,6 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             Whether to skip or overwrite existing data that has same combination of 'Entity', 'Timestamp', 'Key'
         chunksize : int, default None
             Chunk size for splitting request into multiple smaller requests.
-        entity : str, dict
-            Entity object or Entity name
-        date : str, datetime, None
-            Date or None
-        data : dict, list, DataFrame
-            Reference Table Data
         """
         route = 'RefTables'
 
@@ -310,25 +300,26 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         name : str
             Reference table name
         date_start : str, datetime, None
-            Date or None
+            Start Date or None
         date_end : str, datetime, None
-            Date or None
+            End Date or None
         """
         route = 'RefTables'
-        date_start = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
-        date_end = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
-        if date_start and not date_end:
-            date_end = date_start
-        elif not date_start and date_end:
-            date_start = date_end
-        if date_start and date_end:
-            options = {
-                'TimestampStart': date_start,
-                'TimestampEnd': date_end,
-                'IncludeWithNoTimestamp': False,  # Whether rows without timestamps should be deleted
-            }
-            options = ApiHelper.update_dict(options, **kwargs)
-            return self.delete(f'{route}/{self.encode(name)}/Data/Timestamp', query=options, **kwargs)
+        if date_start or date_end:
+            date_start = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+            date_end = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+            if date_start and not date_end:
+                date_end = date_start
+            elif not date_start and date_end:
+                date_start = date_end
+            if date_start and date_end:
+                options = {
+                    'TimestampStart': date_start,
+                    'TimestampEnd': date_end,
+                    'IncludeWithNoTimestamp': False,  # Whether rows without timestamps should be deleted
+                }
+                options = ApiHelper.update_dict(options, **kwargs)
+                return self.delete(f'{route}/{self.encode(name)}/Data/Timestamp', query=options, **kwargs)
         return self.delete(f'{route}/{self.encode(name)}/Data', **kwargs)
 
     # delete reference table
@@ -350,7 +341,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
 
 
 # Reference table mixin helper
-class RefTableMixinHelper(SupportsDataFrames):
+class RefTableMixinHelper:
 
     # create DataFrame in case if it is passed as dictionary
     @staticmethod

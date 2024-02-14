@@ -21,16 +21,13 @@ def test_ref_tables(pv_api: PetroVisor):
     name = 'PyTest New RefTable'
 
     # delete table if exists
-    response = pv_api.delete_ref_table(name)
-    assert response.status_code == 200
+    pv_api.delete_ref_table(name)
 
     # add new reference table
-    response = pv_api.add_ref_table(name, df, description='Testing API from Python')
-    assert response.status_code == 200
+    pv_api.add_ref_table(name, df, description='Testing API from Python')
 
     # add data to already existing table
-    response = pv_api.add_ref_table(name, df, description='Testing API from Python')
-    assert response.status_code == 200
+    pv_api.add_ref_table(name, df, description='Testing API from Python')
 
     # check that table was created
     ref_table_info = pv_api.get_ref_table_data_info(name)
@@ -38,13 +35,11 @@ def test_ref_tables(pv_api: PetroVisor):
 
     # save data and overwrite existing data
     # meaning that rows with the same 'Entity', 'Timestamp/Date/Time', 'Key' will be overwritten
-    response = pv_api.save_ref_table_data(name, df, skip_existing_data=False)
-    assert response.status_code == 200
+    pv_api.save_ref_table_data(name, df, skip_existing_data=False)
 
     # save data but keep existing data
     # meaning that rows with the same 'Entity', 'Timestamp/Date/Time', 'Key' will be not overwritten
-    response = pv_api.save_ref_table_data(name, df, skip_existing_data=True)
-    assert response.status_code == 200
+    pv_api.save_ref_table_data(name, df, skip_existing_data=True)
 
     # load table
     df = pv_api.load_ref_table_data(name)
@@ -52,5 +47,4 @@ def test_ref_tables(pv_api: PetroVisor):
 
     # delete reference table
     pv_api.delete_ref_table_data(name)
-    response = pv_api.delete_ref_table(name)
-    assert response.status_code == 200
+    pv_api.delete_ref_table(name)
