@@ -260,8 +260,8 @@ class ApiRequests:
 
         # request secs
         timeout = 59 * 60  # time out limit in seconds (3540)
-        max_retries = 1
-        waiting_time = 3  # in seconds
+        max_retries = 1  # in case of 400 Bad Request or 4004 Not Found, increased to 3
+        waiting_time = 5  # in seconds
 
         # get response
         response = None
