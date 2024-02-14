@@ -7,7 +7,6 @@ from typing import (
 )
 
 from datetime import datetime
-import math
 import time
 import pandas as pd
 import numpy as np
@@ -124,7 +123,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             elif df_key_cols:
                 df_key_col = df_key_cols.pop()
             else:
-                raise ValueError(f"PetroVisor::add_ref_table(): "
+                raise ValueError("PetroVisor::add_ref_table(): "
                                  "'Key' column is not specified")
 
             # reserved column names: "ID", "Timestamp", "Entity"
@@ -276,11 +275,10 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
 
         if df is not None and not df.empty:
             if chunksize and (df.shape[0] > chunksize):
-                num_chunks = int(math.ceil(df.shape[0] / chunksize))
-                step = max(1, int(math.floor(0.1 * df.shape[0] / chunksize)))
+                # num_chunks = int(math.ceil(df.shape[0] / chunksize))
+                # step = max(1, int(math.floor(0.1 * df.shape[0] / chunksize)))
                 i = 0
 
-                start_time = time.time()
                 for start in range(0, df.shape[0], chunksize):
                     end = min(start + chunksize, df.shape[0])
 
@@ -290,10 +288,6 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
                                              chunksize=chunksize,
                                              **kwargs)
                     i += 1
-                    is_step = i % step == 0 or i == num_chunks
-                    if is_step:
-                        end_time = time.time()
-                        start_time = time.time()
                 return ApiRequests.success()
             # save data
             data = df.astype('string').to_json(orient='values')
