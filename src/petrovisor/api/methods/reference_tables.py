@@ -31,6 +31,13 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
     Reference Table API calls
     """
 
+    # get reference table names
+    def get_ref_table_names(self, **kwargs) -> Any:
+        """
+        Get reference table names
+        """
+        return self.get_item_names(ItemType.RefTable, **kwargs)
+
     # get reference table info
     def get_ref_table_data_info(self, name: str, **kwargs) -> Any:
         """
@@ -42,23 +49,6 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             Reference table name
         """
         return self.get_item(ItemType.RefTable, name, **kwargs)
-
-    # delete reference table
-    def delete_ref_table(self,
-                         name: str,
-                         **kwargs) -> Any:
-        """
-        Delete reference table
-
-        Parameters
-        ----------
-        name : str
-            Reference table name
-        """
-        route = 'RefTables'
-        if not self.item_exists(ItemType.RefTable, name):
-            return ApiRequests.success()
-        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
 
     # add reference table
     def add_ref_table(self, name: str,
@@ -346,6 +336,23 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             options = ApiHelper.update_dict(options, **kwargs)
             return self.delete(f'{route}/{self.encode(name)}/Data/Timestamp', query=options, **kwargs)
         return self.delete(f'{route}/{self.encode(name)}/Data', **kwargs)
+
+    # delete reference table
+    def delete_ref_table(self,
+                         name: str,
+                         **kwargs) -> Any:
+        """
+        Delete reference table
+
+        Parameters
+        ----------
+        name : str
+            Reference table name
+        """
+        route = 'RefTables'
+        if not self.item_exists(ItemType.RefTable, name):
+            return ApiRequests.success()
+        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
 
 
 # Reference table mixin helper
