@@ -14,7 +14,6 @@ import copy
 from datetime import datetime
 import pandas as pd
 
-from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.dtypes.internal_dtypes import SignalType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
@@ -1030,6 +1029,7 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             return {
                 self.get_json_valid_value(row[0], 'numeric', **kwargs):
                     self.get_json_valid_value(row[1], 'numeric', **kwargs) for row in x}
+
 
 # DataFrame mixin helper
 class DataFrameMixinHelper:

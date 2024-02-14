@@ -11,7 +11,7 @@ import math
 import time
 import pandas as pd
 import numpy as np
-from pandas.api.types import is_bool_dtype, is_numeric_dtype, is_string_dtype, is_datetime64_dtype, is_timedelta64_dtype
+from pandas.api.types import is_bool_dtype, is_numeric_dtype, is_string_dtype, is_datetime64_dtype
 
 from petrovisor.api.dtypes.internal_dtypes import RefTableColumnType
 from petrovisor.api.utils.helper import ApiHelper
@@ -93,8 +93,6 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         chunksize : int, default None
             Chunk size for splitting request into multiple smaller requests.
         """
-        route = 'RefTables'
-
         if isinstance(df, dict):
             df = RefTableMixinHelper.create_dataframe(df)
 
@@ -161,7 +159,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
                             'ColumnType': RefTableMixinHelper.get_ref_table_column_type(column_types[col]),
                             } for col in value_columns],
             }
-            # options = ApiHelper.update_dict(options, **kwargs)
+            options = ApiHelper.update_dict(options, **kwargs)
             result = self.add_item(ItemType.RefTable, options, **kwargs)
             if is_empty:
                 return result
@@ -317,8 +315,8 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
     # delete reference table data
     def delete_ref_table_data(self,
                               name: str,
-                              entity: Union[str, Dict] = None,
-                              date: Optional[Union[datetime, float]] = None,
+                              date_start: Optional[Union[datetime, float]] = None,
+                              date_end: Optional[Union[datetime, float]] = None,
                               **kwargs) -> Any:
         """
         Delete reference table data
@@ -327,24 +325,25 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         ----------
         name : str
             Reference table name
-        entity : str, dict
-            Entity object or Entity name
-        date : str, datetime, None
+        date_start : str, datetime, None
+            Date or None
+        date_end : str, datetime, None
             Date or None
         """
         route = 'RefTables'
-        entity_name = entity
-        # entity_name = ApiHelper.get_object_name(entity)
-        date_str = self.get_json_valid_value(date, 'time', **kwargs)
-        if date_str is None:
-            date_str = ''
-        if date_str:
+        date_start = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+        date_end = self.get_json_valid_value(date_start, 'time', **kwargs) or ''
+        if date_start and not date_end:
+            date_end = date_start
+        elif not date_start and date_end:
+            date_start = date_end
+        if date_start and date_end:
             options = {
-                'TimestampStart': date_str,
-                'TimestampEnd': date_str,
+                'TimestampStart': date_start,
+                'TimestampEnd': date_end,
                 'IncludeWithNoTimestamp': False,  # Whether rows without timestamps should be deleted
             }
-            # options = ApiHelper.update_dict(options, **kwargs)
+            options = ApiHelper.update_dict(options, **kwargs)
             return self.delete(f'{route}/{self.encode(name)}/Data/Timestamp', query=options, **kwargs)
         return self.delete(f'{route}/{self.encode(name)}/Data', **kwargs)
 
