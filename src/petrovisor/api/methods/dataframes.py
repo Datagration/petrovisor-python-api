@@ -14,7 +14,8 @@ import copy
 from datetime import datetime
 import pandas as pd
 
-from petrovisor.api.dtypes.signals import SignalType
+from petrovisor.api.utils.requests import ApiRequests
+from petrovisor.api.dtypes.internal_dtypes import SignalType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsSignalsRequests,
@@ -1015,6 +1016,20 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
         raise ValueError(f"PetroVisor::get_signal_range_type_name(): "
                          f"'{signal_type}' is not supported yet.")
 
+    # convert list to dictionary
+    def list_to_dict(self, x, num_cols, **kwargs):
+        if num_cols == 0:
+            return {
+                self.get_json_valid_value(idx, 'numeric', **kwargs):
+                    self.get_json_valid_value(row, 'numeric', **kwargs) for idx, row in enumerate(x)}
+        elif num_cols == 1:
+            return {
+                self.get_json_valid_value(idx, 'numeric', **kwargs):
+                    self.get_json_valid_value(row[0], 'numeric', **kwargs) for idx, row in enumerate(x)}
+        elif num_cols > 1:
+            return {
+                self.get_json_valid_value(row[0], 'numeric', **kwargs):
+                    self.get_json_valid_value(row[1], 'numeric', **kwargs) for row in x}
 
 # DataFrame mixin helper
 class DataFrameMixinHelper:

@@ -56,6 +56,3 @@ class ItemType:
     DataSourceMapping = 'DataSourceMapping'
     DataIntegrationSession = 'DataIntegrationSession'
     Scenario = 'Scenario'
-    # will be deprecated
-    ReferenceTable = 'ReferenceTable'
-    ReferenceTableDefinition = 'ReferenceTableDefinition'  # alias ReferenceTable

@@ -6,11 +6,17 @@ from typing import (
     Dict,
 )
 
+from datetime import datetime
+import math
+import time
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from pandas.api.types import is_bool_dtype, is_numeric_dtype, is_string_dtype, is_datetime64_dtype, is_timedelta64_dtype
 
+from petrovisor.api.dtypes.internal_dtypes import RefTableColumnType
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.utils.requests import ApiRequests
+from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
@@ -25,7 +31,7 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
     Reference Table API calls
     """
 
-    # load reference table info
+    # get reference table info
     def get_ref_table_data_info(self, name: str, **kwargs) -> Any:
         """
         Get reference table data info
@@ -35,15 +41,151 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         name : str
             Reference table name
         """
-        route = 'ReferenceTables'
-        return self.get(f'{route}/{self.encode(name)}/ExistingData', **kwargs)
+        return self.get_item(ItemType.RefTable, name, **kwargs)
+
+    # delete reference table
+    def delete_ref_table(self,
+                         name: str,
+                         **kwargs) -> Any:
+        """
+        Delete reference table
+
+        Parameters
+        ----------
+        name : str
+            Reference table name
+        """
+        route = 'RefTables'
+        if not self.item_exists(ItemType.RefTable, name):
+            return ApiRequests.success()
+        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
+
+    # add reference table
+    def add_ref_table(self, name: str,
+                      df: Union[pd.DataFrame, Dict],
+                      description: Optional[str] = None,
+                      key_col: Optional[str] = 'Key',
+                      date_col: Optional[str] = None,
+                      entity_col: Optional[str] = 'Entity',
+                      skip_existing_data=False,
+                      chunksize=None,
+                      **kwargs) -> Any:
+        """
+        Add reference table from provided DataFrame.
+        If reference table already exists the provided DataFrame should follow the exact same schema.
+
+        Parameters
+        ----------
+        name : str
+            Reference table name
+        df : DataFrame, dict
+            DataFrame or dictionary, where keys are column names and values are column values or predefined types, such as 'str', 'float', 'bool', 'datetime64[s]'.
+        description : str, default None
+            Reference table description
+        key_col : str, default 'Key'
+            Key column name
+        date_col : str, default None
+            Date column name. Default names 'Date' (compatible with date column in P# table), 'Timestamp' (compatible with the internal time column name in RefTable), 'Time' (typically used as displayed name)
+        entity_col : str, default 'Entity'
+            Entity column name
+        skip_existing_data : bool, default False
+            Whether to skip or overwrite existing data that has same combination of 'Entity', 'Timestamp', 'Key'
+        chunksize : int, default None
+            Chunk size for splitting request into multiple smaller requests.
+        """
+        route = 'RefTables'
+
+        if isinstance(df, dict):
+            df = RefTableMixinHelper.create_dataframe(df)
+
+        # add definition if it doesn't exists
+        is_empty = df.empty
+        if not self.item_exists(ItemType.RefTable, name):
+
+            # date column
+            df_date_cols = set()
+            for col in RefTableMixinHelper.get_set(date_col, default={'Date', 'Timestamp', 'Time'}):
+                if col in df.columns:
+                    df_date_cols.add(col)
+            if 'Timestamp' in df_date_cols:
+                df_date_col = 'Timestamp'
+            elif 'Date' in df_date_cols:
+                df_date_col = 'Date'
+            elif 'Time' in df_date_cols:
+                df_date_col = 'Time'
+            else:
+                df_date_col = df_date_cols.pop() if df_date_cols else None
+
+            # entity column
+            df_entity_cols = set()
+            for col in RefTableMixinHelper.get_set(entity_col, default='Entity'):
+                if col in df.columns:
+                    df_entity_cols.add(col)
+            if 'Entity' in df_entity_cols:
+                df_entity_col = 'Entity'
+            else:
+                df_entity_col = df_entity_cols.pop() if df_entity_cols else None
+
+            # key column
+            df_key_cols = set()
+            for col in RefTableMixinHelper.get_set(key_col, default='Key'):
+                if col in df.columns:
+                    df_key_cols.add(col)
+            if 'Key' in df_key_cols:
+                df_key_col = 'Key'
+            elif df_key_cols:
+                df_key_col = df_key_cols.pop()
+            else:
+                raise ValueError(f"PetroVisor::add_ref_table(): "
+                                 "'Key' column is not specified")
+
+            # reserved column names: "ID", "Timestamp", "Entity"
+            reserved_columns = {'ID', 'Entity', 'Timestamp'}
+            if df_date_col:
+                reserved_columns = reserved_columns.union({df_date_col})
+            if df_entity_col:
+                reserved_columns = reserved_columns.union({df_entity_col})
+            reserved_columns = reserved_columns.union({df_key_col})
+            value_columns = [col for col in df.columns if col not in reserved_columns]
+            column_types = df.dtypes
+            options = {
+                'Name': name,
+                'Description': description or "",
+                'Key': {
+                    'Name': df_key_col,
+                    'UnitName': self.get_column_unit(df_key_col) or ' ',
+                    'ColumnType': RefTableMixinHelper.get_ref_table_column_type(column_types[df_key_col]),
+                },
+                'Values': [{'Name': col,
+                            'UnitName': self.get_column_unit(col) or ' ',
+                            'ColumnType': RefTableMixinHelper.get_ref_table_column_type(column_types[col]),
+                            } for col in value_columns],
+            }
+            # options = ApiHelper.update_dict(options, **kwargs)
+            result = self.add_item(ItemType.RefTable, options, **kwargs)
+            if is_empty:
+                return result
+        if is_empty:
+            return ApiRequests.success()
+        # save data to already exists RefTable
+        waiting_time = 3  # in seconds
+        while not self.item_exists(ItemType.RefTable, name):
+            time.sleep(waiting_time)
+        return self.save_ref_table_data(name,
+                                        df,
+                                        skip_existing_data=skip_existing_data,
+                                        chunksize=chunksize,
+                                        **kwargs)
 
     # load reference table data
     def load_ref_table_data(self,
                             name: str,
-                            entity: Union[str, Dict],
-                            date: Optional[Union[datetime, str]],
-                            **kwargs) -> Any:
+                            entity: Optional[Union[str, Dict]] = None,
+                            date: Optional[Union[datetime, str]] = None,
+                            date_col: Optional[str] = 'Timestamp',
+                            entity_col: Optional[str] = 'Entity',
+                            options: Optional[Dict] = None,
+                            **kwargs) -> pd.DataFrame:
         """
         Load reference table data
 
@@ -55,21 +197,60 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
             Entity object or Entity name
         date : str, datetime, None
             Date or None
+        date_col : str, default 'Date'
+            Date column name. Default names 'Date' (compatible with date column in P# table), 'Timestamp' (compatible with the internal time column name in RefTable), 'Time' (typically used as displayed name)
+        entity_col : str, default 'Entity'
+            Entity column name
+        options : dict, None, default Noe
+            Options to retrieve data
         """
-        route = 'ReferenceTables'
-        entity_name = ApiHelper.get_object_name(entity)
-        date_str = self.get_json_valid_value(date, 'time', **kwargs)
-        if date_str is None:
-            date_str = ''
-        return self.get(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', **kwargs)
+        route = 'RefTables'
+        filter_options = options if options else {}
+        # filter_options = {
+        #   "Entity": "string",
+        #   "Entities": [
+        #     "string"
+        #   ],
+        #   "Timestamp": "2023-11-27T19:21:59.250Z",
+        #   "StartTimestamp": "2023-11-27T19:21:59.250Z",
+        #   "EndTimestamp": "2023-11-27T19:21:59.250Z",
+        #   "TopRows": 0,
+        #   "KeyUnitName": "string",
+        #   "ValuesUnitNames": {
+        #     "additionalProp1": "string",
+        #     "additionalProp2": "string",
+        #     "additionalProp3": "string"
+        #   },
+        # .  "WhereExpression": "string",
+        # }
+        if entity:
+            entity_name = ApiHelper.get_object_name(entity)
+            filter_options['Entity'] = entity_name
+        if date:
+            date_str = self.get_json_valid_value(date, 'time', **kwargs)
+            if date_str is None:
+                date_str = ''
+            filter_options['Timestamp'] = date_str
+        filter_options = ApiHelper.update_dict(filter_options, **kwargs)
+        # get filtered data
+        data = self.post(f'{route}/{self.encode(name)}/Data', data=filter_options, **kwargs)
+        ref_table_info = self.get_ref_table_data_info(name)
+        columns = [f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info['Values']]
+        key_column = f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
+        columns = ['Entity', 'Date', key_column, *columns]
+        df = pd.DataFrame(data=data, columns=columns)
+        return df
 
-    # save reference table data
+    # save data to reference table
     def save_ref_table_data(self,
                             name: str,
-                            entity: Union[str, Dict],
-                            date: Optional[Union[datetime, float]],
-                            data: Union[Dict[float, float], List, pd.DataFrame],
-                            **kwargs) -> Any:
+                            df: pd.DataFrame,
+                            entity: Union[str, Dict] = None,
+                            date: Optional[Union[datetime, float]] = None,
+                            data: Union[Dict[float, float], List, pd.DataFrame] = None,
+                            skip_existing_data: Optional[bool] = False,
+                            chunksize: Optional[int] = None,
+                            **kwargs):
         """
         Save reference table data
 
@@ -77,6 +258,12 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         ----------
         name : str
             Reference table name
+        df : DataFrame, dict
+            DataFrame or dictionary, where keys are column names and values are column values or predefined types, such as 'str', 'float', 'bool', 'datetime64[s]'.
+        skip_existing_data : bool, default False
+            Whether to skip or overwrite existing data that has same combination of 'Entity', 'Timestamp', 'Key'
+        chunksize : int, default None
+            Chunk size for splitting request into multiple smaller requests.
         entity : str, dict
             Entity object or Entity name
         date : str, datetime, None
@@ -84,48 +271,54 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         data : dict, list, DataFrame
             Reference Table Data
         """
-        route = 'ReferenceTables'
-        entity_name = ApiHelper.get_object_name(entity)
-        date_str = self.get_json_valid_value(date, 'time', **kwargs)
-        if date_str is None:
-            date_str = ''
-        # prepare data
-        if isinstance(data, dict):
-            return self.put(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', data=data, **kwargs)
-        else:
-            # convert list to dictionary
-            def __list_to_dict(x, num_cols, **kwargs):
-                if num_cols == 0:
-                    return {
-                        self.get_json_valid_value(idx, 'numeric', **kwargs):
-                            self.get_json_valid_value(row, 'numeric', **kwargs) for idx, row in enumerate(x)}
-                elif num_cols == 1:
-                    return {
-                        self.get_json_valid_value(idx, 'numeric', **kwargs):
-                            self.get_json_valid_value(row[0], 'numeric', **kwargs) for idx, row in enumerate(x)}
-                elif num_cols > 1:
-                    return {
-                        self.get_json_valid_value(row[0], 'numeric', **kwargs):
-                            self.get_json_valid_value(row[1], 'numeric', **kwargs) for row in x}
-                return {}
-            if isinstance(data, (list, np.ndarray, pd.DataFrame, pd.Series)):
-                num_cols = ApiHelper.get_num_cols(data)
-                if num_cols is None:
-                    raise ValueError("PetroVisor::save_ref_table_data(): "
-                                     "number of columns in the list should be either 2 or 1.")
-                ref_table = __list_to_dict(ApiHelper.to_list(data, **kwargs), num_cols, **kwargs)
-            else:
-                raise ValueError(f"PetroVisor::save_ref_table_data(): "
-                                 f"invalid data format '{type(data)}'. "
-                                 f"Should be either dict[float,float], list of iterables, DataFrame, Series or array.")
-            return self.put(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}',
-                            data=ref_table, **kwargs)
+        route = 'RefTables'
+
+        # create DataFrame in case if it is passed as dictionary
+        def create_dataframe(d: Dict):
+            df = pd.DataFrame()
+            for c, d in d.items():
+                if isinstance(d, (str, type)):
+                    df[c] = pd.Series(dtype=d)
+                else:
+                    df[c] = d
+            return df
+
+        if isinstance(df, dict):
+            df = create_dataframe(df)
+
+        if df is not None and not df.empty:
+            if chunksize and (df.shape[0] > chunksize):
+                num_chunks = int(math.ceil(df.shape[0] / chunksize))
+                step = max(1, int(math.floor(0.1 * df.shape[0] / chunksize)))
+                i = 0
+
+                start_time = time.time()
+                for start in range(0, df.shape[0], chunksize):
+                    end = min(start + chunksize, df.shape[0])
+
+                    self.save_ref_table_data(name,
+                                             df[start:end],
+                                             skip_existing_data=skip_existing_data,
+                                             chunksize=chunksize,
+                                             **kwargs)
+                    i += 1
+                    is_step = i % step == 0 or i == num_chunks
+                    if is_step:
+                        end_time = time.time()
+                        start_time = time.time()
+                return ApiRequests.success()
+            # save data
+            data = df.astype('string').to_json(orient='values')
+            return self.put(f"{route}/{self.encode(name)}/Data/String",
+                            query={'skipExistingData': skip_existing_data},
+                            data=data)
+        return ApiRequests.success()
 
     # delete reference table data
     def delete_ref_table_data(self,
                               name: str,
-                              entity: Union[str, Dict],
-                              date: Optional[Union[datetime, float]],
+                              entity: Union[str, Dict] = None,
+                              date: Optional[Union[datetime, float]] = None,
                               **kwargs) -> Any:
         """
         Delete reference table data
@@ -139,9 +332,60 @@ class RefTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemReq
         date : str, datetime, None
             Date or None
         """
-        route = 'ReferenceTables'
-        entity_name = ApiHelper.get_object_name(entity)
+        route = 'RefTables'
+        entity_name = entity
+        # entity_name = ApiHelper.get_object_name(entity)
         date_str = self.get_json_valid_value(date, 'time', **kwargs)
         if date_str is None:
             date_str = ''
-        return self.delete(f'{route}/{self.encode(name)}/Data/{self.encode(entity_name)}/{date_str}', **kwargs)
+        if date_str:
+            options = {
+                'TimestampStart': date_str,
+                'TimestampEnd': date_str,
+                'IncludeWithNoTimestamp': False,  # Whether rows without timestamps should be deleted
+            }
+            # options = ApiHelper.update_dict(options, **kwargs)
+            return self.delete(f'{route}/{self.encode(name)}/Data/Timestamp', query=options, **kwargs)
+        return self.delete(f'{route}/{self.encode(name)}/Data', **kwargs)
+
+
+# Reference table mixin helper
+class RefTableMixinHelper(SupportsDataFrames):
+
+    # create DataFrame in case if it is passed as dictionary
+    @staticmethod
+    def create_dataframe(d: Dict):
+        df = pd.DataFrame()
+        for c, d in d.items():
+            if isinstance(d, (str, type)):
+                df[c] = pd.Series(dtype=d)
+            else:
+                df[c] = d
+        return df
+
+    # get set given a value and default
+    @staticmethod
+    def get_set(col, default=None):
+        """
+        Get set given a value and default
+        """
+        if isinstance(col, (set, tuple, list)):
+            return set(col)
+        return {col} if col else RefTableMixinHelper.get_set(default) if default else {}
+
+    # get reference column type
+    @staticmethod
+    def get_ref_table_column_type(dtype):
+        """
+        Get reference column type
+        """
+        if dtype == bool or is_bool_dtype(dtype):
+            return RefTableColumnType.Bool.name
+        elif dtype == np.int64 or dtype == np.float64 or is_numeric_dtype(dtype):
+            return RefTableColumnType.Numeric.name
+        elif dtype == datetime.date or is_datetime64_dtype(dtype):
+            return RefTableColumnType.DateTime.name
+        elif dtype == object or is_string_dtype(dtype):
+            return RefTableColumnType.String.name
+        else:
+            return RefTableColumnType.Numeric.name
