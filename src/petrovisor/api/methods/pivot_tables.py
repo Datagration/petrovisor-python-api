@@ -7,6 +7,7 @@ from typing import (
 import warnings
 
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
@@ -21,6 +22,25 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
     """
     Pivot Table API calls
     """
+
+    # get pivot table names
+    def get_pivot_table_names(self, **kwargs) -> Any:
+        """
+        Get pivot table names
+        """
+        return self.get_item_names(ItemType.PivotTable, **kwargs)
+
+    # get pivot table info
+    def get_pivot_table_data_info(self, name: str, **kwargs) -> Any:
+        """
+        Get pivot table data info
+
+        Parameters
+        ----------
+        name : str
+            Pivot table name
+        """
+        return self.get_item(ItemType.PivotTable, name, **kwargs)
 
     # load pivot table data
     def load_pivot_table_data(self,
@@ -118,4 +138,21 @@ class PivotTableMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemR
             Reference table name
         """
         route = 'PivotTables'
+        if not self.item_exists(ItemType.PivotTable, name):
+            return ApiRequests.success()
         return self.get(f'{route}/{self.encode(name)}/Delete', **kwargs)
+
+    # delete pivot table
+    def delete_pivot_table(self, name: str, **kwargs) -> Any:
+        """
+        Delete pivot table
+
+        Parameters
+        ----------
+        name : str
+            Pivot table name
+        """
+        route = 'PivotTables'
+        if not self.item_exists(ItemType.PivotTable, name):
+            return ApiRequests.success()
+        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
