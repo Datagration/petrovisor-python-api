@@ -5,13 +5,22 @@ import numpy as np
 
 def test_ref_tables(pv_api: PetroVisor):
 
+    # create entity
+    entity_name = "Well 001"
+    pv_api.add_item('Entity', {
+        'Name': entity_name,
+        'EntityTypeName': 'Well',
+        'Alias': '',
+        'IsOpportunity': False,
+    })
+
     # create dataframe
     num_rows = int(10)
     columns = list('ABCDEF')
     df = pd.DataFrame(np.random.uniform(0, 1, size=(num_rows, len(columns))), columns=columns)
 
     df['Entity'] = None
-    df.loc[:num_rows // 2, 'Entity'] = 'Well 001'
+    df.loc[:num_rows // 2, 'Entity'] = entity_name
     df['Time'] = None
     df['Key'] = [str(i) for i in range(0, len(df))]
 
