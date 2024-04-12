@@ -445,7 +445,7 @@ class SignalsMixin(
                 )
             else:
                 warnings.warn(
-                    "load_signals_data():: Couldn't find signals {signal_names}.",
+                    f"load_signals_data():: Couldn't find signals {signal_names}.",
                     RuntimeWarning,
                 )
             return None
