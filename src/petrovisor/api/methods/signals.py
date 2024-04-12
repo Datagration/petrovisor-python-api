@@ -4,9 +4,13 @@ from typing import (
     Union,
     List,
     Dict,
+    Tuple,
 )
 
 from datetime import datetime
+import pandas as pd
+import numpy as np
+import warnings
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.dtypes.items import ItemType
@@ -19,12 +23,12 @@ from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
     SupportsDataFrames,
-    SupportsSignalsRequests,
+    SupportsContextRequests,
 )
 
 
 # Signals API calls
-class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequests, SupportsRequests):
+class SignalsMixin(SupportsDataFrames, SupportsContextRequests, SupportsItemRequests, SupportsRequests):
     """
     Signals API calls
     """
@@ -323,6 +327,533 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             data_with_options['Timestamp'] = self.get_json_valid_value(timestamp, 'time', **kwargs)
         return self.post(f'{route}/Cleanse', data=data_with_options, **kwargs)
 
+    # load signals data
+    def load_signals_data(self,
+                        signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
+                        context: Union[str, Dict] = None,
+                        entity_set: Union[str, Dict, List[Union[str, Dict]]] = None,
+                        scope: Union[str, Dict] = None,
+                        hierarchy: Union[str, Dict] = None,
+                        scenario: Union[str, Dict] = None,
+                        relationship: Dict[str, str] = None,
+                        entity_type: Union[str, List[str]] = None,
+                        entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
+                        time_start: Union[str, datetime] = None,
+                        time_end: Union[str, datetime] = None,
+                        time_step: Union[str, TimeIncrement] = None,
+                        depth_start: float = None,
+                        depth_end: float = None,
+                        depth_step: Union[str, DepthIncrement] = None,
+                        depth_unit: float = None,
+                        **kwargs
+                        ) -> Optional[pd.DataFrame]:
+        """
+        Load signals data
+
+        Parameters
+        ----------
+        signals : str | list[str] | list[dict|object]
+            Signal name(s) or Signal objects. Single signal or multiple signals
+        context : Union[str, dict, object]
+            Context name or object
+        entity_set : str  | list[str], default None
+            Entity set or list of Entities. If None, then all entities of requested entity type will be considered
+        scope : str, default None
+            Scope name
+        hierarchy : str, default None
+            Hierarchy name
+        scenario : str, default None
+            Scenario name
+        relationship: dict, default None
+            Hierarchy relationship as dictionary in form of 'Child': 'Parent'
+        entity_type : str | list[str], default None
+            Entity type. Used when entity_set, entities or context is not provided.
+            If None, then all entities will be considered.
+            If not None, will filter out entities defined in entity_set.
+        entities : str | list[str], default None
+            Entity or list of Entities
+        time_start : datetime, str, default None
+            Start of time range
+        time_end : datetime, str, default None
+            End of time range
+        time_step : str, TimeIncrement, default None
+            Step of time range, e.g. 'Daily', 'Hourly'
+        depth_start : datetime, float, None, default None
+            Start of depth range
+        depth_end : datetime, float, default None
+            End of depth range
+        depth_step : str, DepthIncrement, default None
+            Step of depth range, e.g. 'Meter', 'Foot'
+        depth_unit : str, default None
+            Depth unit, e.g. 'm', 'ft'. Only when retrieving depth signals
+        """
+        # get signals
+        if isinstance(signals, (list, set, tuple)):
+            signal_names = signals
+        else:
+            signal_names = [signals]
+        def get_signal_and_unit(signal):
+            if isinstance(signal, (list, set, tuple)):
+                signal_name = signal[0]
+                unit_name = signal[1] if len(signal) > 1 else None
+            else:
+                signal_name = signal
+                unit_name = None
+            signal_name = ApiHelper.get_object_name(signal_name)
+            s = self.get_signal(signal_name)
+            s['UnitName'] = ApiHelper.get_object_name(unit_name) or s['StorageUnitName']
+            return s
+
+        signals = [get_signal_and_unit(s) for s in signal_names]
+        if not signals:
+            if not signal_names:
+                warnings.warn("load_signals_data():: "
+                              f"No signals were provided.",
+                              RuntimeWarning)
+            else:
+                warnings.warn("load_signals_data():: "
+                              f"Couldn't find signals {signal_names}.",
+                              RuntimeWarning)
+            return None
+        signal_types = {s['SignalType'] for s in signals}
+
+        # define signal types
+        if signal_types.issubset({'Static', 'String'}):
+            num_signal_type = 'Static'
+            str_signal_type = 'String'
+            data_type = 'static'
+        elif signal_types.issubset({'TimeDependent', 'StringTimeDependent'}):
+            num_signal_type = 'TimeDependent'
+            str_signal_type = 'StringTimeDependent'
+            data_type = 'time'
+        elif signal_types.issubset({'DepthDependent', 'StringDepthDependent'}):
+            num_signal_type = 'DepthDependent'
+            str_signal_type = 'StringDepthDependent'
+            data_type = 'depth'
+        else:
+            static_signals = [s['Name'] for s in signals if s['SignalType'] in {'Static', 'String'}]
+            time_signals = [s['Name'] for s in signals if s['SignalType'] in {'TimeDependent', 'StringTimeDependent'}]
+            depth_signals = [s['Name'] for s in signals if
+                             s['SignalType'] in {'DepthDependent', 'StringDepthDependent'}]
+            df = None
+            if time_signals:
+                df = \
+                    self.load_signals_data(
+                        time_signals,
+                        context=context,
+                        entity_set=entity_set,
+                        scope=scope,
+                        hierarchy=hierarchy,
+                        scenario=scenario,
+                        relationship=relationship,
+                        entity_type=entity_type,
+                        entities=entities,
+                        time_start=time_start,
+                        time_end=time_end,
+                        time_step=time_step,
+                        depth_start=depth_start,
+                        depth_end=depth_end,
+                        depth_step=depth_step,
+                        depth_unit=depth_unit,
+                        )
+            if depth_signals:
+                df_depth = \
+                    self.load_signals_data(
+                        depth_signals,
+                        context=context,
+                        entity_set=entity_set,
+                        scope=scope,
+                        hierarchy=hierarchy,
+                        scenario=scenario,
+                        relationship=relationship,
+                        entity_type=entity_type,
+                        entities=entities,
+                        time_start=time_start,
+                        time_end=time_end,
+                        time_step=time_step,
+                        depth_start=depth_start,
+                        depth_end=depth_end,
+                        depth_step=depth_step,
+                        depth_unit=depth_unit,
+                        )
+                if df is not None:
+                    df = pd.merge(df, df_depth, on='Entity')
+                    columns = df.columns.tolist()
+                    columns.remove('Depth')
+                    position = 2 if time_signals else 1
+                    columns.insert(position, 'Depth')
+                    df = df[columns]
+                else:
+                    df = df_depth
+            if static_signals:
+                df_static = \
+                    self.load_signals_data(
+                        static_signals,
+                        context=context,
+                        entity_set=entity_set,
+                        scope=scope,
+                        hierarchy=hierarchy,
+                        scenario=scenario,
+                        relationship=relationship,
+                        entity_type=entity_type,
+                        entities=entities,
+                        time_start=time_start,
+                        time_end=time_end,
+                        time_step=time_step,
+                        depth_start=depth_start,
+                        depth_end=depth_end,
+                        depth_step=depth_step,
+                        depth_unit=depth_unit,
+                        )
+                if df is not None:
+                    df = pd.merge(df, df_static, on='Entity')
+                else:
+                    df = df_static
+            return df
+
+        # collect signal names with unit names fro dat retrieval
+        signals_with_units_num = [{'Signal': s['Name'], 'Unit': s['UnitName']} for s in signals if
+                                  s['SignalType'] == num_signal_type]
+        signals_with_units_str = [{'Signal': s['Name'], 'Unit': s['UnitName']} for s in signals if
+                                  s['SignalType'] == str_signal_type]
+        signals_with_units_map = {s['Name']: f"{s['Name']} [{s['UnitName']}]" for s in signals}
+
+        # get context
+        context = self.get_context(context,
+                                   context=context,
+                                   entity_set=entity_set,
+                                   scope=scope,
+                                   hierarchy=hierarchy,
+                                   relationship=relationship,
+                                   entity_type=entity_type,
+                                   entities=entities,
+                                   time_start=time_start,
+                                   time_end=time_end,
+                                   time_step=time_step,
+                                   depth_start=depth_start,
+                                   depth_end=depth_end,
+                                   depth_step=depth_step,
+                                   ) or {}
+        entity_set = context.get('EntitySet', None) or {}
+        scope = context.get('Scope', None) or {}
+        hierarchy = context.get('Hierarchy', None)
+
+        # get entity set
+        entities = entity_set.get('Entities', None) or []
+        if not entities:
+            raise ValueError("load_signals_data():: "
+                             f"entity set is empty! Please provide non empty entity_set, or list of entities, or define entity_type.")
+        entity_names = [ApiHelper.get_object_name(e) for e in entities]
+
+        # get scope range
+        if data_type in {'time', 'depth'}:
+            if data_type == 'time':
+                range_start = scope.get('Start', '')
+                range_end = scope.get('End', '')
+                range_step = scope.get('TimeIncrement', None)
+                if range_step:
+                    range_step = str(self.get_time_increment_enum(range_step).name)
+
+                if not range_start or pd.isnull(range_start):
+                    range_start = np.min(
+                        [pd.to_datetime((self.get_data_range(s['SignalType'], signal=s['Name']) or {}).get('Start', ''))
+                         for s in signals])
+                if not range_end or pd.isnull(range_end):
+                    range_end = np.min(
+                        [pd.to_datetime((self.get_data_range(s['SignalType'], signal=s['Name']) or {}).get('End', ''))
+                         for s in signals])
+
+                # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
+                range_start = self.datetime_to_string(pd.to_datetime(range_start))
+                range_end = self.datetime_to_string(pd.to_datetime(range_end))
+
+            else:  # elif data_type == 'depth':
+                range_start = scope.get('StartDepth', None)
+                range_end = scope.get('EndDepth', None)
+                range_step = scope.get('DepthIncrement', None)
+                if range_step:
+                    range_step = str(self.get_depth_increment_enum(range_step).name)
+
+                if range_start is None or pd.isnull(range_start):
+                    range_start = np.min(
+                        [(self.get_data_range(s['SignalType'], signal=s['Name']) or {}).get('Start', 0) for s in signals])
+                if range_end is None or pd.isnull(range_end):
+                    range_end = np.min(
+                        [(self.get_data_range(s['SignalType'], signal=s['Name']) or {}).get('End', 0) for s in signals])
+
+                # convert to float
+                range_start = float(range_start)
+                range_end = float(range_end)
+        else:
+            range_start = None
+            range_end = None
+            range_step = None
+
+        # fill gaps (not really needed, but if there will be demand, can be uncommented)
+        # def get_gap_values(gval: Union[float, str, Tuple[Union[float,str]], List[Union[float,str]]]):
+        #     """
+        #     gap_value : float, str, tuple[float | str], list[float | str], default None
+        #     Whether to fill gaps with specified value.
+        #     If tuple/list is provided numeric value will be used for numeric data gaps, str for string data.
+        #     """
+        #     num_gap_value = None
+        #     str_gap_value = None
+        #     if isinstance(gval, (float, int)):
+        #         num_gap_value = "NaN" if pd.isnull(gval) else str(gval)
+        #     elif isinstance(gval, str):
+        #         str_gap_value = gval
+        #     elif isinstance(gval, (list, tuple, set)):
+        #         for gv in gval:
+        #             if isinstance(gv, (float, int)):
+        #                 num_gap_value = "NaN" if pd.isnull(gv) else str(gv)
+        #                 break
+        #         for gv in gval:
+        #             if isinstance(gv, str):
+        #                 str_gap_value = gv
+        #                 break
+        #     return num_gap_value, str_gap_value
+        # gap_value = None
+        # num_gap_value, str_gap_value = get_gap_values(gap_value)
+
+        # retrieve numeric data
+        if signals_with_units_num:
+            if data_type == 'time':
+                data_rqst = {
+                    # "Requests": [
+                    #    {
+                    #        "Entity": "string",
+                    #        "Signal": "string",
+                    #        "Unit": "string"
+                    #    }
+                    #  ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_num,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "Hierarchy": "string",
+                    # "TimeIncrement": "EverySecond",
+                    "Start": range_start,
+                    "End": range_end,
+                    # "Options": {
+                    #     "WithGaps": true,
+                    #     "GapValue": "NaN",
+                    #     "GapStringValue": ""
+                    # }
+                }
+                if range_step is not None:
+                    data_rqst["TimeIncrement"] = range_step
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                # if num_gap_value is not None:
+                #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": num_gap_value}
+                data_num = self.post('Data/Time/Retrieve', data=data_rqst)
+            elif data_type == 'depth':
+                data_rqst = {
+                    # "Requests": [
+                    #     {
+                    #         "Entity": "string",
+                    #         "Signal": "string",
+                    #         "Unit": "string"
+                    #     }
+                    # ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_num,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "DepthIncrement": "TenthMeter",
+                    "StartDepth": range_start,
+                    "EndDepth": range_end,
+                    # "Options": {
+                    #     "WithGaps": true,
+                    #     "GapValue": "NaN",
+                    #     "GapStringValue": ""
+                    # },
+                    # "DepthUnit": depth_unit,
+                }
+                if range_step is not None:
+                    data_rqst["DepthIncrement"] = range_step
+                if depth_unit is not None:
+                    data_rqst["DepthUnit"] = depth_unit
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                # if num_gap_value is not None:
+                #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": num_gap_value}
+                data_num = self.post('Data/Depth/Retrieve', data=data_rqst)
+            else:
+                data_rqst = {
+                    # "Requests": [
+                    #    {
+                    #        "Entity": "string",
+                    #        "Signal": "string",
+                    #        "Unit": "string"
+                    #    }
+                    #  ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_num,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "Hierarchy": "string",
+                }
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                data_num = self.post('Data/Static/Retrieve', data=data_rqst)
+        else:
+            data_num = []
+
+        # retrieve string data
+        if signals_with_units_str:
+            if data_type == 'time':
+                data_rqst = {
+                    # "Requests": [
+                    #    {
+                    #        "Entity": "string",
+                    #        "Signal": "string",
+                    #        "Unit": "string"
+                    #    }
+                    #  ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_str,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "Hierarchy": "string",
+                    # "TimeIncrement": "EverySecond",
+                    "Start": range_start,
+                    "End": range_end,
+                    # "Options": {
+                    #     "WithGaps": true,
+                    #     "GapValue": "NaN",
+                    #     "GapStringValue": ""
+                    # }
+                }
+                if range_step is not None:
+                    data_rqst["TimeIncrement"] = range_step
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                # if num_gap_value is not None:
+                #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
+                data_str = self.post('Data/StringTime/Retrieve', data=data_rqst)
+            elif data_type == 'depth':
+                data_rqst = {
+                    # "Requests": [
+                    #     {
+                    #         "Entity": "string",
+                    #         "Signal": "string",
+                    #         "Unit": "string"
+                    #     }
+                    # ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_str,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "DepthIncrement": "TenthMeter",,
+                    "StartDepth": range_start,
+                    "EndDepth": range_end,
+                    # "Options": {
+                    #     "WithGaps": true,
+                    #     "GapValue": "NaN",
+                    #     "GapStringValue": ""
+                    # },
+                    # "DepthUnit": "string",
+                }
+                if range_step is not None:
+                    data_rqst["DepthIncrement"] = range_step
+                if depth_unit is not None:
+                    data_rqst["DepthUnit"] = depth_unit
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                # if num_gap_value is not None:
+                #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
+                data_num = self.post('Data/StringDepth/Retrieve', data=data_rqst)
+            else:
+                data_rqst = {
+                    # "Requests": [
+                    #    {
+                    #        "Entity": "string",
+                    #        "Signal": "string",
+                    #        "Unit": "string"
+                    #    }
+                    #    ],
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_str,
+                    },
+                    # "TopRecords": 0,
+                    # "Scenario": "string",
+                    # "Hierarchy": "string",
+                }
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    data_rqst["Scenario"] = scenario
+                data_str = self.post('Data/String/Retrieve', data=data_rqst)
+        else:
+            data_str = []
+
+        # merge numeric and data
+        if data_num and data_str:
+            data = [*data_num, *data_str]
+        elif data_num:
+            data = data_num
+        elif data_str:
+            data = data_str
+        else:
+            data = []
+
+        if not data:
+            warnings.warn("load_signals_data():: "
+                          f"Couldn't retrieve any data.",
+                          RuntimeWarning)
+            return None
+
+        if data_type == 'time':
+            # create DataFrame by normalizing json
+            df_normalized = pd.json_normalize(data, meta=['Entity', 'Signal', 'Unit'], record_path=['Data'])
+
+            # generate PivotTable
+            df = df_normalized.pivot(index=['Entity', 'Date'], columns='Signal', values='Value')
+            df.columns.name = None
+            df = df.rename(columns=signals_with_units_map)
+            df = df.reset_index()
+            df['Date'] = pd.to_datetime(df['Date'])
+            return df
+        elif data_type == 'depth':
+            # create DataFrame by normalizing json
+            df_normalized = pd.json_normalize(data, meta=['Entity', 'Signal', 'Unit'], record_path=['Data'])
+
+            # generate PivotTable
+            df = df_normalized.pivot(index=['Entity', 'Depth'], columns='Signal', values='Value')
+            df.columns.name = None
+            df = df.rename(columns=signals_with_units_map)
+            df = df.reset_index()
+            return df
+        else:
+            # create DataFrame by normalizing json
+            df_normalized = pd.json_normalize(data)
+
+            # generate PivotTable
+            df = df_normalized.pivot(index='Entity', columns='Signal', values='Data')
+            df.columns.name = None
+            df = df.rename(columns=signals_with_units_map)
+            df = df.reset_index()
+            return df
+
+
     # load data
     def load_data(self,
                   data_type: Union[str, SignalType],
@@ -371,7 +902,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         data_type = self.get_signal_type_enum(data_type, **kwargs)
         route = self.get_signal_type_route(signal_type=data_type, **kwargs)
         # load 'Time' or 'Depth' data
-        if data_type in (SignalType.TimeDependent, SignalType.StringTimeDependent, SignalType.DepthDependent):
+        if data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent,
+                         SignalType.DepthDependent, SignalType.StringDepthDependent}:
             # first/last values only
             if num_values is not None:
                 # first values only
@@ -504,7 +1036,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         """
         data_type = self.get_signal_type_enum(data_type, **kwargs)
         route = self.get_signal_type_route(signal_type=data_type, **kwargs)
-        if data_type in (SignalType.TimeDependent, SignalType.StringTimeDependent, SignalType.DepthDependent):
+        if data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent,
+                         SignalType.DepthDependent, SignalType.StringDepthDependent}:
             is_time_dependent = data_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}
             range_type = 'time' if is_time_dependent else 'numeric'
             data_range = {
@@ -540,6 +1073,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return 'Data/String'
         elif signal_type == SignalType.StringTimeDependent:
             return 'Data/StringTime'
+        elif signal_type == SignalType.StringDepthDependent:
+            return 'Data/StringDepth'
         elif signal_type == SignalType.PVT:
             return 'Data/PVT'
         raise ValueError(f"PetroVisor::get_signal_type_route(): "
@@ -569,6 +1104,8 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
             return SignalType.String
         elif signal_type in ('stringtime', 'timestring', 'stringtimedependent'):
             return SignalType.StringTimeDependent
+        elif signal_type in ('stringdepth', 'depthstring', 'stringdepthdependent'):
+            return SignalType.StringDepthDependent
         elif signal_type in ('pvt', 'pvtnumeric'):
             return SignalType.PVT
         raise ValueError(f"PetroVisor::get_signal_type_name(): "
@@ -593,7 +1130,7 @@ class SignalsMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequ
         signal_type = self.get_signal_type_enum(signal_type, **kwargs)
         if signal_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}:
             return self.get_time_increment_enum(increment, **kwargs)
-        elif signal_type == SignalType.DepthDependent:
+        elif signal_type in {SignalType.DepthDependent, SignalType.StringDepthDependent}:
             return self.get_depth_increment_enum(increment, **kwargs)
         return None
 

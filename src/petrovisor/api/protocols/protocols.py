@@ -11,9 +11,13 @@ except BaseException:
     from typing_extensions import Protocol
 
 import pandas as pd
+from datetime import datetime
 
 from petrovisor.api.dtypes.internal_dtypes import SignalType
-
+from petrovisor.api.dtypes.increments import (
+    TimeIncrement,
+    DepthIncrement,
+)
 
 # PetroVisor requests protocol
 class SupportsRequests(Protocol):
@@ -173,6 +177,49 @@ class SupportsSignalsRequests(Protocol):
     # get signal type route
     def get_signal_type_route(self, signal_type: Union[str, SignalType], **kwargs) -> str: ...
 
+
+# PetroVisor Contex requests protocol
+class SupportsContextRequests(Protocol):
+    # get 'Context'
+    def get_context(self,
+                    name: Union[str, Dict],
+                    entity_set: Union[str, Dict] = None,
+                    scope: Union[str, Dict] = None,
+                    hierarchy: Union[str, Dict] = None,
+                    relationship: Dict[str, str] = None,
+                    entity_type: Union[str, List[str]] = None,
+                    entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
+                    time_start: Union[str, datetime] = None,
+                    time_end: Union[str, datetime] = None,
+                    time_step: Union[str, TimeIncrement] = None,
+                    depth_start: float = None,
+                    depth_end: float = None,
+                    depth_step: Union[str, DepthIncrement] = None,
+                    **kwargs) -> Optional[Dict]: ...
+
+    # get 'Scope'
+    def get_scope(self,
+                  name: Union[str, Dict],
+                  time_start: Union[str, datetime] = None,
+                  time_end: Union[str, datetime] = None,
+                  time_step: Union[str, TimeIncrement] = None,
+                  depth_start: float = None,
+                  depth_end: float = None,
+                  depth_step: Union[str, DepthIncrement] = None,
+                  **kwargs) -> Optional[Dict]: ...
+
+    # get 'EntitySet'
+    def get_entity_set(self,
+                       name: Union[str, Dict],
+                       entities: List[str] = None,
+                       entity_type: Union[str, List[str]] = None,
+                       **kwargs) -> Optional[Dict]: ...
+
+    # get 'Hierarchy'
+    def get_hierarchy(self,
+                      name: Union[str, Dict],
+                      relationship: Dict[str, str] = None,
+                      **kwargs) -> Optional[Dict]: ...
 
 # P# requests protocol
 class SupportsPsharpRequests(Protocol):

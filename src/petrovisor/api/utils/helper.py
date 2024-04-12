@@ -33,7 +33,7 @@ class ApiHelper:
 
     # get object name
     @staticmethod
-    def get_object_name(obj: Any, **kwargs) -> str:
+    def get_object_name(obj: Any, field: str = 'Name', **kwargs) -> str:
         """
         Get object name
 
@@ -41,12 +41,15 @@ class ApiHelper:
         ----------
         obj : Any
             Object
+        field : str, default 'Name'
+            Field name
         """
         if isinstance(obj, str):
             return obj
-        elif ApiHelper.has_field(obj, 'Name'):
-            return obj['Name']
-        return str(obj)
+        try:
+            return ApiHelper.get_field(obj, field, ignore_case=True)
+        except:
+            return str(obj)
 
     # update dictionary
     @staticmethod
@@ -84,9 +87,9 @@ class ApiHelper:
             keys = [keys]
         return {k: v for k, v in d.items() if k not in keys}
 
-    # check if object has field/attribute
+    # check if object has field or attribute
     @staticmethod
-    def has_field(obj: Any, field: str, **kwargs):
+    def has_field(obj: Any, field: str, ignore_case: bool = False, **kwargs):
         """
         Check whether object/dict has provided field/attribute
 
@@ -96,8 +99,71 @@ class ApiHelper:
             Object
         field : str
             Field name
+        ignore_case : bool, default False
+            Whether to ignore field/attribute name case
         """
-        return hasattr(obj, field) or (isinstance(obj, dict) and field in obj)
+        if isinstance(obj, dict):
+            if field in obj:
+                return True
+            elif ignore_case:
+                if field.casefold() in obj:
+                    return True
+                return any(k.casefold() == field.casefold() for k in obj.keys())
+            else:
+                return False
+        else:
+            if hasattr(obj, field):
+                return True
+            elif ignore_case:
+                if hasattr(obj, field.casefold()):
+                    return True
+                else:
+                    return any(attr.casefold() == field.casefold() for attr in dir(obj))
+            else:
+                return False
+
+    # get object field value or default
+    @staticmethod
+    def get_field(obj: Any, field: str, ignore_case: bool = False, **kwargs):
+        """
+        Get object's field/attribute values
+
+        Parameters
+        ----------
+        obj : Any
+            Object
+        field : str
+            Field name
+        ignore_case : bool, default False
+            Whether to ignore field/attribute name case
+        kwargs: keyword arguments
+            Keyword argument among which if 'default' is present then it is used as default value,
+            when field does not exist.
+        """
+        if isinstance(obj, dict):
+            if field in obj:
+                return obj[field]
+            elif ignore_case:
+                if field.casefold() in obj:
+                    return obj[field.casefold()]
+                else:
+                    for k in obj.keys():
+                        if k.casefold() == field.casefold():
+                            return obj[k]
+        else:
+            if hasattr(obj, field):
+                return getattr(obj, field)
+            elif ignore_case:
+                if hasattr(obj, field.casefold()):
+                    return getattr(obj, field.casefold())
+                else:
+                    for attr in dir(obj):
+                        if attr.casefold() == field.casefold():
+                            return getattr(obj, attr)
+        # could not find object field/attribute
+        if 'default' in kwargs:
+            return kwargs['default']
+        raise AttributeError(f"'{type(obj).__name__}' object has no attribute '{field}'")
 
     # get non-empty fields
     @staticmethod

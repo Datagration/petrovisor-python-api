@@ -18,7 +18,8 @@ class SignalType(IntEnum):
     PVT = 4
     # String time-dependent signal type specifies signals which value is a string constant over a time or depth
     StringTimeDependent = 5
-
+    # Signals which have a series of depth-based string values
+    StringDepthDependent = 6
 
 # Reference table column type
 class RefTableColumnType(Enum):

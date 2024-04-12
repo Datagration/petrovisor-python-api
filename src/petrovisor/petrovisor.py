@@ -4,6 +4,7 @@ from typing import Optional
 from petrovisor.api.base import RequestsMixin
 from petrovisor.api.methods.items import ItemsMixin
 from petrovisor.api.methods.entities import EntitiesMixin
+from petrovisor.api.methods.contexts import ContextMixin
 from petrovisor.api.methods.signals import SignalsMixin
 from petrovisor.api.methods.workspace_values import WorkspaceValuesMixin
 from petrovisor.api.methods.psharp import PsharpMixin
@@ -20,6 +21,7 @@ from petrovisor.api.methods.logs import LogsMixin
 class PetroVisor(RequestsMixin,
                  ItemsMixin,
                  EntitiesMixin,
+                 ContextMixin,
                  SignalsMixin,
                  WorkspaceValuesMixin,
                  PsharpMixin,

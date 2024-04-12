@@ -514,8 +514,8 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
                                                           _get_column_data(column_index, entity_name))]
                         })
                     # depth signal
-                    elif signal_type == SignalType.DepthDependent.name:
-                        dtype = 'Numeric'
+                    elif signal_type in (SignalType.DepthDependent.name, SignalType.StringDepthDependent.name):
+                        dtype = 'Numeric' if (signal_type == 'DepthDependent') else 'String'
                         data_to_save[signal_type].append({
                             'Entity': entity_name,
                             'Signal': signal_name,
@@ -969,18 +969,10 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             raise ValueError(f"PetroVisor::get_signal_data_type_name(): "
                              f"unknown 'signal_type'! "
                              f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
-        if signal_type == SignalType.Static:
+        if signal_type in {SignalType.Static, SignalType.TimeDependent, SignalType.DepthDependent, SignalType.PVT}:
             return 'numeric'
-        elif signal_type == SignalType.DepthDependent:
-            return 'numeric'
-        elif signal_type == SignalType.TimeDependent:
-            return 'numeric'
-        elif signal_type == SignalType.String:
+        elif signal_type in {SignalType.String, SignalType.StringTimeDependent, SignalType.StringDepthDependent}:
             return 'string'
-        elif signal_type == SignalType.StringTimeDependent:
-            return 'string'
-        elif signal_type == SignalType.PVT:
-            return 'numeric'
         raise ValueError(f"PetroVisor::get_signal_data_type_name(): "
                          f"'{signal_type}' is not supported yet.")
 
@@ -1000,17 +992,11 @@ class DataFrameMixin(SupportsDataFrames, SupportsSignalsRequests, SupportsEntiti
             raise ValueError(f"PetroVisor::get_signal_range_type_name(): "
                              f"unknown 'signal_type'! "
                              f"Should be one of {[t.name for t in SignalType]} or {SignalType.__name__} enum.")
-        if signal_type == SignalType.Static:
-            return ''
-        elif signal_type == SignalType.DepthDependent:
+        if signal_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}:
+            return 'time'
+        elif signal_type in {SignalType.DepthDependent, SignalType.StringDepthDependent}:
             return 'numeric'
-        elif signal_type == SignalType.TimeDependent:
-            return 'time'
-        elif signal_type == SignalType.String:
-            return ''
-        elif signal_type == SignalType.StringTimeDependent:
-            return 'time'
-        elif signal_type == SignalType.PVT:
+        elif signal_type in {SignalType.Static, SignalType.String, SignalType.PVT}:
             return ''
         raise ValueError(f"PetroVisor::get_signal_range_type_name(): "
                          f"'{signal_type}' is not supported yet.")
