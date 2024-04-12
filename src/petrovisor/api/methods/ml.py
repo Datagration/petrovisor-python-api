@@ -201,7 +201,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         ml_trainers_and_metrics = self.ml_trainers_and_metrics(model_type, **kwargs)
         if not ml_trainers_and_metrics:
             raise ValueError(
-                f"PetroVisor::ml_trainers(): " f"unknown ML Model type: '{model_type}'!"
+                f"PetroVisor::ml_trainers(): unknown ML Model type: '{model_type}'!"
             )
         return ml_trainers_and_metrics["Trainers"]
 
@@ -221,7 +221,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         ml_trainers_and_metrics = self.ml_trainers_and_metrics(model_type, **kwargs)
         if not ml_trainers_and_metrics:
             raise ValueError(
-                f"PetroVisor::ml_trainers(): " f"unknown ML Model type: '{model_type}'!"
+                f"PetroVisor::ml_trainers(): unknown ML Model type: '{model_type}'!"
             )
         return ml_trainers_and_metrics["Metrics"]
 

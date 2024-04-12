@@ -161,7 +161,7 @@ class RequestsMixin(SupportsRequests):
                 urls = [f"'{url}'" for url in default_discovery_url]
                 msg = f"Use one of the discovery urls: {urls}"
                 raise ValueError(
-                    f"PetroVisor::__init__(): " f"'discovery_url' is undefined! {msg}"
+                    f"PetroVisor::__init__(): 'discovery_url' is undefined! {msg}"
                 )
             self.__discovery_url = discovery_url
 

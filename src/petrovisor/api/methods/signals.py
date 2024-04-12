@@ -440,12 +440,12 @@ class SignalsMixin(
         if not signals:
             if not signal_names:
                 warnings.warn(
-                    "load_signals_data():: " f"No signals were provided.",
+                    "load_signals_data():: No signals were provided.",
                     RuntimeWarning,
                 )
             else:
                 warnings.warn(
-                    "load_signals_data():: " f"Couldn't find signals {signal_names}.",
+                    "load_signals_data():: Couldn't find signals {signal_names}.",
                     RuntimeWarning,
                 )
             return None
@@ -905,7 +905,7 @@ class SignalsMixin(
 
         if not data:
             warnings.warn(
-                "load_signals_data():: " f"Couldn't retrieve any data.", RuntimeWarning
+                "load_signals_data():: Couldn't retrieve any data.", RuntimeWarning
             )
             return None
 

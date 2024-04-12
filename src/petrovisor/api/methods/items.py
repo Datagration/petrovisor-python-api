@@ -297,7 +297,7 @@ class ItemsMixin(SupportsRequests):
             item = self.get_item(item_type, item_name, **kwargs)
         if not item:
             raise ValueError(
-                f"PetroVisor::get_item_field(): " f"item '{item}' cannot be found!"
+                f"PetroVisor::get_item_field(): item '{item}' cannot be found!"
             )
         elif not ApiHelper.has_field(item, field_name):
             raise ValueError(
