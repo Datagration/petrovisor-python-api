@@ -86,7 +86,7 @@ class ContextMixin(
         """
         route = "Contexts"
         name = ApiHelper.get_object_name(name) or ""
-        if self.item_exists("Context", name):
+        if name and self.item_exists("Context", name):
             context = self.get(f"{route}/{self.encode(name)}", **kwargs)
         else:
             context = {
@@ -97,6 +97,8 @@ class ContextMixin(
                 "Formula": "",
                 "Labels": [],
             }
+            if isinstance(name, dict):
+                context.update(name)
         if (
             context.get("Scope", None) is None
             or scope is not None
@@ -174,7 +176,7 @@ class ContextMixin(
         """
         route = "Scopes"
         name = ApiHelper.get_object_name(name) or ""
-        if self.item_exists("Scope", name):
+        if name and self.item_exists("Scope", name):
             scope = self.get(f"{route}/{self.encode(name)}", **kwargs)
         else:
             scope = {
@@ -188,22 +190,36 @@ class ContextMixin(
                 "Formula": "",
                 "Labels": [],
             }
-        if scope.get("Start", None) is None or time_start is not None:
+        if isinstance(name, dict):
+            scope.update(name)
+        if time_start is not None and not pd.isnull(time_start):
             # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
             scope["Start"] = self.datetime_to_string(pd.to_datetime(time_start))
-        if scope.get("End", None) is None or time_end is not None:
+        elif scope.get("Start", None) is None:
+            scope["Start"] = None
+        if time_end is not None and not pd.isnull(time_end):
             # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
             scope["End"] = self.datetime_to_string(pd.to_datetime(time_end))
-        if scope.get("TimeIncrement", None) is None or time_step is not None:
+        elif scope.get("End", None) is None:
+            scope["End"] = None
+        if time_step:
             scope["TimeIncrement"] = str(self.get_time_increment_enum(time_step).name)
-        if scope.get("StartDepth", None) is None or depth_start is not None:
+        elif scope.get("TimeIncrement", None) is None:
+            scope["TimeIncrement"] = None
+        if depth_start is not None and not pd.isnull(depth_start):
             scope["StartDepth"] = float(depth_start)
-        if scope.get("EndDepth", None) is None or depth_end is not None:
+        elif scope.get("StartDepth", None) is None:
+            scope["StartDepth"] = None
+        if depth_end is not None and not pd.isnull(depth_end):
             scope["EndDepth"] = float(depth_end)
-        if scope.get("DepthIncrement", None) is None or depth_step is not None:
+        elif scope.get("EndDepth", None) is None:
+            scope["EndDepth"] = None
+        if depth_step:
             scope["DepthIncrement"] = str(
                 self.get_depth_increment_enum(depth_step).name
             )
+        elif scope.get("DepthIncrementh", None) is None:
+            scope["DepthIncrement"] = None
         return scope
 
     # get 'EntitySet'
@@ -230,7 +246,7 @@ class ContextMixin(
         """
         route = "EntitySets"
         name = ApiHelper.get_object_name(name) or ""
-        if self.item_exists("Entity", name):
+        if name and self.item_exists("EntitySet", name):
             entity_set = self.get(f"{route}/{self.encode(name)}", **kwargs)
         else:
             entity_set = {
@@ -239,17 +255,20 @@ class ContextMixin(
                 "Formula": "",
                 "Labels": [],
             }
+            if isinstance(name, dict):
+                entity_set.update(name)
         if (
             entity_set.get("Entities", None) is None
             or entities is not None
             or entity_type is not None
         ):
             if entities is not None:
-                if isinstance(
+                if not isinstance(
                     entities,
                     (
-                        str,
-                        dict,
+                        list,
+                        tuple,
+                        set,
                     ),
                 ):
                     eset_entities = [
@@ -262,23 +281,21 @@ class ContextMixin(
             else:
                 eset_entities = []
             if entity_type is not None:
-                if isinstance(entity_type, str):
-                    entity_names = self.get_entity_names(entity_type=entity_type)
-                else:
-                    entity_names = []
-                    for et in entity_type:
-                        entity_names.extend(self.get_entity_names(entity_type=et))
-                if not isinstance(entity_names, (list,)):
-                    entity_names = [entity_names]
+                if not isinstance(entity_type, (list, tuple, set)):
+                    entity_type = [entity_type]
                 if eset_entities:
+                    entity_types = [et.casefold() for et in entity_type]
                     eset_entities = [
-                        e for e in eset_entities if e["Name"] in entity_names
+                        e
+                        for e in eset_entities
+                        if e["EntityTypeName"].casefold() in entity_types
                     ]
                 else:
-                    eset_entities = [self.get_entity(e) for e in entity_names]
+                    eset_entities = []
+                    for et in entity_type:
+                        eset_entities.extend(self.get_entities(entity_type=et))
             elif not eset_entities:
-                entity_names = self.get_entity_names()
-                eset_entities = [self.get_entity(e) for e in entity_names]
+                eset_entities = self.get_entities()
             entity_set["Entities"] = eset_entities
         return entity_set
 
@@ -298,7 +315,7 @@ class ContextMixin(
         """
         route = "Hierarchies"
         name = ApiHelper.get_object_name(name) or ""
-        if self.item_exists("Hierarchy", name):
+        if name and self.item_exists("Hierarchy", name):
             hierarchy = self.get(f"{route}/{self.encode(name)}", **kwargs)
         else:
             hierarchy = {
@@ -307,6 +324,8 @@ class ContextMixin(
                 "Formula": "",
                 "Labels": [],
             }
+            if isinstance(name, dict):
+                hierarchy.update(name)
         if hierarchy.get("Relationship", None) is None or relationship is not None:
             hierarchy["Relationship"] = relationship or {}
         return hierarchy

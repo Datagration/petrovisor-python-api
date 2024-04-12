@@ -47,8 +47,10 @@ class ApiHelper:
         """
         if isinstance(obj, str):
             return obj
+        elif obj is None:
+            return ""
         try:
-            return ApiHelper.get_field(obj, field, ignore_case=True)
+            return ApiHelper.get_field(obj, field, ignore_case=True) or ""
         except:
             return str(obj)
 
