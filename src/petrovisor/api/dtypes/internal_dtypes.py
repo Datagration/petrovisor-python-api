@@ -6,6 +6,7 @@ class SignalType(IntEnum):
     """
     PetroVisor signal types
     """
+
     # Static signal type specifies signals which value is a numeric constant over a time or depth
     Static = 0
     # Time-dependent type specifies signals which are functions of time
@@ -21,9 +22,10 @@ class SignalType(IntEnum):
     # Signals which have a series of depth-based string values
     StringDepthDependent = 6
 
+
 # Reference table column type
 class RefTableColumnType(Enum):
-    Numeric = 0,
-    String = 1,
-    DateTime = 2,
-    Bool = 3,
+    Numeric = (0,)
+    String = (1,)
+    DateTime = (2,)
+    Bool = (3,)

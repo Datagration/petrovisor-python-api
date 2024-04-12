@@ -60,12 +60,14 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_item(): "
-                             f"unknown item type: '{item_type}'. "
-                             f"Known item types: {list(self.ItemRoutes.keys())}")
-        if route == 'Units' and name == ' ':
-            name = '_'
-        return self.get(f'{route}/{self.encode(name)}', **kwargs)
+            raise ValueError(
+                f"PetroVisor::get_item(): "
+                f"unknown item type: '{item_type}'. "
+                f"Known item types: {list(self.ItemRoutes.keys())}"
+            )
+        if route == "Units" and name == " ":
+            name = "_"
+        return self.get(f"{route}/{self.encode(name)}", **kwargs)
 
     # delete item
     def delete_item(self, item_type: str, item: Union[str, Dict], **kwargs) -> Any:
@@ -81,11 +83,13 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::delete_item(): "
-                             f"unknown item type: '{item_type}'. "
-                             f"Known item types: {list(self.ItemRoutes.keys())}")
+            raise ValueError(
+                f"PetroVisor::delete_item(): "
+                f"unknown item type: '{item_type}'. "
+                f"Known item types: {list(self.ItemRoutes.keys())}"
+            )
         name = self.get_item_name(item, **kwargs)
-        return self.delete(f'{route}/{self.encode(name)}', **kwargs)
+        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
 
     # add or edit item
     def add_item(self, item_type: str, item: Dict, **kwargs) -> Any:
@@ -101,11 +105,13 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::add_item(): "
-                             f"unknown item type: '{item_type}'. "
-                             f"Known item types: {list(self.ItemRoutes.keys())}")
+            raise ValueError(
+                f"PetroVisor::add_item(): "
+                f"unknown item type: '{item_type}'. "
+                f"Known item types: {list(self.ItemRoutes.keys())}"
+            )
         name = self.get_item_name(item, **kwargs)
-        return self.put(f'{route}/{self.encode(name)}', data=item, **kwargs)
+        return self.put(f"{route}/{self.encode(name)}", data=item, **kwargs)
 
     # update item metadata
     def update_item_metadata(self, item_type: str, item: Dict, **kwargs) -> Any:
@@ -121,11 +127,13 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_petrovisor_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::update_item_metadata(): "
-                             f"unknown 'PetroVisor' item type: '{item_type}'. "
-                             f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
+            raise ValueError(
+                f"PetroVisor::update_item_metadata(): "
+                f"unknown 'PetroVisor' item type: '{item_type}'. "
+                f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}"
+            )
         name = self.get_item_name(item, **kwargs)
-        return self.put(f'{route}/{self.encode(name)}/Metadata', data=item, **kwargs)
+        return self.put(f"{route}/{self.encode(name)}/Metadata", data=item, **kwargs)
 
     # get items
     def get_items(self, item_type: str, **kwargs) -> List:
@@ -139,13 +147,17 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_items(): "
-                             f"unknown item type: '{item_type}'. "
-                             f"Known item types: {list(self.ItemRoutes.keys())}")
-        return self.get(f'{route}/All', **kwargs)
+            raise ValueError(
+                f"PetroVisor::get_items(): "
+                f"unknown item type: '{item_type}'. "
+                f"Known item types: {list(self.ItemRoutes.keys())}"
+            )
+        return self.get(f"{route}/All", **kwargs)
 
     # get item paged
-    def get_items_paged(self, item_type: str, page: int = 1, page_size: int = 10, **kwargs) -> List:
+    def get_items_paged(
+        self, item_type: str, page: int = 1, page_size: int = 10, **kwargs
+    ) -> List:
         """
         Get items of given type in paged format
 
@@ -160,10 +172,14 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_petrovisor_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_items_paged(): "
-                             f"unknown 'PetroVisor' item type: '{item_type}'. "
-                             f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
-        return self.get(f'{route}/Paged', query={'Page': page, 'PageSize': page_size}, **kwargs)
+            raise ValueError(
+                f"PetroVisor::get_items_paged(): "
+                f"unknown 'PetroVisor' item type: '{item_type}'. "
+                f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}"
+            )
+        return self.get(
+            f"{route}/Paged", query={"Page": page, "PageSize": page_size}, **kwargs
+        )
 
     # get item names
     def get_item_names(self, item_type: str, **kwargs) -> List[str]:
@@ -177,13 +193,17 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_item_names(): "
-                             f"unknown item type: '{item_type}'. "
-                             f"Known item types: {list(self.ItemRoutes.keys())}")
-        return self.get(f'{route}', **kwargs)
+            raise ValueError(
+                f"PetroVisor::get_item_names(): "
+                f"unknown item type: '{item_type}'. "
+                f"Known item types: {list(self.ItemRoutes.keys())}"
+            )
+        return self.get(f"{route}", **kwargs)
 
     # get item labels
-    def get_item_labels(self, item_type: str, name: Optional[str] = None, **kwargs) -> List:
+    def get_item_labels(
+        self, item_type: str, name: Optional[str] = None, **kwargs
+    ) -> List:
         """
         Get item labels of given type
 
@@ -196,19 +216,23 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_item_labels(): "
-                             f"unknown 'PetroVisor' item type: '{item_type}'. "
-                             f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
+            raise ValueError(
+                f"PetroVisor::get_item_labels(): "
+                f"unknown 'PetroVisor' item type: '{item_type}'. "
+                f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}"
+            )
         if self.is_petrovisor_item(item_type, **kwargs):
             if name:
                 item = self.get_item(item_type, name, **kwargs)
-                return item['Labels']
-            items = self.get(f'{route}/PetroVisorItems', **kwargs)
-            return [{item['Name']: item['Labels']} for item in items]
+                return item["Labels"]
+            items = self.get(f"{route}/PetroVisorItems", **kwargs)
+            return [{item["Name"]: item["Labels"]} for item in items]
         return []
 
     # get item infos
-    def get_item_infos(self, item_type: str, name: Optional[str] = None, **kwargs) -> Union[List, Dict]:
+    def get_item_infos(
+        self, item_type: str, name: Optional[str] = None, **kwargs
+    ) -> Union[List, Dict]:
         """
         Get item infos of given type
 
@@ -221,17 +245,19 @@ class ItemsMixin(SupportsRequests):
         """
         route = self.get_item_route(item_type, **kwargs)
         if not route:
-            raise ValueError(f"PetroVisor::get_item_infos(): "
-                             f"unknown 'PetroVisor' item type: '{item_type}'. "
-                             f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}")
+            raise ValueError(
+                f"PetroVisor::get_item_infos(): "
+                f"unknown 'PetroVisor' item type: '{item_type}'. "
+                f"Known 'PetroVisor' item types: {list(self.PetroVisorItemRoutes.keys())}"
+            )
         if self.is_info_item(item_type, **kwargs):
             if name:
-                return self.get(f'{route}/{self.encode(name)}/Info', **kwargs)
-            return self.get(f'{route}/Info', **kwargs)
+                return self.get(f"{route}/{self.encode(name)}/Info", **kwargs)
+            return self.get(f"{route}/Info", **kwargs)
         elif self.is_petrovisor_item(item_type, **kwargs):
             if name:
-                return self.get(f'{route}/{self.encode(name)}/PetroVisorItem', **kwargs)
-            return self.get(f'{route}/PetroVisorItems', **kwargs)
+                return self.get(f"{route}/{self.encode(name)}/PetroVisorItem", **kwargs)
+            return self.get(f"{route}/PetroVisorItems", **kwargs)
         return {} if name else []
 
     # get item name
@@ -247,7 +273,13 @@ class ItemsMixin(SupportsRequests):
         return ApiHelper.get_object_name(item)
 
     # get item field
-    def get_item_field(self, item_type: Optional[str], item: Union[str, Dict], field_name: str, **kwargs) -> Any:
+    def get_item_field(
+        self,
+        item_type: Optional[str],
+        item: Union[str, Dict],
+        field_name: str,
+        **kwargs,
+    ) -> Any:
         """
         Get item field value
 
@@ -264,11 +296,14 @@ class ItemsMixin(SupportsRequests):
             item_name = ApiHelper.get_object_name(item)
             item = self.get_item(item_type, item_name, **kwargs)
         if not item:
-            raise ValueError(f"PetroVisor::get_item_field(): "
-                             f"item '{item}' cannot be found!")
+            raise ValueError(
+                f"PetroVisor::get_item_field(): " f"item '{item}' cannot be found!"
+            )
         elif not ApiHelper.has_field(item, field_name):
-            raise ValueError(f"PetroVisor::get_item_field(): "
-                             f"item '{item}' doesn't not have '{field_name}' field!")
+            raise ValueError(
+                f"PetroVisor::get_item_field(): "
+                f"item '{item}' doesn't not have '{field_name}' field!"
+            )
         return item[field_name]
 
     # get 'NamedItem' route
@@ -361,7 +396,10 @@ class ItemsMixinHelper:
         """
         Get all item routes
         """
-        return dict(**ItemsMixinHelper.get_named_item_routes(), **ItemsMixinHelper.get_petrovisor_item_routes())
+        return dict(
+            **ItemsMixinHelper.get_named_item_routes(),
+            **ItemsMixinHelper.get_petrovisor_item_routes(),
+        )
 
     # get 'NamedItem' routes
     @staticmethod
@@ -370,18 +408,18 @@ class ItemsMixinHelper:
         Get routes of NamedItems
         """
         return {
-            ItemType.Unit: 'Units',
-            ItemType.UnitMeasurement: 'UnitMeasurements',
-            ItemType.Entity: 'Entities',
-            ItemType.EntityType: 'EntityTypes',
-            ItemType.Signal: 'Signals',
-            ItemType.Tag: 'Tags',
-            ItemType.Label: 'Labels',
-            ItemType.MessageEntry: 'MessageEntries',
-            ItemType.Ticket: 'Tickets',
-            ItemType.ProcessTemplate: 'ProcessTemplates',
-            ItemType.UserSetting: 'UserSettings',
-            ItemType.EventSubscription: 'EventSubscriptions',
+            ItemType.Unit: "Units",
+            ItemType.UnitMeasurement: "UnitMeasurements",
+            ItemType.Entity: "Entities",
+            ItemType.EntityType: "EntityTypes",
+            ItemType.Signal: "Signals",
+            ItemType.Tag: "Tags",
+            ItemType.Label: "Labels",
+            ItemType.MessageEntry: "MessageEntries",
+            ItemType.Ticket: "Tickets",
+            ItemType.ProcessTemplate: "ProcessTemplates",
+            ItemType.UserSetting: "UserSettings",
+            ItemType.EventSubscription: "EventSubscriptions",
         }
 
     # get 'PetroVisorItem' routes
@@ -390,16 +428,19 @@ class ItemsMixinHelper:
         """
         Get routes of InfoItems
         """
-        return dict(**{
-            ItemType.MLModel: 'MLModels',
-            ItemType.DataGrid: 'DataGrids',
-            ItemType.DataConnection: 'DataConnections',
-            ItemType.DataSourceMapping: 'DataSourceMappings',
-            ItemType.DataIntegrationSession: 'DataIntegrationSessions',
-            ItemType.Scenario: 'Scenarios',
-        }, **{  # alias
-            ItemType.MachineLearningModel: 'MLModels',  # alias MLModel
-        })
+        return dict(
+            **{
+                ItemType.MLModel: "MLModels",
+                ItemType.DataGrid: "DataGrids",
+                ItemType.DataConnection: "DataConnections",
+                ItemType.DataSourceMapping: "DataSourceMappings",
+                ItemType.DataIntegrationSession: "DataIntegrationSessions",
+                ItemType.Scenario: "Scenarios",
+            },
+            **{  # alias
+                ItemType.MachineLearningModel: "MLModels",  # alias MLModel
+            },
+        )
 
     # get 'PetroVisorItem' routes
     @staticmethod
@@ -407,36 +448,40 @@ class ItemsMixinHelper:
         """
         Get routes of PetroVisorItems
         """
-        return dict(**{
-            ItemType.ConfigurationSettings: 'ConfigurationSettings',
-            ItemType.RefTable: 'RefTables',
-            ItemType.PivotTable: 'PivotTables',
-            ItemType.Hierarchy: 'Hierarchies',
-            ItemType.Scope: 'Scopes',
-            ItemType.EntitySet: 'EntitySets',
-            ItemType.Context: 'Contexts',
-            ItemType.TableCalculation: 'TableCalculations',
-            ItemType.EventCalculation: 'EventCalculations',
-            ItemType.CleansingCalculation: 'CleansingCalculations',
-            ItemType.PSharpScript: 'PSharpScripts',
-            ItemType.CleansingScript: 'CleansingScripts',
-            ItemType.Plot: 'Plots',
-            ItemType.Chart: 'Charts',
-            ItemType.Filter: 'Filters',
-            ItemType.Workflow: 'Workflows',
-            ItemType.WorkflowSchedule: 'WorkflowSchedules',
-            ItemType.CustomWorkflowActivity: 'CustomWorkflowActivities',
-            ItemType.RWorkflowActivity: 'RWorkflowActivities',
-            ItemType.PythonWorkflowActivity: 'PythonWorkflowActivities',
-            ItemType.WebWorkflowActivity: 'WebWorkflowActivities',
-            ItemType.DataIntegrationSet: 'DataIntegrationSets',
-            ItemType.WorkspacePackage: 'WorkspacePackages',
-            ItemType.DCA: 'DCA',
-            ItemType.PowerBIItem: 'PowerBIItems',
-            ItemType.Dashboard: 'Dashboards',
-        }, **{  # alias
-            ItemType.ConfigurationSettingValue: 'ConfigurationSettings',  # alias ConfigurationSettings
-            ItemType.PivotTableDefinition: 'PivotTables',  # alias PivotTable
-            ItemType.ChartDefinition: 'Charts',  # alias Chart
-            ItemType.FilterDefinition: 'Filters',  # alias Filter
-        }, **ItemsMixinHelper.get_info_item_routes())
+        return dict(
+            **{
+                ItemType.ConfigurationSettings: "ConfigurationSettings",
+                ItemType.RefTable: "RefTables",
+                ItemType.PivotTable: "PivotTables",
+                ItemType.Hierarchy: "Hierarchies",
+                ItemType.Scope: "Scopes",
+                ItemType.EntitySet: "EntitySets",
+                ItemType.Context: "Contexts",
+                ItemType.TableCalculation: "TableCalculations",
+                ItemType.EventCalculation: "EventCalculations",
+                ItemType.CleansingCalculation: "CleansingCalculations",
+                ItemType.PSharpScript: "PSharpScripts",
+                ItemType.CleansingScript: "CleansingScripts",
+                ItemType.Plot: "Plots",
+                ItemType.Chart: "Charts",
+                ItemType.Filter: "Filters",
+                ItemType.Workflow: "Workflows",
+                ItemType.WorkflowSchedule: "WorkflowSchedules",
+                ItemType.CustomWorkflowActivity: "CustomWorkflowActivities",
+                ItemType.RWorkflowActivity: "RWorkflowActivities",
+                ItemType.PythonWorkflowActivity: "PythonWorkflowActivities",
+                ItemType.WebWorkflowActivity: "WebWorkflowActivities",
+                ItemType.DataIntegrationSet: "DataIntegrationSets",
+                ItemType.WorkspacePackage: "WorkspacePackages",
+                ItemType.DCA: "DCA",
+                ItemType.PowerBIItem: "PowerBIItems",
+                ItemType.Dashboard: "Dashboards",
+            },
+            **{  # alias
+                ItemType.ConfigurationSettingValue: "ConfigurationSettings",  # alias ConfigurationSettings
+                ItemType.PivotTableDefinition: "PivotTables",  # alias PivotTable
+                ItemType.ChartDefinition: "Charts",  # alias Chart
+                ItemType.FilterDefinition: "Filters",  # alias Filter
+            },
+            **ItemsMixinHelper.get_info_item_routes(),
+        )

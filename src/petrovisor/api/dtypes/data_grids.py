@@ -9,6 +9,7 @@ class DataGridType(IntEnum):
     """
     DataGrid types
     """
+
     # Unknown (custom)
     Unknown = 0
     # One Polygon (no data)
@@ -30,6 +31,7 @@ class PointSetType(IntEnum):
     """
     PointSet types
     """
+
     # Unknown (custom)
     Unknown = 0
     # Single point

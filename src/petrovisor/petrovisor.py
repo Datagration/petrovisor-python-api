@@ -18,34 +18,38 @@ from petrovisor.api.methods.logs import LogsMixin
 
 
 # PetroVisor API calls
-class PetroVisor(RequestsMixin,
-                 ItemsMixin,
-                 EntitiesMixin,
-                 ContextMixin,
-                 SignalsMixin,
-                 WorkspaceValuesMixin,
-                 PsharpMixin,
-                 RefTableMixin,
-                 PivotTableMixin,
-                 MLMixin,
-                 WorkflowsMixin,
-                 FilesMixin,
-                 LogsMixin,
-                 DataFrameMixin, ):
+class PetroVisor(
+    RequestsMixin,
+    ItemsMixin,
+    EntitiesMixin,
+    ContextMixin,
+    SignalsMixin,
+    WorkspaceValuesMixin,
+    PsharpMixin,
+    RefTableMixin,
+    PivotTableMixin,
+    MLMixin,
+    WorkflowsMixin,
+    FilesMixin,
+    LogsMixin,
+    DataFrameMixin,
+):
     """
     PetroVisor API class
     """
 
-    def __init__(self,
-                 workspace: Optional[str] = '',
-                 api: Optional[str] = '',
-                 token: Optional[str] = '',
-                 discovery_url: Optional[str] = '',
-                 key: Optional[str] = '',
-                 username: Optional[str] = '',
-                 password: Optional[str] = '',
-                 errors: Optional[str] = 'coerce',
-                 **kwargs):
+    def __init__(
+        self,
+        workspace: Optional[str] = "",
+        api: Optional[str] = "",
+        token: Optional[str] = "",
+        discovery_url: Optional[str] = "",
+        key: Optional[str] = "",
+        username: Optional[str] = "",
+        password: Optional[str] = "",
+        errors: Optional[str] = "coerce",
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -69,12 +73,14 @@ class PetroVisor(RequestsMixin,
             If ‘ignore’, then invalid request will return the response.
         """
 
-        super().__init__(workspace=workspace,
-                         api=api,
-                         token=token,
-                         discovery_url=discovery_url,
-                         key=key,
-                         username=username,
-                         password=password,
-                         errors=errors,
-                         **kwargs)
+        super().__init__(
+            workspace=workspace,
+            api=api,
+            token=token,
+            discovery_url=discovery_url,
+            key=key,
+            username=username,
+            password=password,
+            errors=errors,
+            **kwargs,
+        )

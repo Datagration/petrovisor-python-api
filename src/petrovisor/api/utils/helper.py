@@ -26,14 +26,15 @@ class ApiHelper:
         Get known discovery urls
         """
         return [
-            r'https://identity-latest.eu1.petrovisor.com',
-            r'https://identity.eu1.petrovisor.com',
-            r'https://identity-latest.us1.petrovisor.com',
-            r'https://identity.us1.petrovisor.com']
+            r"https://identity-latest.eu1.petrovisor.com",
+            r"https://identity.eu1.petrovisor.com",
+            r"https://identity-latest.us1.petrovisor.com",
+            r"https://identity.us1.petrovisor.com",
+        ]
 
     # get object name
     @staticmethod
-    def get_object_name(obj: Any, field: str = 'Name', **kwargs) -> str:
+    def get_object_name(obj: Any, field: str = "Name", **kwargs) -> str:
         """
         Get object name
 
@@ -161,9 +162,11 @@ class ApiHelper:
                         if attr.casefold() == field.casefold():
                             return getattr(obj, attr)
         # could not find object field/attribute
-        if 'default' in kwargs:
-            return kwargs['default']
-        raise AttributeError(f"'{type(obj).__name__}' object has no attribute '{field}'")
+        if "default" in kwargs:
+            return kwargs["default"]
+        raise AttributeError(
+            f"'{type(obj).__name__}' object has no attribute '{field}'"
+        )
 
     # get non-empty fields
     @staticmethod
@@ -184,15 +187,17 @@ class ApiHelper:
         """
         Get list of default characters to ignore when comparing string names
         """
-        return [' ', '_', '-', '.', ',']
+        return [" ", "_", "-", ".", ","]
 
     # get comparison string
     @staticmethod
-    def get_comparison_string(s: str,
-                              ignore_characters: Union[List[str], str, bool] = True,
-                              ignore_case: bool = True,
-                              strip: bool = True,
-                              **kwargs):
+    def get_comparison_string(
+        s: str,
+        ignore_characters: Union[List[str], str, bool] = True,
+        ignore_case: bool = True,
+        strip: bool = True,
+        **kwargs,
+    ):
         """
         Get string preprocessed for comparison
 
@@ -213,19 +218,21 @@ class ApiHelper:
             elif isinstance(ignore_characters, str):
                 ignore_characters = [ignore_characters]
             for c in ignore_characters:
-                s = s.replace(c, '')
+                s = s.replace(c, "")
         if ignore_case:
             s = s.lower()
         return s.strip() if strip else s
 
     # get dictionary value
     @staticmethod
-    def get_dict_value(d: Dict,
-                       key: Union[str, Any],
-                       ignore_characters: Union[List[str], str, bool] = True,
-                       ignore_case: bool = True,
-                       strip: bool = True,
-                       **kwargs) -> Optional[str]:
+    def get_dict_value(
+        d: Dict,
+        key: Union[str, Any],
+        ignore_characters: Union[List[str], str, bool] = True,
+        ignore_case: bool = True,
+        strip: bool = True,
+        **kwargs,
+    ) -> Optional[str]:
         """
         Get dictionary value
 
@@ -248,31 +255,35 @@ class ApiHelper:
             if key in d:
                 return d[key]
             else:
-                key_to_compare = \
-                    ApiHelper.get_comparison_string(key,
-                                                    ignore_characters=ignore_characters,
-                                                    ignore_case=ignore_case,
-                                                    strip=strip,
-                                                    **kwargs)
+                key_to_compare = ApiHelper.get_comparison_string(
+                    key,
+                    ignore_characters=ignore_characters,
+                    ignore_case=ignore_case,
+                    strip=strip,
+                    **kwargs,
+                )
                 for k, v in d.items():
-                    k_to_compare = \
-                        ApiHelper.get_comparison_string(k,
-                                                        ignore_characters=ignore_characters,
-                                                        ignore_case=ignore_case,
-                                                        strip=strip,
-                                                        **kwargs)
+                    k_to_compare = ApiHelper.get_comparison_string(
+                        k,
+                        ignore_characters=ignore_characters,
+                        ignore_case=ignore_case,
+                        strip=strip,
+                        **kwargs,
+                    )
                     if k_to_compare == key_to_compare:
                         return v
         return None
 
     # check whether dict/list contains key
     @staticmethod
-    def contains(d: Union[Dict, List],
-                 key: Union[str, Any],
-                 ignore_characters:  Union[List[str], str, bool] = True,
-                 ignore_case: bool = True,
-                 strip: bool = True,
-                 **kwargs) -> bool:
+    def contains(
+        d: Union[Dict, List],
+        key: Union[str, Any],
+        ignore_characters: Union[List[str], str, bool] = True,
+        ignore_case: bool = True,
+        strip: bool = True,
+        **kwargs,
+    ) -> bool:
         """
         Check whether dictionary contains field/key
 
@@ -294,19 +305,21 @@ class ApiHelper:
         if key in d:
             return True
         else:
-            key_to_compare = \
-                ApiHelper.get_comparison_string(key,
-                                                ignore_characters=ignore_characters,
-                                                ignore_case=ignore_case,
-                                                strip=strip,
-                                                **kwargs)
+            key_to_compare = ApiHelper.get_comparison_string(
+                key,
+                ignore_characters=ignore_characters,
+                ignore_case=ignore_case,
+                strip=strip,
+                **kwargs,
+            )
             for k in d:
-                k_to_compare = \
-                    ApiHelper.get_comparison_string(k,
-                                                    ignore_characters=ignore_characters,
-                                                    ignore_case=ignore_case,
-                                                    strip=strip,
-                                                    **kwargs)
+                k_to_compare = ApiHelper.get_comparison_string(
+                    k,
+                    ignore_characters=ignore_characters,
+                    ignore_case=ignore_case,
+                    strip=strip,
+                    **kwargs,
+                )
                 if k_to_compare == key_to_compare:
                     return True
         return False
@@ -356,7 +369,7 @@ class ApiHelper:
         value : Any
             Value
         """
-        return UUID(value) if ApiHelper.is_uuid(value) else UUID(value['Id'])
+        return UUID(value) if ApiHelper.is_uuid(value) else UUID(value["Id"])
 
     # is uuid
     @staticmethod
@@ -386,7 +399,7 @@ class ApiHelper:
         x : Any
             Object
         """
-        if hasattr(x, '__len__'):
+        if hasattr(x, "__len__"):
             return True
         return False
 
@@ -420,7 +433,7 @@ class ApiHelper:
         """
         if isinstance(x, (np.ndarray, pd.DataFrame, pd.Series)):
             return x.shape[0]
-        elif hasattr(x, '__len__'):
+        elif hasattr(x, "__len__"):
             return len(x)
         return None
 
@@ -512,8 +525,8 @@ class ApiHelper:
         path : str
             File path.
         """
-        if '/' in path:
-            path = path.replace('/', '\\')
+        if "/" in path:
+            path = path.replace("/", "\\")
         return path
 
     # get Unix-like file path
@@ -527,6 +540,6 @@ class ApiHelper:
         path : str
             File path.
         """
-        if '\\' in path:
-            path = path.replace('\\', '/')
+        if "\\" in path:
+            path = path.replace("\\", "/")
         return path

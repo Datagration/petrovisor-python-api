@@ -5,6 +5,7 @@ from typing import (
     List,
     Dict,
 )
+
 try:
     from typing import Protocol
 except BaseException:
@@ -18,6 +19,7 @@ from petrovisor.api.dtypes.increments import (
     TimeIncrement,
     DepthIncrement,
 )
+
 
 # PetroVisor requests protocol
 class SupportsRequests(Protocol):
@@ -71,7 +73,9 @@ class SupportsRequests(Protocol):
 
     # encode url component
     @staticmethod
-    def encode(url_component: str, safe: Optional[Union[str, bytes]] = '~', **kwargs) -> str: ...
+    def encode(
+        url_component: str, safe: Optional[Union[str, bytes]] = "~", **kwargs
+    ) -> str: ...
 
 
 # PetroVisor Items requests protocol
@@ -98,7 +102,9 @@ class SupportsItemRequests(Protocol):
     def get_item_names(self, item_type: str, **kwargs) -> List[str]: ...
 
     # get item paged
-    def get_items_paged(self, item_type: str, page: int = 1, page_size: int = 10, **kwargs) -> List: ...
+    def get_items_paged(
+        self, item_type: str, page: int = 1, page_size: int = 10, **kwargs
+    ) -> List: ...
 
     # get item labels
     def get_item_labels(self, item_type: str, **kwargs) -> List[str]: ...
@@ -110,11 +116,13 @@ class SupportsItemRequests(Protocol):
     def get_item_name(self, item: Union[str, Dict], **kwargs) -> str: ...
 
     # get item field
-    def get_item_field(self,
-                       item_type: Optional[str],
-                       item: Union[str, Dict],
-                       field_name: str,
-                       **kwargs) -> Any: ...
+    def get_item_field(
+        self,
+        item_type: Optional[str],
+        item: Union[str, Dict],
+        field_name: str,
+        **kwargs,
+    ) -> Any: ...
 
     # get 'NamedItem' route
     def get_item_route(self, data_type: str, **kwargs) -> str: ...
@@ -141,13 +149,17 @@ class SupportsItemRequests(Protocol):
 # PetroVisor Entities requests protocol
 class SupportsEntitiesRequests(Protocol):
     # get entity
-    def get_entity(self, name: str, alias: Optional[str] = '', **kwargs) -> Dict: ...
+    def get_entity(self, name: str, alias: Optional[str] = "", **kwargs) -> Dict: ...
 
     # get entities
-    def get_entities(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[Dict]: ...
+    def get_entities(
+        self, entity_type: Optional[str] = "", signal: Optional[str] = "", **kwargs
+    ) -> List[Dict]: ...
 
     # get entity names
-    def get_entity_names(self, entity_type: Optional[str] = '', signal: Optional[str] = '', **kwargs) -> List[str]: ...
+    def get_entity_names(
+        self, entity_type: Optional[str] = "", signal: Optional[str] = "", **kwargs
+    ) -> List[str]: ...
 
     # add entities
     def add_entities(self, entities: List, **kwargs) -> Any: ...
@@ -163,63 +175,77 @@ class SupportsEntitiesRequests(Protocol):
 class SupportsSignalsRequests(Protocol):
 
     # get 'Signal'
-    def get_signal(self, name: str, short_name: Optional[str] = '', **kwargs) -> Optional[Dict]: ...
+    def get_signal(
+        self, name: str, short_name: Optional[str] = "", **kwargs
+    ) -> Optional[Dict]: ...
 
     # get 'Signal' names
-    def get_signal_names(self,
-                         signal_type: Optional[str] = '',
-                         entity: Optional[Union[Any, str]] = None,
-                         **kwargs) -> List[str]: ...
+    def get_signal_names(
+        self,
+        signal_type: Optional[str] = "",
+        entity: Optional[Union[Any, str]] = None,
+        **kwargs,
+    ) -> List[str]: ...
 
     # get valid signal type name
-    def get_signal_type_enum(self, signal_type: Union[str, SignalType], **kwargs) -> SignalType: ...
+    def get_signal_type_enum(
+        self, signal_type: Union[str, SignalType], **kwargs
+    ) -> SignalType: ...
 
     # get signal type route
-    def get_signal_type_route(self, signal_type: Union[str, SignalType], **kwargs) -> str: ...
+    def get_signal_type_route(
+        self, signal_type: Union[str, SignalType], **kwargs
+    ) -> str: ...
 
 
 # PetroVisor Contex requests protocol
 class SupportsContextRequests(Protocol):
     # get 'Context'
-    def get_context(self,
-                    name: Union[str, Dict],
-                    entity_set: Union[str, Dict] = None,
-                    scope: Union[str, Dict] = None,
-                    hierarchy: Union[str, Dict] = None,
-                    relationship: Dict[str, str] = None,
-                    entity_type: Union[str, List[str]] = None,
-                    entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
-                    time_start: Union[str, datetime] = None,
-                    time_end: Union[str, datetime] = None,
-                    time_step: Union[str, TimeIncrement] = None,
-                    depth_start: float = None,
-                    depth_end: float = None,
-                    depth_step: Union[str, DepthIncrement] = None,
-                    **kwargs) -> Optional[Dict]: ...
+    def get_context(
+        self,
+        name: Union[str, Dict],
+        entity_set: Union[str, Dict] = None,
+        scope: Union[str, Dict] = None,
+        hierarchy: Union[str, Dict] = None,
+        relationship: Dict[str, str] = None,
+        entity_type: Union[str, List[str]] = None,
+        entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
+        time_start: Union[str, datetime] = None,
+        time_end: Union[str, datetime] = None,
+        time_step: Union[str, TimeIncrement] = None,
+        depth_start: float = None,
+        depth_end: float = None,
+        depth_step: Union[str, DepthIncrement] = None,
+        **kwargs,
+    ) -> Optional[Dict]: ...
 
     # get 'Scope'
-    def get_scope(self,
-                  name: Union[str, Dict],
-                  time_start: Union[str, datetime] = None,
-                  time_end: Union[str, datetime] = None,
-                  time_step: Union[str, TimeIncrement] = None,
-                  depth_start: float = None,
-                  depth_end: float = None,
-                  depth_step: Union[str, DepthIncrement] = None,
-                  **kwargs) -> Optional[Dict]: ...
+    def get_scope(
+        self,
+        name: Union[str, Dict],
+        time_start: Union[str, datetime] = None,
+        time_end: Union[str, datetime] = None,
+        time_step: Union[str, TimeIncrement] = None,
+        depth_start: float = None,
+        depth_end: float = None,
+        depth_step: Union[str, DepthIncrement] = None,
+        **kwargs,
+    ) -> Optional[Dict]: ...
 
     # get 'EntitySet'
-    def get_entity_set(self,
-                       name: Union[str, Dict],
-                       entities: List[str] = None,
-                       entity_type: Union[str, List[str]] = None,
-                       **kwargs) -> Optional[Dict]: ...
+    def get_entity_set(
+        self,
+        name: Union[str, Dict],
+        entities: List[str] = None,
+        entity_type: Union[str, List[str]] = None,
+        **kwargs,
+    ) -> Optional[Dict]: ...
 
     # get 'Hierarchy'
-    def get_hierarchy(self,
-                      name: Union[str, Dict],
-                      relationship: Dict[str, str] = None,
-                      **kwargs) -> Optional[Dict]: ...
+    def get_hierarchy(
+        self, name: Union[str, Dict], relationship: Dict[str, str] = None, **kwargs
+    ) -> Optional[Dict]: ...
+
 
 # P# requests protocol
 class SupportsPsharpRequests(Protocol):
@@ -227,49 +253,57 @@ class SupportsPsharpRequests(Protocol):
     def get_psharp_script(self, name: str, **kwargs) -> Dict: ...
 
     # parse P# script
-    def parse_psharp_script(self, script: Union[str, Dict], options: Optional[Dict] = None, **kwargs) -> Dict: ...
+    def parse_psharp_script(
+        self, script: Union[str, Dict], options: Optional[Dict] = None, **kwargs
+    ) -> Dict: ...
 
     # get P# script content
     def get_psharp_script_content(self, script: Union[str, Dict], **kwargs) -> str: ...
 
     # get P# script table names
-    def get_psharp_script_table_names(self,
-                                      script: Union[str, Dict],
-                                      options: Optional[Dict] = None,
-                                      **kwargs) -> List[str]: ...
+    def get_psharp_script_table_names(
+        self, script: Union[str, Dict], options: Optional[Dict] = None, **kwargs
+    ) -> List[str]: ...
 
     # get P# script tables, columns and signals
-    def get_psharp_script_columns_and_signals(self,
-                                              script: Union[str, Dict],
-                                              options: Optional[Dict] = None,
-                                              **kwargs) -> Dict: ...
+    def get_psharp_script_columns_and_signals(
+        self, script: Union[str, Dict], options: Optional[Dict] = None, **kwargs
+    ) -> Dict: ...
 
 
 # DataFrames handling protocol
 class SupportsDataFrames(Protocol):
     # get valid json value
-    def get_json_valid_value(self, value: Any, dtype: Union[str, SignalType] = 'unknown', **kwargs) -> Any: ...
+    def get_json_valid_value(
+        self, value: Any, dtype: Union[str, SignalType] = "unknown", **kwargs
+    ) -> Any: ...
 
     # convert PivotTable to DataFrame
-    def convert_pivot_table_to_dataframe(self, data: List, groupby_entity: bool = False, **kwargs): ...
+    def convert_pivot_table_to_dataframe(
+        self, data: List, groupby_entity: bool = False, **kwargs
+    ): ...
 
     # Get signal data from DataFrame
 
-    def get_signal_data_from_dataframe(self,
-                                       df: pd.DataFrame,
-                                       signals: Optional[Dict] = None,
-                                       only_existing_entities: bool = True,
-                                       entity_type: str = '',
-                                       entities: Optional[Dict] = None,
-                                       **kwargs) -> Dict[str, Any]: ...
+    def get_signal_data_from_dataframe(
+        self,
+        df: pd.DataFrame,
+        signals: Optional[Dict] = None,
+        only_existing_entities: bool = True,
+        entity_type: str = "",
+        entities: Optional[Dict] = None,
+        **kwargs,
+    ) -> Dict[str, Any]: ...
 
     # convert P# table to DataFrame
-    def convert_psharp_table_to_dataframe(self,
-                                          psharp_table: Union[Dict, List],
-                                          dropna: bool = True,
-                                          with_entity_column: bool = True,
-                                          groupby_entity: bool = False,
-                                          **kwargs) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...
+    def convert_psharp_table_to_dataframe(
+        self,
+        psharp_table: Union[Dict, List],
+        dropna: bool = True,
+        with_entity_column: bool = True,
+        groupby_entity: bool = False,
+        **kwargs,
+    ) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...
 
     # get column unit
     def get_column_unit(self, column_name: str, **kwargs) -> str: ...
