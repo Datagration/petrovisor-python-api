@@ -721,8 +721,8 @@ class SignalsMixin(
         df_time = None
         df_depth = None
         df_static = None
+        # use_filters = True  # use when is more reliable
         use_filters = False  # use when is more reliable
-        use_filters = True  # use when is more reliable
         if use_filters:
             unit_names = [s["UnitName"] for s in signals]
             signals_with_units_map = {
@@ -832,7 +832,6 @@ class SignalsMixin(
                 )
 
                 # generate PivotTable
-                print(data_depth)
                 df = df_normalized.pivot(
                     index=["EntityName", "Depth"], columns="ResultName", values="Value"
                 )
