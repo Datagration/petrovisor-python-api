@@ -28,30 +28,32 @@ class LogsMixin(SupportsRequests):
             Log message
         """
         log_entry = {
-            'Timestamp': None,
-            'Message': message,
-            'Category': None,
-            'UserName': None,
-            'Severity': None,
-            'Workspace': None,
-            'Schedule': None,
-            'Workflow': None,
-            'StartTime': None,
-            'EndTime': None,
-            'Script': None,
-            'Entity': None,
-            'Signal': None,
-            'Unit': None,
-            'Tag': None,
-            'NumberOfItems': None,
-            'ValueBefore': None,
-            'ValueAfter': None,
-            'ElapsedTime': None,
-            'MessageDetails': None,
-            'Directory': None
+            "Timestamp": None,
+            "Message": message,
+            "Category": None,
+            "UserName": None,
+            "Severity": None,
+            "Workspace": None,
+            "Schedule": None,
+            "Workflow": None,
+            "StartTime": None,
+            "EndTime": None,
+            "Script": None,
+            "Entity": None,
+            "Signal": None,
+            "Unit": None,
+            "Tag": None,
+            "NumberOfItems": None,
+            "ValueBefore": None,
+            "ValueAfter": None,
+            "ElapsedTime": None,
+            "MessageDetails": None,
+            "Directory": None,
         }
         log_entry = ApiHelper.update_dict(log_entry, **kwargs)
-        return self.post('LogEntries', data=ApiHelper.get_non_empty_fields(log_entry), **kwargs)
+        return self.post(
+            "LogEntries", data=ApiHelper.get_non_empty_fields(log_entry), **kwargs
+        )
 
     # add workflow log entry
     def add_workflow_log_entry(self, message: str, workflow: str, **kwargs):
@@ -73,8 +75,10 @@ class LogsMixin(SupportsRequests):
         workflow : str
             Workflow name
         """
-        return self.add_log_entry(message,
-                                  Workflow=workflow,
-                                  Category='Workflow Execution',
-                                  UserName='WorkflowService',
-                                  **kwargs)
+        return self.add_log_entry(
+            message,
+            Workflow=workflow,
+            Category="Workflow Execution",
+            UserName="WorkflowService",
+            **kwargs,
+        )

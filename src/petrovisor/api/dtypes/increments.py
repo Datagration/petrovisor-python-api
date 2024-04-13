@@ -9,6 +9,7 @@ class TimeIncrement(IntEnum):
     """
     PetroVisor time increments
     """
+
     # Every second
     EverySecond = auto()
     # Every minute
@@ -34,6 +35,7 @@ class DepthIncrement(IntEnum):
     """
     PetroVisor depth increments
     """
+
     # 0.1 m (Every tenth of meter)
     TenthMeter = 0
     # 0.125 m (Every eighth of meter)

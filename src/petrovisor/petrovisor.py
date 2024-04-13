@@ -4,6 +4,7 @@ from typing import Optional
 from petrovisor.api.base import RequestsMixin
 from petrovisor.api.methods.items import ItemsMixin
 from petrovisor.api.methods.entities import EntitiesMixin
+from petrovisor.api.methods.contexts import ContextMixin
 from petrovisor.api.methods.signals import SignalsMixin
 from petrovisor.api.methods.workspace_values import WorkspaceValuesMixin
 from petrovisor.api.methods.psharp import PsharpMixin
@@ -17,33 +18,38 @@ from petrovisor.api.methods.logs import LogsMixin
 
 
 # PetroVisor API calls
-class PetroVisor(RequestsMixin,
-                 ItemsMixin,
-                 EntitiesMixin,
-                 SignalsMixin,
-                 WorkspaceValuesMixin,
-                 PsharpMixin,
-                 RefTableMixin,
-                 PivotTableMixin,
-                 MLMixin,
-                 WorkflowsMixin,
-                 FilesMixin,
-                 LogsMixin,
-                 DataFrameMixin, ):
+class PetroVisor(
+    RequestsMixin,
+    ItemsMixin,
+    EntitiesMixin,
+    ContextMixin,
+    SignalsMixin,
+    WorkspaceValuesMixin,
+    PsharpMixin,
+    RefTableMixin,
+    PivotTableMixin,
+    MLMixin,
+    WorkflowsMixin,
+    FilesMixin,
+    LogsMixin,
+    DataFrameMixin,
+):
     """
     PetroVisor API class
     """
 
-    def __init__(self,
-                 workspace: Optional[str] = '',
-                 api: Optional[str] = '',
-                 token: Optional[str] = '',
-                 discovery_url: Optional[str] = '',
-                 key: Optional[str] = '',
-                 username: Optional[str] = '',
-                 password: Optional[str] = '',
-                 errors: Optional[str] = 'coerce',
-                 **kwargs):
+    def __init__(
+        self,
+        workspace: Optional[str] = "",
+        api: Optional[str] = "",
+        token: Optional[str] = "",
+        discovery_url: Optional[str] = "",
+        key: Optional[str] = "",
+        username: Optional[str] = "",
+        password: Optional[str] = "",
+        errors: Optional[str] = "coerce",
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -67,12 +73,14 @@ class PetroVisor(RequestsMixin,
             If ‘ignore’, then invalid request will return the response.
         """
 
-        super().__init__(workspace=workspace,
-                         api=api,
-                         token=token,
-                         discovery_url=discovery_url,
-                         key=key,
-                         username=username,
-                         password=password,
-                         errors=errors,
-                         **kwargs)
+        super().__init__(
+            workspace=workspace,
+            api=api,
+            token=token,
+            discovery_url=discovery_url,
+            key=key,
+            username=username,
+            password=password,
+            errors=errors,
+            **kwargs,
+        )
