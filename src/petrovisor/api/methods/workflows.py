@@ -17,14 +17,16 @@ class WorkflowsMixin(SupportsRequests):
     """
 
     # run 'Workflow'
-    def run_workflow(self,
-                     workflow: str,
-                     contexts: Optional[List[str]] = None,
-                     scope: str = None,
-                     entity_set: str = None,
-                     schedule_name: str = 'Now',
-                     source: str = 'by Activity service',
-                     **kwargs) -> Any:
+    def run_workflow(
+        self,
+        workflow: str,
+        contexts: Optional[List[str]] = None,
+        scope: str = None,
+        entity_set: str = None,
+        schedule_name: str = "Now",
+        source: str = "by Activity service",
+        **kwargs,
+    ) -> Any:
         """
         Run workflow
 
@@ -44,17 +46,17 @@ class WorkflowsMixin(SupportsRequests):
             Source name
         """
         data = {
-            'WorkflowName': workflow,
-            'WorkspaceName': self.Workspace,
-            'Source': source,
-            'ScheduleName': schedule_name,
-            'ProcessingContexts': contexts if contexts else [],
+            "WorkflowName": workflow,
+            "WorkspaceName": self.Workspace,
+            "Source": source,
+            "ScheduleName": schedule_name,
+            "ProcessingContexts": contexts if contexts else [],
         }
         if scope:
-            data['ProcessingScopeName'] = scope
+            data["ProcessingScopeName"] = scope
         if entity_set:
-            data['ProcessingEntitySet'] = entity_set
-        return self.post('WorkflowExecution/AddRequest', data=data, **kwargs)
+            data["ProcessingEntitySet"] = entity_set
+        return self.post("WorkflowExecution/AddRequest", data=data, **kwargs)
 
     # get 'Workflow' execution state
     def get_workflow_execution_state(self, uid: UUID, **kwargs):

@@ -25,10 +25,10 @@ class FilesMixin(SupportsRequests):
         """
         Get file names
         """
-        return self.get('Files', **kwargs)
+        return self.get("Files", **kwargs)
 
     # get file by name
-    def get_file(self, filename: str, format: str = 'bytes', **kwargs) -> Any:
+    def get_file(self, filename: str, format: str = "bytes", **kwargs) -> Any:
         """
         Get file
 
@@ -40,7 +40,7 @@ class FilesMixin(SupportsRequests):
             File format
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.get(f'Files/{self.encode(filename)}', format=format, **kwargs)
+        return self.get(f"Files/{self.encode(filename)}", format=format, **kwargs)
 
     # delete file by given name
     def delete_file(self, filename: str, **kwargs) -> Any:
@@ -53,10 +53,10 @@ class FilesMixin(SupportsRequests):
             File name
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.delete(f'Files/{self.encode(filename)}', **kwargs)
+        return self.delete(f"Files/{self.encode(filename)}", **kwargs)
 
     # upload file
-    def upload_file(self, file: Any, name: str = '', **kwargs) -> Any:
+    def upload_file(self, file: Any, name: str = "", **kwargs) -> Any:
         """
         Upload file
 
@@ -70,14 +70,22 @@ class FilesMixin(SupportsRequests):
         # upload file with specified name
         if name:
             name = ApiHelper.get_unix_like_path(name)
-            return self.post('Files/Upload',
-                             files={'file': (name, open(file, 'rb') if isinstance(file, str) else file)}, **kwargs)
+            return self.post(
+                "Files/Upload",
+                files={
+                    "file": (name, open(file, "rb") if isinstance(file, str) else file)
+                },
+                **kwargs,
+            )
         # upload file with the same name as file's name or name specified in the file-like object
-        return self.post('Files/Upload',
-                         files={'file': open(file, 'rb') if isinstance(file, str) else file}, **kwargs)
+        return self.post(
+            "Files/Upload",
+            files={"file": open(file, "rb") if isinstance(file, str) else file},
+            **kwargs,
+        )
 
     # upload folder
-    def upload_folder(self, folder: str, name: str = '', **kwargs) -> Any:
+    def upload_folder(self, folder: str, name: str = "", **kwargs) -> Any:
         """
         Upload folder
 
@@ -133,11 +141,9 @@ class FilesMixin(SupportsRequests):
                 self.delete_file(filename, **kwargs)
 
     # get object by name
-    def get_object(self,
-                   name: str,
-                   func: Optional[Callable] = None,
-                   binary: bool = True,
-                   **kwargs) -> Any:
+    def get_object(
+        self, name: str, func: Optional[Callable] = None, binary: bool = True, **kwargs
+    ) -> Any:
         """
         Load object from blob storage using pickle.loads()
 
@@ -150,20 +156,22 @@ class FilesMixin(SupportsRequests):
         binary : bool, default True
             Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
-        file_obj = self.get_file(name, format='bytes', **kwargs)
-        if func and hasattr(func, '__call__'):
+        file_obj = self.get_file(name, format="bytes", **kwargs)
+        if func and hasattr(func, "__call__"):
             return func(file_obj, **kwargs)
         if binary:
             return pickle.loads(file_obj)
         return json.load(io.BytesIO(file_obj), **kwargs)
 
     # upload object
-    def upload_object(self,
-                      obj: Any,
-                      name: str,
-                      func: Optional[Callable] = None,
-                      binary: bool = True,
-                      **kwargs) -> Any:
+    def upload_object(
+        self,
+        obj: Any,
+        name: str,
+        func: Optional[Callable] = None,
+        binary: bool = True,
+        **kwargs,
+    ) -> Any:
         """
         Upload object to blob storage using pickle.dumps()
 
@@ -179,7 +187,7 @@ class FilesMixin(SupportsRequests):
             Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
         # upload file by full path
-        if func and hasattr(func, '__call__'):
+        if func and hasattr(func, "__call__"):
             file = func(obj, **kwargs)
         elif binary:
             file = pickle.dumps(obj)
