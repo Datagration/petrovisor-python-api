@@ -2,6 +2,7 @@ from typing import (
     Any,
     Optional,
     Union,
+    Tuple,
     List,
     Dict,
 )
@@ -305,5 +306,12 @@ class SupportsDataFrames(Protocol):
         **kwargs,
     ) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...
 
+    # get column name without unit
+    def get_column_name_without_unit(self, column_name: str, **kwargs) -> str: ...
+
     # get column unit
     def get_column_unit(self, column_name: str, **kwargs) -> str: ...
+
+    # get column name and unit
+    def get_column_name_and_unit(self, column_name: str, **kwargs) -> Tuple[str, str]: ...
+

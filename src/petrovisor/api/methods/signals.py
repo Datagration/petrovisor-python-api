@@ -11,7 +11,6 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import warnings
-import sys
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.dtypes.items import ItemType

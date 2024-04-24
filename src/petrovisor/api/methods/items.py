@@ -6,8 +6,11 @@ from typing import (
     Dict,
 )
 
+import time
+
 from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
@@ -89,7 +92,12 @@ class ItemsMixin(SupportsRequests):
                 f"Known item types: {list(self.ItemRoutes.keys())}"
             )
         name = self.get_item_name(item, **kwargs)
-        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        # make sure item is really deleted
+        waiting_time = 3  # in seconds
+        while self.item_exists(ItemType.RefTable, name):
+            self.delete(f"{route}/{self.encode(name)}", **kwargs)
+            time.sleep(waiting_time)
+        return ApiRequests.success()
 
     # add or edit item
     def add_item(self, item_type: str, item: Dict, **kwargs) -> Any:

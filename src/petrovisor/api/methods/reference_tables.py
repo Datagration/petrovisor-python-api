@@ -99,60 +99,99 @@ class RefTableMixin(
         is_empty = df.empty
         if not self.item_exists(ItemType.RefTable, name):
 
-            # date column
-            df_date_cols = set()
-            for col in RefTableMixinHelper.get_set(
-                date_col, default={"Date", "Timestamp", "Time"}
-            ):
-                if col in df.columns:
-                    df_date_cols.add(col)
-            if "Timestamp" in df_date_cols:
-                df_date_col = "Timestamp"
-            elif "Date" in df_date_cols:
-                df_date_col = "Date"
-            elif "Time" in df_date_cols:
-                df_date_col = "Time"
-            else:
-                df_date_col = df_date_cols.pop() if df_date_cols else None
+            df_columns = list(df.columns)
+            df_columns_without_unit = [self.get_column_name_without_unit(col) for col in df.columns]
+            index_columns = []
+
+            def get_column_by_name(name, columns):
+                for idx, col in enumerate(columns):
+                    if self.get_column_name_without_unit(col) == name:
+                        return col
+                return None
 
             # entity column
-            df_entity_cols = set()
-            for col in RefTableMixinHelper.get_set(entity_col, default="Entity"):
-                if col in df.columns:
-                    df_entity_cols.add(col)
-            if "Entity" in df_entity_cols:
-                df_entity_col = "Entity"
+            df_entity_col = None
+            for col in RefTableMixinHelper.get_list(entity_col, default="Entity"):
+                if col in df_columns:
+                    df_entity_col = col
+                    index_columns.append(df_entity_col)
+                    break
+            if df_entity_col is None:
+                if len(df_columns) <= len(index_columns):
+                    raise ValueError(
+                        "PetroVisor::add_ref_table(): 'Entity' column is not specified"
+                    )
+                df_entity_col = df_columns[len(index_columns)]
+                index_columns.append(df_entity_col)
             else:
-                df_entity_col = df_entity_cols.pop() if df_entity_cols else None
+                # put index columns in front
+                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
+
+            # date column
+            df_date_col = None
+            for col in RefTableMixinHelper.get_list(
+                date_col, default=["Timestamp", "Date", "Time"]
+            ):
+                if col in df_columns:
+                    df_date_col = col
+                    index_columns.append(df_date_col)
+                    break
+            if df_date_col is None:
+                if len(df_columns) <= len(index_columns):
+                    raise ValueError(
+                        "PetroVisor::add_ref_table(): 'Timestamp' column is not specified"
+                    )
+                df_datecol = df_columns[len(index_columns)]
+                index_columns.append(df_date_col)
+            else:
+                # put index columns in front
+                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
+
+            # check for columns with invalid name
+            # reserved column names: "ID", "Entity", "Timestamp"
+            reserved_columns = {"ID", "Entity", "Timestamp"}
+            key_value_columns = [self.get_column_name_without_unit(col)
+                                 for col in df_columns
+                                 if col not in index_columns]
+            invalid_columns = reserved_columns.intersection(key_value_columns)
+            if invalid_columns:
+                raise ValueError(f"PetroVisor::add_ref_table(): "
+                                 f"Column names {invalid_columns} are not allowed to be used as regular column names.")
 
             # key column
-            df_key_cols = set()
-            for col in RefTableMixinHelper.get_set(key_col, default="Key"):
-                if col in df.columns:
-                    df_key_cols.add(col)
-            if "Key" in df_key_cols:
-                df_key_col = "Key"
-            elif df_key_cols:
-                df_key_col = df_key_cols.pop()
+            df_key_col = None
+            for col in RefTableMixinHelper.get_list(key_col, default="Key"):
+                if col in df_columns:
+                    df_key_col = col
+                    index_columns.append(df_key_col)
+                    break
+                elif col in df_columns_without_unit:
+                    df_key_col = get_column_by_name(col, df_columns)
+                    index_columns.append(df_key_col)
+                    break
+            if df_key_col is None:
+                if len(df_columns) <= len(index_columns):
+                    raise ValueError(
+                        "PetroVisor::add_ref_table(): 'Key' column is not specified"
+                    )
+                df_key_col = df_columns[len(index_columns)]
+                index_columns.append(df_key_col)
             else:
-                raise ValueError(
-                    "PetroVisor::add_ref_table(): " "'Key' column is not specified"
-                )
+                # put index columns in front
+                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
 
-            # reserved column names: "ID", "Timestamp", "Entity"
-            reserved_columns = {"ID", "Entity", "Timestamp"}
-            if df_date_col:
-                reserved_columns = reserved_columns.union({df_date_col})
-            if df_entity_col:
-                reserved_columns = reserved_columns.union({df_entity_col})
-            reserved_columns = reserved_columns.union({df_key_col})
-            value_columns = [col for col in df.columns if col not in reserved_columns]
+            value_columns = [col for col in df_columns if col not in index_columns]
+
+            # reorder columns
+            if list(df.columns[:len(index_columns)]) != index_columns:
+                df = df[*index_columns, *value_columns]
+
             column_types = df.dtypes
             options = {
                 "Name": name,
                 "Description": description or "",
                 "Key": {
-                    "Name": df_key_col,
+                    "Name": self.get_column_name_without_unit(df_key_col),
                     "UnitName": self.get_column_unit(df_key_col) or " ",
                     "ColumnType": RefTableMixinHelper.get_ref_table_column_type(
                         column_types[df_key_col]
@@ -160,7 +199,7 @@ class RefTableMixin(
                 },
                 "Values": [
                     {
-                        "Name": col,
+                        "Name": self.get_column_name_without_unit(col),
                         "UnitName": self.get_column_unit(col) or " ",
                         "ColumnType": RefTableMixinHelper.get_ref_table_column_type(
                             column_types[col]
@@ -289,7 +328,6 @@ class RefTableMixin(
             Chunk size for splitting request into multiple smaller requests.
         """
         route = "RefTables"
-
         # create DataFrame in case if it is passed as dictionary
         def create_dataframe(d: Dict):
             df = pd.DataFrame()
@@ -383,9 +421,13 @@ class RefTableMixin(
             Reference table name
         """
         route = "RefTables"
-        if not self.item_exists(ItemType.RefTable, name):
-            return ApiRequests.success()
-        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        # make sure item is really deleted
+        waiting_time = 3  # in seconds
+        while self.item_exists(ItemType.RefTable, name):
+            self.delete_ref_table_data(name)
+            self.delete(f"{route}/{self.encode(name)}", **kwargs)
+            time.sleep(waiting_time)
+        return ApiRequests.success()
 
 
 # Reference table mixin helper
@@ -402,15 +444,15 @@ class RefTableMixinHelper:
                 df[c] = d
         return df
 
-    # get set given a value and default
+    # get list given a value and default
     @staticmethod
-    def get_set(col, default=None):
+    def get_list(col, default=None):
         """
-        Get set given a value and default
+        Get list given a value and default
         """
         if isinstance(col, (set, tuple, list)):
-            return set(col)
-        return {col} if col else RefTableMixinHelper.get_set(default) if default else {}
+            return list(col)
+        return [col] if col else RefTableMixinHelper.get_list(default) if default else []
 
     # get reference column type
     @staticmethod
