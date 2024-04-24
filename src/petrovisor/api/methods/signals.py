@@ -495,7 +495,6 @@ class SignalsMixin(
             Scenario name
         entity_type : str | list[str], default None
             Entity type. Used when entity_set, entities or context is not provided.
-            If None, then all entities will be considered.
             If not None, will filter out entities defined in entity_set.
         entities : str | list[str], default None
             Entity or list of Entities
@@ -1122,7 +1121,7 @@ class SignalsMixin(
             return df[
                 [
                     *non_signal_columns,
-                    *[f"{s['Name']} [{s['UnitName']}]" for s in signals],
+                    *[col for col in df.columns if col not in non_signal_columns],
                 ]
             ]
 
