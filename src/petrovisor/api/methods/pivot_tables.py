@@ -185,9 +185,6 @@ class PivotTableMixin(
             return ApiRequests.success()
         # delete data
         self.delete_pivot_table_data(name)
-        # make sure item is really deleted
-        waiting_time = 3  # in seconds
-        while self.item_exists(ItemType.PivotTable, name):
-            self.delete(f"{route}/{self.encode(name)}", **kwargs)
-            time.sleep(waiting_time)
+        # delete item
+        self.delete(f"{route}/{self.encode(name)}", **kwargs)
         return ApiRequests.success()

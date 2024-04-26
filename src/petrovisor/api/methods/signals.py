@@ -539,12 +539,12 @@ class SignalsMixin(
         if not signals:
             if not signal_names:
                 warnings.warn(
-                    "load_signals_data():: No signals were provided.",
+                    "PetroVisor::load_signals_data():: No signals were provided.",
                     RuntimeWarning,
                 )
             else:
                 warnings.warn(
-                    f"load_signals_data():: Couldn't find signals {signal_names}.",
+                    f"PetroVisor::load_signals_data():: Couldn't find signals {signal_names}.",
                     RuntimeWarning,
                 )
             return None
@@ -953,7 +953,7 @@ class SignalsMixin(
 
                 if not data:
                     warnings.warn(
-                        f"load_signals_data():: Couldn't retrieve any {data_type} data.",
+                        f"PetroVisor::load_signals_data():: Couldn't retrieve any {data_type} data.",
                         RuntimeWarning,
                     )
                     continue
@@ -1033,7 +1033,7 @@ class SignalsMixin(
                 df = df_static
         if df is None:
             warnings.warn(
-                "load_signals_data():: Couldn't retrieve any data.",
+                "PetroVisor::load_signals_data():: Couldn't retrieve any data.",
                 RuntimeWarning,
             )
             return df

@@ -55,40 +55,19 @@ class RefTableMixin(
         name : str
             Reference table name
         """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            waiting_time = 3  # in seconds
+            max_retries = 10
+            i = 0
+            item = self.get_item(ItemType.RefTable, name, **kwargs)
+            while not item and i < max_retries:
+                time.sleep(waiting_time)
+                item = self.get_item(ItemType.RefTable, name, **kwargs)
+                i += 1
+        if item:
+            return item
         return self.get_item(ItemType.RefTable, name, **kwargs)
-
-    # check if reference table exists
-    def ref_table_exists(self, name: str, **kwargs) -> bool:
-        """
-        Check if reference table exists
-
-        Parameters
-        ----------
-        name : str
-            Reference table name
-        """
-
-        # try few request to make sure that ref table really doesn't exist, or it is just loading
-        def is_ref_table_exists() -> bool:
-            nonlocal name
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                if self.item_exists(
-                    ItemType.RefTable, name
-                ) and self.get_ref_table_data_info(name):
-                    return True
-                return False
-
-        if is_ref_table_exists():
-            return True
-
-        waiting_time = 3  # in seconds
-        max_retries = 10
-        i = 0
-        while not is_ref_table_exists() and i < max_retries:
-            time.sleep(waiting_time)
-            i += 1
-        return is_ref_table_exists()
 
     # add reference table
     def add_ref_table(
@@ -135,7 +114,7 @@ class RefTableMixin(
 
         # add definition if it doesn't exists
         is_empty = df.empty
-        if not self.ref_table_exists(name):
+        if not self.item_exists(ItemType.RefTable, name):
 
             df_columns = list(df.columns)
             df_columns_without_unit = [
@@ -267,10 +246,11 @@ class RefTableMixin(
                 return result
         if is_empty:
             return ApiRequests.success()
-        # save data to already exists RefTable
+        # check that RefTable was created
         waiting_time = 3  # in seconds
-        while not self.ref_table_exists(name):
+        while not self.item_exists(ItemType.RefTable, name):
             time.sleep(waiting_time)
+        # save data to already exists RefTable
         return self.save_ref_table_data(
             name,
             df,
@@ -318,6 +298,26 @@ class RefTableMixin(
             Options to retrieve data
         """
         route = "RefTables"
+
+        # get table columns specs
+        ref_table_info = self.get_ref_table_data_info(name)
+        if not ref_table_info:
+            warnings.warn(
+                "PetroVisor::load_ref_table_data():: "
+                f"Couldn't retrieve ref table '{name}' columns information. Trying to retrieve data only.",
+                RuntimeWarning,
+            )
+            columns = []
+        else:
+            columns = [
+                f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]
+            ]
+            key_column = (
+                f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
+            )
+            columns = [entity_col or "Entity", date_col or "Date", key_column, *columns]
+
+        # retrieve data
         filter_options = options if options else {}
         if entity:
             if isinstance(
@@ -351,20 +351,12 @@ class RefTableMixin(
         data = self.post(
             f"{route}/{self.encode(name)}/Data", data=filter_options, **kwargs
         )
-
-        # get table info
-        if not self.ref_table_exists(name):
-            raise ValueError(
-                f"PetroVisor::load_ref_table_data(): "
-                f"Couldn't retrieve ref table '{name}'. Please check if it exists and try again."
-            )
-        ref_table_info = self.get_ref_table_data_info(name)
-        columns = [f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]]
-        key_column = (
-            f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
-        )
-        columns = [entity_col or "Entity", date_col or "Date", key_column, *columns]
-        df = pd.DataFrame(data=data, columns=columns)
+        if columns:
+            # assign data and column names
+            df = pd.DataFrame(data=data, columns=columns)
+        else:
+            # assign data without column names
+            df = pd.DataFrame(data=data)
         return df
 
     # save data to reference table
@@ -393,6 +385,14 @@ class RefTableMixin(
         """
         route = "RefTables"
 
+        # get table columns specs
+        if not self.get_ref_table_data_info(name):
+            warnings.warn(
+                "PetroVisor::save_ref_table_data():: "
+                f"Couldn't retrieve ref table '{name}' columns information. Trying to save data now.",
+                RuntimeWarning,
+            )
+
         # create DataFrame in case if it is passed as dictionary
         def create_dataframe(d: Dict):
             df = pd.DataFrame()
@@ -408,13 +408,6 @@ class RefTableMixin(
 
         if df is None or df.empty:
             return ApiRequests.success()
-
-        # make sure that ref table exists
-        if not self.item_exists(ItemType.RefTable, name):
-            raise ValueError(
-                f"PetroVisor::save_ref_table_data(): "
-                f"Couldn't retrieve ref table '{name}'. Please check if it exists and try again."
-            )
 
         if chunksize and (df.shape[0] > chunksize):
             # num_chunks = int(math.ceil(df.shape[0] / chunksize))
@@ -462,7 +455,7 @@ class RefTableMixin(
             End Date or None
         """
         route = "RefTables"
-        if not self.ref_table_exists(name):
+        if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
 
         if date_start or date_end:
@@ -497,17 +490,12 @@ class RefTableMixin(
             Reference table name
         """
         route = "RefTables"
-        if not self.ref_table_exists(name):
+        if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # delete data
-            self.delete_ref_table_data(name)
-            # make sure item is really deleted
-            waiting_time = 3  # in seconds
-            while self.item_exists(ItemType.RefTable, name):
-                self.delete(f"{route}/{self.encode(name)}", **kwargs)
-                time.sleep(waiting_time)
+        # delete data
+        self.delete_ref_table_data(name)
+        # delete item
+        self.delete(f"{route}/{self.encode(name)}", **kwargs)
         return ApiRequests.success()
 
 
