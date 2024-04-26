@@ -3,6 +3,7 @@ from typing import (
     Optional,
     Union,
     List,
+    Set,
     Dict,
     Tuple,
 )
@@ -12,6 +13,7 @@ import pandas as pd
 import numpy as np
 import warnings
 
+from petrovisor.api.utils.validators import Validator
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.dtypes.items import ItemType
 from petrovisor.api.dtypes.internal_dtypes import SignalType
@@ -575,7 +577,7 @@ class SignalsMixin(
         if not entities:
             raise ValueError(
                 "load_signals_data():: "
-                f"entity set is empty! Please provide non empty entity_set, or list of entities, or define entity_type."
+                "entity set is empty! Please provide non empty entity_set, or list of entities, or define entity_type."
             )
         entity_names = [ApiHelper.get_object_name(e) for e in entities]
 
@@ -594,9 +596,9 @@ class SignalsMixin(
             ],
         }
         signal_types = {k: v for k, v in signal_types.items() if v}
-        has_static_signals = signal_types.get("static", None) is not None
         has_time_signals = signal_types.get("time", None) is not None
-        has_depth_signals = signal_types.get("depth", None) is not None
+        # has_depth_signals = signal_types.get("depth", None) is not None
+        # has_static_signals = signal_types.get("static", None) is not None
 
         # get scope range
         time_start = None
@@ -615,59 +617,49 @@ class SignalsMixin(
             else:
                 time_step = str(TimeIncrement.EverySecond.name)
             if not time_start or pd.isnull(time_start):
-                # might use later in case there will evidence that it is faster
-                # time_start = np.min(
-                #     [
-                #         pd.to_datetime(
-                #             (self.get_data_range(s["SignalType"]) or {}).get(
-                #                 "Start", ""
-                #             )
-                #         )
-                #         for s in ["TimeDependent", "StringTimeDependent"]
-                #     ]
-                # )
-                time_start = np.min(
-                    [
-                        pd.to_datetime(
-                            (
-                                self.get_data_range(
-                                    s["SignalType"],
-                                    signal=s["Name"],
-                                    entity=entity_names,
-                                )
-                                or {}
-                            ).get("Start", "")
-                        )
-                        for s in time_signals
-                    ]
-                )
+                # may use later in case there will evidence that it is faster
+                # time_starts: List[Any] = [
+                #     pd.to_datetime(
+                #         (self.get_data_range(s["SignalType"]) or {}).get("Start", "")
+                #     )
+                #     for s in ["TimeDependent", "StringTimeDependent"]
+                # ]
+                time_starts: List[Any] = [
+                    pd.to_datetime(
+                        (
+                            self.get_data_range(
+                                s["SignalType"],
+                                signal=s["Name"],
+                                entity=entity_names,
+                            )
+                            or {}
+                        ).get("Start", "")
+                    )
+                    for s in time_signals
+                ]
+                time_start = np.min(time_starts)
             if not time_end or pd.isnull(time_end):
-                # might use later in case there will evidence that it is faster
-                # time_end = np.max(
-                #     [
-                #         pd.to_datetime(
-                #             (
-                #                 self.get_data_range(s["SignalType"]) or {}
-                #             ).get("End", "")
-                #         )
-                #         for s in ["TimeDependent", "StringTimeDependent"]
-                #     ]
-                # )
-                time_end = np.max(
-                    [
-                        pd.to_datetime(
-                            (
-                                self.get_data_range(
-                                    s["SignalType"],
-                                    signal=s["Name"],
-                                    entity=entity_names,
-                                )
-                                or {}
-                            ).get("End", "")
-                        )
-                        for s in time_signals
-                    ]
-                )
+                # may use later in case there will be evidence that it is faster
+                # time_end: List[Any] = [
+                #     pd.to_datetime(
+                #         (self.get_data_range(s["SignalType"]) or {}).get("End", "")
+                #     )
+                #     for s in ["TimeDependent", "StringTimeDependent"]
+                # ]
+                time_ends: List[Any] = [
+                    pd.to_datetime(
+                        (
+                            self.get_data_range(
+                                s["SignalType"],
+                                signal=s["Name"],
+                                entity=entity_names,
+                            )
+                            or {}
+                        ).get("End", "")
+                    )
+                    for s in time_signals
+                ]
+                time_end = np.max(time_ends)
 
             # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
             time_start = self.datetime_to_string(pd.to_datetime(time_start))
@@ -707,7 +699,7 @@ class SignalsMixin(
                     ).get("End", None)
                     for s in depth_signals
                 ]
-                depth_end = np.min([v for v in depth_ends if v is not None] or None)
+                depth_end = np.max([v for v in depth_ends if v is not None] or None)
                 depth_end = (
                     depth_end if depth_end is not None else np.finfo(np.float64).max
                 )
@@ -727,32 +719,9 @@ class SignalsMixin(
                 s["Name"]: f"{s['Name']} [{s['UnitName']}]" for s in signals
             }
             data_rqst = {
-                # "Name": "string",
-                # "EntityNamePattern": "string",
-                # "SignalNamePattern": "string",
-                # "ShowEmptyRows": true,
-                # "ShowEmptyColumns": true,
-                # "HierarchyName": "string",
-                # "EntityType": "string",
-                # "DataTypes": [
-                #  "None"
-                # ],
-                # "EntitySetName": "string",
                 "CheckedEntities": entity_names,
                 "CheckedSignals": signal_names,
                 "CheckedUnits": unit_names,
-                # "ScopeName": "string",
-                # "ChartDefinitionName": "string",
-                # "ScenarioNames": [
-                #  "string"
-                # ],
-                # "IncludeWorkspaceData": true,
-                # "TimeStart": "2024-04-12T20:42:22.961Z",
-                # "TimeEnd": "2024-04-12T20:42:22.961Z",
-                # "TimeStep": "EverySecond",
-                # "DepthStart": 0,
-                # "DepthEnd": 0,
-                # "DepthStep": "TenthMeter"
             }
             if scenario:
                 if not isinstance(scenario, (list, tuple, set)):
@@ -872,28 +841,13 @@ class SignalsMixin(
                 if signals_with_units_num:
                     if data_type == "time":
                         data_rqst = {
-                            # "Requests": [
-                            #    {
-                            #        "Entity": "string",
-                            #        "Signal": "string",
-                            #        "Unit": "string"
-                            #    }
-                            #  ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_num,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
-                            # "Hierarchy": "string",
                             "TimeIncrement": time_step,
                             "Start": time_start,
                             "End": time_end,
-                            # "Options": {
-                            #     "WithGaps": true,
-                            #     "GapValue": "NaN",
-                            #     "GapStringValue": ""
-                            # }
                         }
                         if hierarchy:
                             data_rqst["Hierarchy"] = hierarchy
@@ -904,28 +858,13 @@ class SignalsMixin(
                         data_num = self.post("Data/Time/Retrieve", data=data_rqst)
                     elif data_type == "depth":
                         data_rqst = {
-                            # "Requests": [
-                            #     {
-                            #         "Entity": "string",
-                            #         "Signal": "string",
-                            #         "Unit": "string"
-                            #     }
-                            # ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_num,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
                             "DepthIncrement": depth_step,
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
-                            # "Options": {
-                            #     "WithGaps": true,
-                            #     "GapValue": "NaN",
-                            #     "GapStringValue": ""
-                            # },
-                            # "DepthUnit": depth_unit,
                         }
                         if depth_unit is not None:
                             data_rqst["DepthUnit"] = depth_unit
@@ -936,20 +875,10 @@ class SignalsMixin(
                         data_num = self.post("Data/Depth/Retrieve", data=data_rqst)
                     else:
                         data_rqst = {
-                            # "Requests": [
-                            #    {
-                            #        "Entity": "string",
-                            #        "Signal": "string",
-                            #        "Unit": "string"
-                            #    }
-                            #  ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_num,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
-                            # "Hierarchy": "string",
                         }
                         if hierarchy:
                             data_rqst["Hierarchy"] = hierarchy
@@ -963,28 +892,13 @@ class SignalsMixin(
                 if signals_with_units_str:
                     if data_type == "time":
                         data_rqst = {
-                            # "Requests": [
-                            #    {
-                            #        "Entity": "string",
-                            #        "Signal": "string",
-                            #        "Unit": "string"
-                            #    }
-                            #  ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_str,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
-                            # "Hierarchy": "string",
                             "TimeIncrement": time_step,
                             "Start": time_start,
                             "End": time_end,
-                            # "Options": {
-                            #     "WithGaps": true,
-                            #     "GapValue": "NaN",
-                            #     "GapStringValue": ""
-                            # }
                         }
                         if hierarchy:
                             data_rqst["Hierarchy"] = hierarchy
@@ -995,28 +909,13 @@ class SignalsMixin(
                         data_str = self.post("Data/StringTime/Retrieve", data=data_rqst)
                     elif data_type == "depth":
                         data_rqst = {
-                            # "Requests": [
-                            #     {
-                            #         "Entity": "string",
-                            #         "Signal": "string",
-                            #         "Unit": "string"
-                            #     }
-                            # ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_str,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
                             "DepthIncrement": depth_step,
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
-                            # "Options": {
-                            #     "WithGaps": true,
-                            #     "GapValue": "NaN",
-                            #     "GapStringValue": ""
-                            # },
-                            # "DepthUnit": "string",
                         }
                         if depth_unit is not None:
                             data_rqst["DepthUnit"] = depth_unit
@@ -1029,20 +928,10 @@ class SignalsMixin(
                         )
                     else:
                         data_rqst = {
-                            # "Requests": [
-                            #    {
-                            #        "Entity": "string",
-                            #        "Signal": "string",
-                            #        "Unit": "string"
-                            #    }
-                            #    ],
                             "Combinations": {
                                 "Entities": entity_names,
                                 "Signals": signals_with_units_str,
                             },
-                            # "TopRecords": 0,
-                            # "Scenario": "string",
-                            # "Hierarchy": "string",
                         }
                         if hierarchy:
                             data_rqst["Hierarchy"] = hierarchy
@@ -1144,7 +1033,7 @@ class SignalsMixin(
                 df = df_static
         if df is None:
             warnings.warn(
-                f"load_signals_data():: Couldn't retrieve any data.",
+                "load_signals_data():: Couldn't retrieve any data.",
                 RuntimeWarning,
             )
             return df
@@ -1479,29 +1368,7 @@ class SignalsMixin(
         signal_type : str, SignalType
             Signal type
         """
-        if isinstance(signal_type, SignalType):
-            return signal_type
-        # prepare name for comparison
-        signal_type = ApiHelper.get_comparison_string(signal_type, **kwargs)
-        if signal_type in ("static", "staticnumeric"):
-            return SignalType.Static
-        elif signal_type in ("time", "timenumeric", "timedependent"):
-            return SignalType.TimeDependent
-        elif signal_type in ("depth", "depthnumeric", "depthdependent"):
-            return SignalType.DepthDependent
-        elif signal_type in ("string", "staticstring"):
-            return SignalType.String
-        elif signal_type in ("stringtime", "timestring", "stringtimedependent"):
-            return SignalType.StringTimeDependent
-        elif signal_type in ("stringdepth", "depthstring", "stringdepthdependent"):
-            return SignalType.StringDepthDependent
-        elif signal_type in ("pvt", "pvtnumeric"):
-            return SignalType.PVT
-        raise ValueError(
-            f"PetroVisor::get_signal_type_name(): "
-            f"unknown data type: '{signal_type}'! "
-            f"Should be one of: {[t.name for t in SignalType]}"
-        )
+        return Validator.get_signal_type_enum(signal_type, **kwargs)
 
     # get time or depth increment name
     def get_increment_enum(
@@ -1542,41 +1409,7 @@ class SignalsMixin(
         increment_type : str, TimeIncrement
             Increment
         """
-        if isinstance(increment_type, TimeIncrement):
-            return increment_type
-        # prepare name for comparison
-        increment_type = ApiHelper.get_comparison_string(increment_type, **kwargs)
-        if increment_type in ("hourly", "h", "hr", "hour", "1h", "1hr", "1hour"):
-            return TimeIncrement.Hourly
-        elif increment_type in ("daily", "d", "day", "1d", "1day"):
-            return TimeIncrement.Daily
-        elif increment_type in ("monthly", "m", "month", "1m", "1month"):
-            return TimeIncrement.Monthly
-        elif increment_type in ("yearly", "y", "year", "1y", "1year"):
-            return TimeIncrement.Yearly
-        elif increment_type in ("quarterly", "q", "3m", "3month", "quarter"):
-            return TimeIncrement.Quarterly
-        elif increment_type in ("everyminute", "min", "minute", "1min", "1minute"):
-            return TimeIncrement.EveryMinute
-        elif increment_type in (
-            "everysecond",
-            "s",
-            "sec",
-            "second",
-            "1s",
-            "1sec",
-            "1second",
-        ):
-            return TimeIncrement.EverySecond
-        elif increment_type in ("everyfiveminute", "5min", "5minutes"):
-            return TimeIncrement.EveryFiveMinutes
-        elif increment_type in ("everyfifteenminutes", "15min", "15minutes"):
-            return TimeIncrement.EveryFifteenMinutes
-        raise ValueError(
-            f"PetroVisor::get_time_increment_enum(): "
-            f"unknown time increment: '{increment_type}'! "
-            f"Should be one of: {[inc.name for inc in TimeIncrement]}"
-        )
+        return Validator.get_time_increment_enum(increment_type, **kwargs)
 
     # get depth increment name
     def get_depth_increment_enum(
@@ -1590,46 +1423,151 @@ class SignalsMixin(
         increment_type : str, DepthIncrement
             Increment
         """
-        if isinstance(increment_type, DepthIncrement):
-            return increment_type
-        # prepare name for comparison
-        increment_type = ApiHelper.get_comparison_string(increment_type, **kwargs)
-        if increment_type in ("meter", "m", "1meter", "1m"):
-            return DepthIncrement.Meter
-        elif increment_type in (
-            "halfmeter",
-            "halfm",
-            ".5meter",
-            ".5m",
-            "0.5meter",
-            "0.5m",
-        ):
-            return DepthIncrement.HalfMeter
-        elif increment_type in ("tenthmeter", ".1meter", ".1m", "0.1meter", "0.1m"):
-            return DepthIncrement.TenthMeter
-        elif increment_type in (
-            "eightmeter",
-            ".125meter",
-            ".125m",
-            "0.125meter",
-            "0.125m",
-        ):
-            return DepthIncrement.EighthMeter
-        elif increment_type in ("foot", "ft", "1foot", "1ft"):
-            return DepthIncrement.Foot
-        elif increment_type in (
-            "halffoot",
-            "halfft",
-            ".5foot",
-            ".5feet",
-            ".5ft",
-            "0.5foot",
-            "0.5feet",
-            "0.5ft",
-        ):
-            return DepthIncrement.HalfFoot
-        raise ValueError(
-            f"PetroVisor::get_depth_increment_enum(): "
-            f"unknown depth increment: '{increment_type}'! "
-            f"Should be one of: {[inc.name for inc in DepthIncrement]}"
+        return Validator.get_depth_increment_enum(increment_type, **kwargs)
+
+    # get ordered time increments
+    def get_time_increments_ordered(
+        self, reverse: bool = False, **kwargs
+    ) -> List[TimeIncrement]:
+        """
+        Get TimeIncrement enums ordered
+
+        Parameters
+        ----------
+        reverse : bool, default False
+            If False - ascending order, if True - descending order
+        """
+        increments = [
+            TimeIncrement.EverySecond,
+            TimeIncrement.EveryMinute,
+            TimeIncrement.EveryFiveMinutes,
+            TimeIncrement.EveryFifteenMinutes,
+            TimeIncrement.Hourly,
+            TimeIncrement.Daily,
+            TimeIncrement.Monthly,
+            TimeIncrement.Quarterly,
+            TimeIncrement.Yearly,
+        ]
+        if reverse:
+            return increments[::-1]
+        return increments
+
+    # get smallest time increment
+    def get_time_increments_min(
+        self,
+        increment_types: Union[
+            List[Union[str, TimeIncrement]], Set[Union[str, TimeIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[TimeIncrement]:
+        """
+        Get smallest TimeIncrement
+
+        Parameters
+        ----------
+        increment_types : list[str | TimeIncrement]
+            Increments
+        """
+        increments = set(
+            [self.get_time_increment_enum(increment) for increment in increment_types]
         )
+        for increment in self.get_time_increments_ordered():
+            if increment in increments:
+                return increment
+        return None
+
+    # get largest time increment
+    def get_time_increments_max(
+        self,
+        increment_types: Union[
+            List[Union[str, TimeIncrement]], Set[Union[str, TimeIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[TimeIncrement]:
+        """
+        Get largest TimeIncrement enum
+
+        Parameters
+        ----------
+        increment_types : list[str | TimeIncrement]
+            Increments
+        """
+        increments = set(
+            [self.get_time_increment_enum(increment) for increment in increment_types]
+        )
+        for increment in self.get_time_increments_ordered(reverse=True):
+            if increment in increments:
+                return increment
+        return None
+
+    # get ordered depth increments
+    def get_depth_increments_ordered(
+        self, reverse: bool = False, **kwargs
+    ) -> List[DepthIncrement]:
+        """
+        Get DepthIncrement enums ordered
+
+        Parameters
+        ----------
+        reverse : bool, default False
+            If False - ascending order, if True - descending order
+        """
+        increments = [
+            DepthIncrement.TenthMeter,
+            DepthIncrement.EighthMeter,
+            DepthIncrement.HalfFoot,
+            DepthIncrement.Foot,
+            DepthIncrement.HalfMeter,
+            DepthIncrement.Meter,
+        ]
+        if reverse:
+            return increments[::-1]
+        return increments
+
+    # get smallest depth increment
+    def get_depth_increments_min(
+        self,
+        increment_types: Union[
+            List[Union[str, DepthIncrement]], Set[Union[str, DepthIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[DepthIncrement]:
+        """
+        Get smallest DepthIncrement
+
+        Parameters
+        ----------
+        increment_types : list[str | DepthIncrement]
+            Increments
+        """
+        increments = set(
+            [self.get_depth_increment_enum(increment) for increment in increment_types]
+        )
+        for increment in self.get_depth_increments_ordered():
+            if increment in increments:
+                return increment
+        return None
+
+    # get largest depth increment
+    def get_depth_increments_max(
+        self,
+        increment_types: Union[
+            List[Union[str, DepthIncrement]], Set[Union[str, DepthIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[DepthIncrement]:
+        """
+        Get largest DepthIncrement enum
+
+        Parameters
+        ----------
+        increment_types : list[str | DepthIncrement]
+            Increments
+        """
+        increments = set(
+            [self.get_depth_increment_enum(increment) for increment in increment_types]
+        )
+        for increment in self.get_depth_increments_ordered(reverse=True):
+            if increment in increments:
+                return increment
+        return None

@@ -78,13 +78,17 @@ class RefTableMixin(
         name : str
             Reference table name
         df : DataFrame, dict
-            DataFrame or dictionary, where keys are column names and values are column values or predefined types, such as 'str', 'float', 'bool', 'datetime64[s]'.
+            DataFrame or dictionary, where keys are column names and values are column values or predefined types,
+            such as 'str', 'float', 'bool', 'datetime64[s]'.
         description : str, default None
             Reference table description
         key_col : str, default 'Key'
             Key column name
         date_col : str, default None
-            Date column name. Default names 'Date' (compatible with date column in P# table), 'Timestamp' (compatible with the internal time column name in RefTable), 'Time' (typically used as displayed name)
+            Date column name. Default names
+            'Date' (compatible with date column in P# table),
+            'Timestamp' (compatible with the internal time column name in RefTable),
+            'Time' (typically used as displayed name)
         entity_col : str, default 'Entity'
             Entity column name
         skip_existing_data : bool, default False
@@ -100,7 +104,9 @@ class RefTableMixin(
         if not self.item_exists(ItemType.RefTable, name):
 
             df_columns = list(df.columns)
-            df_columns_without_unit = [self.get_column_name_without_unit(col) for col in df.columns]
+            df_columns_without_unit = [
+                self.get_column_name_without_unit(col) for col in df.columns
+            ]
             index_columns = []
 
             def get_column_by_name(name, columns):
@@ -125,7 +131,10 @@ class RefTableMixin(
                 index_columns.append(df_entity_col)
             else:
                 # put index columns in front
-                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
+                df_columns = [
+                    *index_columns,
+                    *[col for col in df_columns if col not in index_columns],
+                ]
 
             # date column
             df_date_col = None
@@ -141,22 +150,29 @@ class RefTableMixin(
                     raise ValueError(
                         "PetroVisor::add_ref_table(): 'Timestamp' column is not specified"
                     )
-                df_datecol = df_columns[len(index_columns)]
+                df_date_col = df_columns[len(index_columns)]
                 index_columns.append(df_date_col)
             else:
                 # put index columns in front
-                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
+                df_columns = [
+                    *index_columns,
+                    *[col for col in df_columns if col not in index_columns],
+                ]
 
             # check for columns with invalid name
             # reserved column names: "ID", "Entity", "Timestamp"
             reserved_columns = {"ID", "Entity", "Timestamp"}
-            key_value_columns = [self.get_column_name_without_unit(col)
-                                 for col in df_columns
-                                 if col not in index_columns]
+            key_value_columns = [
+                self.get_column_name_without_unit(col)
+                for col in df_columns
+                if col not in index_columns
+            ]
             invalid_columns = reserved_columns.intersection(key_value_columns)
             if invalid_columns:
-                raise ValueError(f"PetroVisor::add_ref_table(): "
-                                 f"Column names {invalid_columns} are not allowed to be used as regular column names.")
+                raise ValueError(
+                    f"PetroVisor::add_ref_table(): "
+                    f"Column names {invalid_columns} are not allowed to be used as regular column names."
+                )
 
             # key column
             df_key_col = None
@@ -178,13 +194,16 @@ class RefTableMixin(
                 index_columns.append(df_key_col)
             else:
                 # put index columns in front
-                df_columns = [*index_columns, *[col for col in df_columns if col not in index_columns]]
+                df_columns = [
+                    *index_columns,
+                    *[col for col in df_columns if col not in index_columns],
+                ]
 
             value_columns = [col for col in df_columns if col not in index_columns]
 
             # reorder columns
-            if list(df.columns[:len(index_columns)]) != index_columns:
-                df = df[*index_columns, *value_columns]
+            if list(df.columns[: len(index_columns)]) != index_columns:
+                df = df[[*index_columns, *value_columns]]
 
             column_types = df.dtypes
             options = {
@@ -255,7 +274,10 @@ class RefTableMixin(
         where_expression : str, default None
             SQL like WHERE expression
         date_col : str, default 'Date'
-            Date column name. Default names 'Date' (compatible with date column in P# table), 'Timestamp' (compatible with the internal time column name in RefTable), 'Time' (typically used as displayed name)
+            Date column name. Default names
+            'Date' (compatible with date column in P# table),
+            'Timestamp' (compatible with the internal time column name in RefTable),
+            'Time' (typically used as displayed name)
         entity_col : str, default 'Entity'
             Entity column name
         options : dict, None, default Noe
@@ -321,13 +343,15 @@ class RefTableMixin(
         name : str
             Reference table name
         df : DataFrame, dict
-            DataFrame or dictionary, where keys are column names and values are column values or predefined types, such as 'str', 'float', 'bool', 'datetime64[s]'.
+            DataFrame or dictionary, where keys are column names and values are column values or predefined types,
+            such as 'str', 'float', 'bool', 'datetime64[s]'.
         skip_existing_data : bool, default False
             Whether to skip or overwrite existing data that has same combination of 'Entity', 'Timestamp', 'Key'
         chunksize : int, default None
             Chunk size for splitting request into multiple smaller requests.
         """
         route = "RefTables"
+
         # create DataFrame in case if it is passed as dictionary
         def create_dataframe(d: Dict):
             df = pd.DataFrame()
@@ -452,7 +476,9 @@ class RefTableMixinHelper:
         """
         if isinstance(col, (set, tuple, list)):
             return list(col)
-        return [col] if col else RefTableMixinHelper.get_list(default) if default else []
+        return (
+            [col] if col else RefTableMixinHelper.get_list(default) if default else []
+        )
 
     # get reference column type
     @staticmethod
