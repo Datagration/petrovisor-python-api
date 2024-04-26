@@ -425,7 +425,7 @@ class ContextMixin(
     # create Context
     def create_context(
         self,
-        context: Context | dict[str, Any] | str | None,
+        context: Union[Context, dict[str, Any], str, None],
         scope: Union[Scope, Dict[str, Any], str, None] = None,
         entity_set: Union[EntitySet, Dict[str, Any], str, None] = None,
         hierarchy: Union[Hierarchy, Dict[str, Any], str, None] = None,
