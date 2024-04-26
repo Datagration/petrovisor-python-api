@@ -319,7 +319,7 @@ class ApiRequests:
             data = json.dumps(data)
 
         # request secs
-        timeout = 59 * 60  # time out limit in seconds (3540)
+        timeout = None  # no timeout
         max_retries = (
             1  # increased to 3 times in case of 400 Bad Request or 4004 Not Found
         )

@@ -2,7 +2,9 @@ from typing import (
     Any,
     Optional,
     Union,
+    Tuple,
     List,
+    Set,
     Dict,
 )
 
@@ -197,6 +199,62 @@ class SupportsSignalsRequests(Protocol):
         self, signal_type: Union[str, SignalType], **kwargs
     ) -> str: ...
 
+    # get time increment name
+    def get_time_increment_enum(
+        self, increment_type: Union[str, TimeIncrement], **kwargs
+    ) -> TimeIncrement: ...
+
+    # get depth increment name
+    def get_depth_increment_enum(
+        self, increment_type: Union[str, DepthIncrement], **kwargs
+    ) -> DepthIncrement: ...
+
+    # get ordered time increments
+    def get_time_increments_ordered(
+        self, reverse: bool = False, **kwargs
+    ) -> List[TimeIncrement]: ...
+
+    # get smallest time increment
+    def get_time_increments_min(
+        self,
+        increment_types: Union[
+            List[Union[str, TimeIncrement]], Set[Union[str, TimeIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[TimeIncrement]: ...
+
+    # get largest time increment
+    def get_time_increments_max(
+        self,
+        increment_types: Union[
+            List[Union[str, TimeIncrement]], Set[Union[str, TimeIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[TimeIncrement]: ...
+
+    # get ordered depth increments
+    def get_depth_increments_ordered(
+        self, reverse: bool = False, **kwargs
+    ) -> List[DepthIncrement]: ...
+
+    # get smallest depth increment
+    def get_depth_increments_min(
+        self,
+        increment_types: Union[
+            List[Union[str, DepthIncrement]], Set[Union[str, DepthIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[DepthIncrement]: ...
+
+    # get largest depth increment
+    def get_depth_increments_max(
+        self,
+        increment_types: Union[
+            List[Union[str, DepthIncrement]], Set[Union[str, DepthIncrement]]
+        ],
+        **kwargs,
+    ) -> Optional[DepthIncrement]: ...
+
 
 # PetroVisor Contex requests protocol
 class SupportsContextRequests(Protocol):
@@ -305,5 +363,21 @@ class SupportsDataFrames(Protocol):
         **kwargs,
     ) -> Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]]: ...
 
+    # get column name without unit
+    def get_column_name_without_unit(self, column_name: str, **kwargs) -> str: ...
+
     # get column unit
     def get_column_unit(self, column_name: str, **kwargs) -> str: ...
+
+    # get column name and unit
+    def get_column_name_and_unit(
+        self, column_name: str, **kwargs
+    ) -> Tuple[str, str]: ...
+
+    # convert datetime to string
+    def datetime_to_string(
+        self,
+        d: Union[datetime, str],
+        format: Optional[str] = "%Y-%m-%dT%H:%M:%S.%f",
+        **kwargs,
+    ) -> str: ...
