@@ -1,7 +1,7 @@
 from petrovisor import PetroVisor
 import pandas as pd
 import numpy as np
-
+import uuid
 
 def test_ref_tables(pv_api: PetroVisor):
 
@@ -27,10 +27,10 @@ def test_ref_tables(pv_api: PetroVisor):
     df = df[['Entity', 'Time', 'Key', *columns]]
     df['Key'] = df['Key'].values.astype(str)
 
-    name = 'PyTest New RefTable'
-
-    # delete table if exists
-    pv_api.delete_ref_table(name)
+    # create unique name to avoid interference
+    name = str(uuid.uuid4())
+    while pv_api.ref_table_exists(name):
+        name = str(uuid.uuid4())
 
     # add new reference table
     pv_api.add_ref_table(name, df, description='Testing API from Python')
@@ -53,6 +53,8 @@ def test_ref_tables(pv_api: PetroVisor):
     df = pv_api.load_ref_table_data(name)
     assert df.shape[0] == num_rows
 
-    # delete reference table
+    # delete reference table data
     pv_api.delete_ref_table_data(name)
+
+    # delete reference table
     pv_api.delete_ref_table(name)

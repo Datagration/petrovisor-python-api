@@ -83,7 +83,7 @@ class RefTableMixin(
             return True
 
         waiting_time = 3  # in seconds
-        max_retries = 30
+        max_retries = 10
         i = 0
         while not is_ref_table_exists() and i < max_retries:
             time.sleep(waiting_time)
@@ -410,7 +410,7 @@ class RefTableMixin(
             return ApiRequests.success()
 
         # make sure that ref table exists
-        if not self.ref_table_exists(name):
+        if not self.item_exists(ItemType.RefTable, name):
             raise ValueError(
                 f"PetroVisor::save_ref_table_data(): "
                 f"Couldn't retrieve ref table '{name}'. Please check if it exists and try again."
