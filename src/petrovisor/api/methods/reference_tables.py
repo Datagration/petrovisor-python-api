@@ -83,7 +83,7 @@ class RefTableMixin(
             return True
 
         waiting_time = 3  # in seconds
-        max_retries = 10
+        max_retries = 30
         i = 0
         while not is_ref_table_exists() and i < max_retries:
             time.sleep(waiting_time)
