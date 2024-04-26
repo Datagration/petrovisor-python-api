@@ -1,4 +1,4 @@
-from petrovisor import PetroVisor
+from petrovisor import PetroVisor, ItemType
 import pandas as pd
 import numpy as np
 import uuid
@@ -29,7 +29,7 @@ def test_ref_tables(pv_api: PetroVisor):
 
     # create unique name to avoid interference
     name = str(uuid.uuid4())
-    while pv_api.ref_table_exists(name):
+    while pv_api.item_exists(ItemType.RefTable, name):
         name = str(uuid.uuid4())
 
     # add new reference table
@@ -39,7 +39,7 @@ def test_ref_tables(pv_api: PetroVisor):
     pv_api.add_ref_table(name, df, description='Testing API from Python')
 
     # check that table was created
-    assert pv_api.ref_table_exists(name)
+    assert pv_api.item_exists(ItemType.RefTable, name)
 
     # save data and overwrite existing data
     # meaning that rows with the same 'Entity', 'Timestamp/Date/Time', 'Key' will be overwritten
