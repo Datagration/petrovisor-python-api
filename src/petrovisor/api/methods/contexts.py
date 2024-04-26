@@ -374,7 +374,7 @@ class ContextMixin(
     def get_hierarchy(
         self,
         name: Union[str, Dict],
-        relationship: Dict[str, str | None] = None,
+        relationship: Dict[str, Union[str, None]] = None,
         **kwargs,
     ) -> Optional[Dict]:
         """
