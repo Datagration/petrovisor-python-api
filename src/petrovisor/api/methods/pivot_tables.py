@@ -5,6 +5,7 @@ from typing import (
     Dict,
 )
 import warnings
+import time
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.utils.requests import ApiRequests
@@ -182,4 +183,8 @@ class PivotTableMixin(
         route = "PivotTables"
         if not self.item_exists(ItemType.PivotTable, name):
             return ApiRequests.success()
-        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        # delete data
+        self.delete_pivot_table_data(name)
+        # delete item
+        self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        return ApiRequests.success()

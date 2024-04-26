@@ -51,7 +51,7 @@ class ApiHelper:
             return ""
         try:
             return ApiHelper.get_field(obj, field, ignore_case=True) or ""
-        except:
+        except Exception:
             return str(obj)
 
     # update dictionary

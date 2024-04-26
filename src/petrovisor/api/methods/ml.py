@@ -13,6 +13,7 @@ from petrovisor.api.dtypes.ml import (
     MLModelType,
     MLNormalizationType,
 )
+from petrovisor.api.utils.validators import Validator
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
@@ -509,34 +510,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         type : str, MLModelType
             ML Model type
         """
-        if isinstance(type, MLModelType):
-            return type
-        # prepare name for comparison
-        type = ApiHelper.get_comparison_string(type, **kwargs)
-        if type in ("regression", "reg"):
-            return MLModelType.Regression
-        elif type in ("binaryclassification", "binaryclass", "binclass", "bin"):
-            return MLModelType.BinaryClassification
-        elif type in (
-            "multipleclassification",
-            "multiclassification",
-            "multipleclass",
-            "multiclass",
-            "multiple",
-            "multi",
-        ):
-            return MLModelType.MultipleClassification
-        elif type in ("clustering", "cluster"):
-            return MLModelType.Clustering
-        elif type in ("naivebayes", "bayes"):
-            return MLModelType.NaiveBayes
-        elif type in ("naivebayescategorical", "bayescategorical"):
-            return MLModelType.NaiveBayesCategorical
-        raise ValueError(
-            f"PetroVisor::get_ml_model_enum(): "
-            f"unknown data type: '{type}'! "
-            f"Should be one of: {[t.name for t in MLModelType]}"
-        )
+        return Validator.get_ml_model_type_enum(type, **kwargs)
 
     # get ML Normalization Type enum
     def get_ml_normalization_type_enum(
@@ -550,30 +524,4 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         type : str, MLNormalizationType
             ML Normalization type
         """
-        if isinstance(type, MLNormalizationType):
-            return type
-        # prepare name for comparison
-        type = ApiHelper.get_comparison_string(type, **kwargs)
-        if type in ("auto", "automatic"):
-            return MLNormalizationType.Auto
-        elif type in ("minmax",):
-            return MLNormalizationType.MinMax
-        elif type in ("meanvariance", "meanvar"):
-            return MLNormalizationType.MeanVariance
-        elif type in ("logmeanvariance", "logmeanvar"):
-            return MLNormalizationType.LogMeanVariance
-        elif type in ("binning", "bin"):
-            return MLNormalizationType.Binning
-        elif type in ("supervisedbinning", "supervisedbin", "superbin"):
-            return MLNormalizationType.SupervisedBinning
-        elif type in ("robustscaling", "robust"):
-            return MLNormalizationType.RobustScaling
-        elif type in ("lpnorm", "lp"):
-            return MLNormalizationType.LpNorm
-        elif type in ("globalcontrast", "contrast"):
-            return MLNormalizationType.GlobalContrast
-        raise ValueError(
-            f"PetroVisor::get_ml_normalization_enum(): "
-            f"unknown data type: '{type}'! "
-            f"Should be one of: {[t.name for t in MLNormalizationType]}"
-        )
+        return Validator.get_ml_normalization_type_enum(type, **kwargs)

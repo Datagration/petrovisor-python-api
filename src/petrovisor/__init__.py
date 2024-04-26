@@ -1,4 +1,4 @@
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 # api
 from petrovisor.petrovisor import PetroVisor
@@ -9,6 +9,13 @@ from petrovisor.api.dtypes.internal_dtypes import SignalType, RefTableColumnType
 from petrovisor.api.dtypes.increments import TimeIncrement, DepthIncrement
 from petrovisor.api.dtypes.ml import MLModelType, MLNormalizationType
 from petrovisor.api.dtypes.data_grids import DataGridType, PointSetType
+from petrovisor.models.contexts import (
+    ContextsManager,
+    Context,
+    Scope,
+    EntitySet,
+    Hierarchy,
+)
 
 # Use __all__ to let type checkers know what is part of the public API.
 __all__ = [
@@ -22,4 +29,9 @@ __all__ = [
     "DataGridType",
     "PointSetType",
     "RefTableColumnType",
+    "ContextsManager",
+    "Context",
+    "Scope",
+    "EntitySet",
+    "Hierarchy",
 ]
