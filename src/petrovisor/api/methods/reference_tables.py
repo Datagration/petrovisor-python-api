@@ -318,6 +318,20 @@ class RefTableMixin(
             f"{route}/{self.encode(name)}/Data", data=filter_options, **kwargs
         )
         ref_table_info = self.get_ref_table_data_info(name)
+        if not ref_table_info:
+            waiting_time = 3  # in seconds
+            max_retries = 5
+            i = 0
+            while not ref_table_info and i < max_retries:
+                time.sleep(waiting_time)
+                ref_table_info = self.get_ref_table_data_info(name)
+                i += 1
+            if not ref_table_info:
+                raise ValueError(
+                    f"PetroVisor::load_ref_table_data(): "
+                    f"Couldn't retrieve ref table '{name}'. Please check if it exists and try again."
+                )
+
         columns = [f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]]
         key_column = (
             f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
@@ -445,10 +459,13 @@ class RefTableMixin(
             Reference table name
         """
         route = "RefTables"
+        if not self.item_exists(ItemType.RefTable, name):
+            return ApiRequests.success()
+        # delete data
+        self.delete_ref_table_data(name)
         # make sure item is really deleted
         waiting_time = 3  # in seconds
         while self.item_exists(ItemType.RefTable, name):
-            self.delete_ref_table_data(name)
             self.delete(f"{route}/{self.encode(name)}", **kwargs)
             time.sleep(waiting_time)
         return ApiRequests.success()
