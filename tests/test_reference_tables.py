@@ -39,7 +39,7 @@ def test_ref_tables(pv_api: PetroVisor):
     pv_api.add_ref_table(name, df, description='Testing API from Python')
 
     # check that table was created
-    assert pv_api.item_exists(ItemType.RefTable, name)
+    assert pv_api.get_ref_table_data_info(name)
 
     # save data and overwrite existing data
     # meaning that rows with the same 'Entity', 'Timestamp/Date/Time', 'Key' will be overwritten
