@@ -1037,7 +1037,7 @@ class SignalsMixin(
                     df = df.reset_index()
                     df_static = df
 
-        def reorder_columns(df, signals, signal_names):
+        def reorder_columns(df, signal_names):
             non_signal_columns = [
                 col
                 for col in df.columns
@@ -1074,7 +1074,7 @@ class SignalsMixin(
                 RuntimeWarning,
             )
             return df
-        return reorder_columns(df, signals, signal_names)
+        return reorder_columns(df, signal_names)
 
     # load data
     def load_data(

@@ -26,13 +26,18 @@ from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
     SupportsSignalsRequests,
+    SupportsUnitsRequests,
     SupportsDataFrames,
 )
 
 
 # Reference Table API calls
 class RefTableMixin(
-    SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequests, SupportsRequests
+    SupportsDataFrames,
+    SupportsSignalsRequests,
+    SupportsItemRequests,
+    SupportsUnitsRequests,
+    SupportsRequests,
 ):
     """
     Reference Table API calls
@@ -267,9 +272,9 @@ class RefTableMixin(
         date_start: Optional[Union[datetime, str]] = None,
         date_end: Optional[Union[datetime, str]] = None,
         where_expression: Optional[str] = None,
+        options: Optional[Dict] = None,
         date_col: Optional[str] = "Timestamp",
         entity_col: Optional[str] = "Entity",
-        options: Optional[Dict] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -287,15 +292,15 @@ class RefTableMixin(
             End Date or None
         where_expression : str, default None
             SQL like WHERE expression
-        date_col : str, default 'Date'
+        options : dict, None, default None
+            Options to retrieve data
+        date_col : str, default 'Timestamp'
             Date column name. Default names
             'Date' (compatible with date column in P# table),
             'Timestamp' (compatible with the internal time column name in RefTable),
             'Time' (typically used as displayed name)
         entity_col : str, default 'Entity'
             Entity column name
-        options : dict, None, default Noe
-            Options to retrieve data
         """
         route = "RefTables"
 
@@ -307,15 +312,6 @@ class RefTableMixin(
                 f"Couldn't retrieve ref table '{name}' columns information. Trying to retrieve data only.",
                 RuntimeWarning,
             )
-            columns = []
-        else:
-            columns = [
-                f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]
-            ]
-            key_column = (
-                f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
-            )
-            columns = [entity_col or "Entity", date_col or "Date", key_column, *columns]
 
         # retrieve data
         filter_options = options if options else {}
@@ -351,12 +347,25 @@ class RefTableMixin(
         data = self.post(
             f"{route}/{self.encode(name)}/Data", data=filter_options, **kwargs
         )
-        if columns:
-            # assign data and column names
-            df = pd.DataFrame(data=data, columns=columns)
-        else:
+
+        if not ref_table_info:
             # assign data without column names
             df = pd.DataFrame(data=data)
+        else:
+            columns = [
+                f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]
+            ]
+            key_column = (
+                f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
+            )
+            columns = [
+                entity_col or "Entity",
+                date_col or "Timestamp",
+                key_column,
+                *columns,
+            ]
+            # assign data and column names
+            df = pd.DataFrame(data=data, columns=columns)
         return df
 
     # save data to reference table
@@ -366,6 +375,8 @@ class RefTableMixin(
         df: pd.DataFrame,
         skip_existing_data: Optional[bool] = False,
         chunksize: Optional[int] = None,
+        date_col: Optional[str] = "Timestamp",
+        entity_col: Optional[str] = "Entity",
         **kwargs,
     ):
         """
@@ -382,11 +393,19 @@ class RefTableMixin(
             Whether to skip or overwrite existing data that has same combination of 'Entity', 'Timestamp', 'Key'
         chunksize : int, default None
             Chunk size for splitting request into multiple smaller requests.
+        date_col : str, default 'Timestamp'
+            Date column name. Default names
+            'Date' (compatible with date column in P# table),
+            'Timestamp' (compatible with the internal time column name in RefTable),
+            'Time' (typically used as displayed name)
+        entity_col : str, default 'Entity'
+            Entity column name
         """
         route = "RefTables"
 
         # get table columns specs
-        if not self.get_ref_table_data_info(name):
+        ref_table_info = self.get_ref_table_data_info(name)
+        if not ref_table_info:
             warnings.warn(
                 "PetroVisor::save_ref_table_data():: "
                 f"Couldn't retrieve ref table '{name}' columns information. Trying to save data now.",
@@ -408,6 +427,45 @@ class RefTableMixin(
 
         if df is None or df.empty:
             return ApiRequests.success()
+
+        # convert units if don't match with storage
+        if ref_table_info:
+            # ref table units
+            columns = [(d["Name"], d["UnitName"]) for d in ref_table_info["Values"]]
+            key_column = (
+                ref_table_info["Key"]["Name"],
+                ref_table_info["Key"]["UnitName"],
+            )
+            columns = [
+                (entity_col or "Entity", ""),
+                (date_col or "Timestamp", ""),
+                key_column,
+                *columns,
+            ]
+            df_columns = [self.get_column_name_and_unit(col) for col in df.columns]
+            if len(df_columns) != len(columns):
+                raise ValueError(
+                    "PetroVisor::save_ref_table_data():: "
+                    "Number of columns do not match. "
+                    f"RefTable columns: {columns}, DataFrame columns: {df_columns}."
+                )
+            for idx, ((_, unit), (_, df_col_unit)) in enumerate(
+                zip(columns, df_columns)
+            ):
+                df_col = df.columns[idx]
+                if (
+                    unit
+                    and df_col_unit
+                    and unit != df_col_unit
+                    and unit not in (" ", "%")
+                ):
+                    dtype = df[df_col].dtype
+                    df[df_col] = self.convert_units(
+                        df[df_col].values,
+                        source=df_col_unit,
+                        target=unit,
+                    )
+                    df[df_col] = df[df_col].astype(dtype)
 
         if chunksize and (df.shape[0] > chunksize):
             # num_chunks = int(math.ceil(df.shape[0] / chunksize))

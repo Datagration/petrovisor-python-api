@@ -13,6 +13,7 @@ try:
 except BaseException:
     from typing_extensions import Protocol
 
+import numpy as np
 import pandas as pd
 from datetime import datetime
 
@@ -266,6 +267,15 @@ class SupportsUnitsRequests(Protocol):
 
     # get measurements
     def get_measurements(self, **kwargs) -> Any: ...
+
+    # convert values from one unit to another
+    def convert_units(
+        self,
+        values: Union[float, List[float], np.ndarray, pd.Series, None] = None,
+        source: str = None,
+        target: str = None,
+        **kwargs,
+    ) -> Union[float, List[float], None]: ...
 
 
 # PetroVisor Contex requests protocol

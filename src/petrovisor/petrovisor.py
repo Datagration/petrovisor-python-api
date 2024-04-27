@@ -22,10 +22,10 @@ from petrovisor.api.methods.logs import LogsMixin
 class PetroVisor(
     RequestsMixin,
     ItemsMixin,
-    EntitiesMixin,
-    ContextMixin,
-    SignalsMixin,
     UnitsMixin,
+    EntitiesMixin,
+    SignalsMixin,
+    ContextMixin,
     WorkspaceValuesMixin,
     PsharpMixin,
     RefTableMixin,
