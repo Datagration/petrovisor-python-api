@@ -5,101 +5,11 @@ from typing import (
     Dict,
 )
 
-import pandas as pd
-
-from pydantic import (
-    BaseModel,
-    Field,
-    ConfigDict,
-    field_validator,
-)
-from petrovisor.api.utils.validators import Validator
-from petrovisor.api.dtypes.items import ItemType
-
-
-class BaseModelConfig(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class Scope(BaseModelConfig):
-    name: str = Field(..., alias="Name")
-    time_start: Union[str, None] = Field(None, alias="Start")
-    time_end: Union[str, None] = Field(None, alias="End")
-    time_step: Union[str, None] = Field(None, alias="TimeIncrement")
-    depth_start: Union[float, None] = Field(None, alias="StartDepth")
-    depth_end: Union[float, None] = Field(None, alias="EndDepth")
-    depth_step: Union[str, None] = Field(None, alias="DepthIncrement")
-
-    @field_validator("time_start", "time_end")
-    @classmethod
-    def time_validator(cls, v: str) -> Union[str, None]:
-        if not v:
-            return None
-        try:
-            return pd.to_datetime(v).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-        except Exception:
-            return None
-
-    @field_validator("time_step")
-    @classmethod
-    def time_step_validator(cls, v: str) -> Union[str, None]:
-        if not v:
-            return None
-        try:
-            return str(Validator.get_time_increment_enum(v).name)
-        except Exception:
-            return None
-
-    @field_validator("depth_step")
-    @classmethod
-    def depth_step_validator(cls, v: str) -> Union[str, None]:
-        if not v:
-            return None
-        try:
-            return str(Validator.get_depth_increment_enum(v).name)
-        except Exception:
-            return None
-
-    def __str__(self):
-        return self.name
-
-
-class Entity(BaseModelConfig):
-    name: str = Field(..., alias="Name")
-    entity_type_name: str = Field(..., alias="EntityTypeName")
-    alias: Union[str, None] = Field(None, alias="Alias")
-    is_opportunity: Union[bool, None] = Field(None, alias="IsOpportunity")
-
-    def __str__(self):
-        return self.name
-
-
-class EntitySet(BaseModelConfig):
-    name: str = Field(..., alias="Name")
-    entities: Union[List[Entity], None] = Field(None, alias="Entities")
-
-    def __str__(self):
-        return self.name
-
-
-class Hierarchy(BaseModelConfig):
-    name: str = Field(..., alias="Name")
-    relationship: Union[Union[Dict[str, Union[str, None]], None]] = Field(
-        None, alias="Relationship"
-    )
-
-    def __str__(self):
-        return self.name
-
-
-class Context(BaseModelConfig):
-    name: str = Field(..., alias="Name")
-    scope: Union[Scope, None] = Field(None, alias="Scope")
-    entity_set: Union[EntitySet, None] = Field(None, alias="EntitySet")
-    hierarchy: Union[Hierarchy, None] = Field(None, alias="Hierarchy")
-
-    def __str__(self):
-        return self.name
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.models.context import Context
+from petrovisor.api.models.scope import Scope
+from petrovisor.api.models.entity_set import EntitySet
+from petrovisor.api.models.hierarchy import Hierarchy
 
 
 class ContextsManager(list):

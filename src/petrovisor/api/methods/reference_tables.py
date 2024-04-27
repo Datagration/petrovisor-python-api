@@ -18,10 +18,10 @@ from pandas.api.types import (
     is_datetime64_dtype,
 )
 
-from petrovisor.api.dtypes.internal_dtypes import RefTableColumnType
+from petrovisor.api.enums.internal_dtypes import RefTableColumnType
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.utils.requests import ApiRequests
-from petrovisor.api.dtypes.items import ItemType
+from petrovisor.api.enums.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,

@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 
 
-def test_signals_by_entity(pv_api: PetroVisor):
+def test_signals_by_entity(api: PetroVisor):
     """
     Test retrieving signals by entity type
     """
     # add new entity
     entity_name = r"_entity with special characters %*,$&^§()#//=2!~*'"  # except '?', ';'
-    pv_api.add_item('Entity', {
+    api.add_item('Entity', {
         'Name': entity_name,
         'EntityTypeName': 'Well',
         'Alias': '',
@@ -26,7 +26,7 @@ def test_signals_by_entity(pv_api: PetroVisor):
     signal_unit = ' '
     max_length = 29
     short_signal_name = signal_name[:max_length] if len(signal_name) > max_length else signal_name
-    pv_api.add_item('Signal', {
+    api.add_item('Signal', {
         'Name': signal_name,
         'ShortName': short_signal_name,
         'SignalType': 'TimeDependent',
@@ -41,7 +41,7 @@ def test_signals_by_entity(pv_api: PetroVisor):
     df = pd.DataFrame({'Entity': np.repeat(entity_name, num_rows),
                        'Date': pd.date_range("2023-11-29", periods=num_rows, freq="D"),
                        signal_col: np.random.rand(num_rows)})
-    pv_api.save_table_data(df)
+    api.save_table_data(df)
     # get signals by entity
-    entity_signals = pv_api.get_signals(entity=entity_name, signal_type='time')
+    entity_signals = api.get_signals(entity=entity_name, signal_type='time')
     assert signal_name in [s['Name'] for s in entity_signals]

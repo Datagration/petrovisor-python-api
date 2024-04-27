@@ -8,7 +8,7 @@ from typing import (
 
 import time
 
-from petrovisor.api.dtypes.items import ItemType
+from petrovisor.api.enums.items import ItemType
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.protocols.protocols import SupportsRequests

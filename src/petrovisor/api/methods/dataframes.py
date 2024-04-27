@@ -14,7 +14,7 @@ import copy
 from datetime import datetime
 import pandas as pd
 
-from petrovisor.api.dtypes.internal_dtypes import SignalType
+from petrovisor.api.enums.internal_dtypes import SignalType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsSignalsRequests,

@@ -6,6 +6,7 @@ from petrovisor.api.methods.items import ItemsMixin
 from petrovisor.api.methods.entities import EntitiesMixin
 from petrovisor.api.methods.contexts import ContextMixin
 from petrovisor.api.methods.signals import SignalsMixin
+from petrovisor.api.methods.units import UnitsMixin
 from petrovisor.api.methods.workspace_values import WorkspaceValuesMixin
 from petrovisor.api.methods.psharp import PsharpMixin
 from petrovisor.api.methods.reference_tables import RefTableMixin
@@ -24,6 +25,7 @@ class PetroVisor(
     EntitiesMixin,
     ContextMixin,
     SignalsMixin,
+    UnitsMixin,
     WorkspaceValuesMixin,
     PsharpMixin,
     RefTableMixin,

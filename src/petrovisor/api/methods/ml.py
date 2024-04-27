@@ -8,8 +8,8 @@ from typing import (
 
 from uuid import UUID
 
-from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.ml import (
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.enums.ml import (
     MLModelType,
     MLNormalizationType,
 )

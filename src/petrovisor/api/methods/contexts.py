@@ -12,8 +12,8 @@ import pandas as pd
 import numpy as np
 
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
@@ -24,13 +24,11 @@ from petrovisor.api.protocols.protocols import (
     SupportsSignalsRequests,
     SupportsEntitiesRequests,
 )
-from petrovisor.models.contexts import (
-    ContextsManager,
-    Context,
-    Scope,
-    EntitySet,
-    Hierarchy,
-)
+from petrovisor.models.contexts_manager import ContextsManager
+from petrovisor.api.models.context import Context
+from petrovisor.api.models.scope import Scope
+from petrovisor.api.models.entity_set import EntitySet
+from petrovisor.api.models.hierarchy import Hierarchy
 
 
 # Context API calls

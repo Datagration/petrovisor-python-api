@@ -16,8 +16,8 @@ except BaseException:
 import pandas as pd
 from datetime import datetime
 
-from petrovisor.api.dtypes.internal_dtypes import SignalType
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.internal_dtypes import SignalType
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
@@ -254,6 +254,18 @@ class SupportsSignalsRequests(Protocol):
         ],
         **kwargs,
     ) -> Optional[DepthIncrement]: ...
+
+
+# Units requests protocol
+class SupportsUnitsRequests(Protocol):
+    # get measurement 'Units'
+    def get_measurement_units(self, measurement: str, **kwargs) -> Any: ...
+
+    # get measurement 'Unit' names
+    def get_measurement_unit_names(self, measurement: str, **kwargs) -> Any: ...
+
+    # get measurements
+    def get_measurements(self, **kwargs) -> Any: ...
 
 
 # PetroVisor Contex requests protocol

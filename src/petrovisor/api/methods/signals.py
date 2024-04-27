@@ -14,19 +14,22 @@ import numpy as np
 import warnings
 
 from petrovisor.api.utils.validators import Validator
+from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.internal_dtypes import SignalType
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.enums.internal_dtypes import SignalType
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
+from petrovisor.api.models.signal import Signal
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
     SupportsDataFrames,
     SupportsContextRequests,
     SupportsEntitiesRequests,
+    SupportsUnitsRequests,
 )
 
 
@@ -36,6 +39,7 @@ class SignalsMixin(
     SupportsContextRequests,
     SupportsEntitiesRequests,
     SupportsItemRequests,
+    SupportsUnitsRequests,
     SupportsRequests,
 ):
     """
@@ -118,33 +122,7 @@ class SignalsMixin(
         measurement_name = self.get_signal_measurement_name(signal, **kwargs)
         return self.get_measurement_unit_names(measurement_name, **kwargs)
 
-    # get measurement 'Units'
-    def get_measurement_units(self, measurement: str, **kwargs) -> Any:
-        """
-        Get measurement units
-
-        Parameters
-        ----------
-        measurement : str
-            Measurement name
-        """
-        route = "Units"
-        return self.get(f"{route}/{self.encode(measurement)}/Units", **kwargs)
-
-    # get measurement 'Unit' names
-    def get_measurement_unit_names(self, measurement: str, **kwargs) -> Any:
-        """
-        Get measurement unit names
-
-        Parameters
-        ----------
-        measurement : str
-            Measurement name
-        """
-        units = self.get_measurement_units(measurement, **kwargs)
-        return [unit["Name"] for unit in units]
-
-    # get 'Signal'
+    # get signal
     def get_signal(
         self, name: str, short_name: Optional[str] = "", **kwargs
     ) -> Optional[Dict]:
@@ -167,7 +145,7 @@ class SignalsMixin(
             return self.get(f"{route}/{self.encode(name)}", **kwargs)
         return None
 
-    # get 'Signals'
+    # get signals
     def get_signals(
         self,
         signal_type: Union[str, SignalType] = "",
@@ -202,7 +180,7 @@ class SignalsMixin(
             return []
         return signals if signals is not None else []
 
-    # get 'Signal' names
+    # get signal names
     def get_signal_names(
         self,
         signal_type: Optional[str] = "",
@@ -242,32 +220,91 @@ class SignalsMixin(
             signal_names = self.get(f"{route}", **kwargs)
         return signal_names if signal_names is not None else []
 
-    # add 'Signals'
-    def add_signals(self, signals: List, **kwargs) -> Any:
+    # add signal
+    def add_signal(self, signal: Union[Signal, Dict[str, Any]], **kwargs) -> Any:
+        """
+        Add signal
+
+        Parameters
+        ----------
+        signal : Signal | dict
+            Signal
+        """
+        route = "Signals"
+        if isinstance(signal, Signal):
+            validated_signal = signal.model_dump(by_alias=True)
+        elif isinstance(signal, dict):
+            validated_signal = signal
+        else:
+            raise ValueError(
+                "PetroVisor::add_signal(): "
+                "Invalid type. Signal should be of type dict or Signal."
+            )
+        return self.post(f"{route}", data=validated_signal, **kwargs)
+
+    # add signals
+    def add_signals(
+        self, signals: List[Union[Signal, Dict[str, Any]]], **kwargs
+    ) -> Any:
         """
         Add multiple signals
 
         Parameters
         ----------
-        signals : list
+        signals : list[Signal | dict]
             List of signals
         """
         route = "Signals"
-        return self.post(f"{route}/Add", data=signals, **kwargs)
+        validated_signals = [
+            e.model_dump(by_alias=True) if isinstance(e, Signal) else e
+            for e in signals
+            if isinstance(e, dict) or isinstance(e, Signal)
+        ]
+        return self.post(f"{route}/Add", data=validated_signals, **kwargs)
 
-    # delete 'Signals'
-    def delete_signals(self, signals: List, **kwargs) -> Any:
+    # delete signal
+    def delete_signal(
+        self, signal: Union[Signal, Dict[str, Any], str], **kwargs
+    ) -> Any:
+        """
+        Delete signal
+
+        Parameters
+        ----------
+        signal : Signal | dict | str
+            Signal
+        """
+        route = "Signals"
+        if isinstance(signal, Signal):
+            name = signal.name
+        else:
+            name = ApiHelper.get_object_name(signal)
+        if not name:
+            return ApiRequests.success()
+        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+
+    # delete signals
+    def delete_signals(
+        self, signals: List[Union[Signal, Dict[str, Any], str]], **kwargs
+    ) -> Any:
         """
         Delete multiple signals
 
         Parameters
         ----------
-        signals : list
+        signals : list[Signal | dict | str]
             List of signals
         """
         route = "Signals"
-        for signal_name in signals:
-            self.delete(f"{route}/{self.encode(signal_name)}", **kwargs)
+        names = [
+            s.name if isinstance(s, Signal) else ApiHelper.get_object_name(s)
+            for s in signals
+            if s
+        ]
+        names = [name for name in names if name]
+        for name in names:
+            self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        return ApiRequests.success()
 
     # get data range
     def get_data_range(
