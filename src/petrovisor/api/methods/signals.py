@@ -23,6 +23,11 @@ from petrovisor.api.enums.increments import (
     DepthIncrement,
 )
 from petrovisor.api.models.signal import Signal
+from petrovisor.api.models.entity import Entity
+from petrovisor.api.models.entity_set import EntitySet
+from petrovisor.api.models.hierarchy import Hierarchy
+from petrovisor.api.models.scope import Scope
+from petrovisor.api.models.context import Context
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
@@ -498,13 +503,15 @@ class SignalsMixin(
     def load_signals_data(
         self,
         signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
-        context: Union[str, Dict] = None,
-        entity_set: Union[str, Dict, List[Union[str, Dict]]] = None,
-        scope: Union[str, Dict] = None,
-        hierarchy: Union[str, Dict] = None,
         scenario: Union[str, Dict] = None,
+        context: Union[str, Dict] = None,
+        scope: Union[str, Dict[str, Any], Scope] = None,
+        entity_set: Union[str, Dict[str, Any], EntitySet] = None,
+        hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
+        entities: Union[
+            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        ] = None,
         entity_type: Union[str, List[str]] = None,
-        entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
         time_start: Union[str, datetime] = None,
         time_end: Union[str, datetime] = None,
         time_step: Union[str, TimeIncrement] = None,
@@ -521,21 +528,21 @@ class SignalsMixin(
         ----------
         signals : str | list[str] | list[dict|object]
             Signal name(s) or Signal objects. Single signal or multiple signals
-        context : Union[str, dict, object]
-            Context name or object
-        entity_set : str  | list[str], default None
-            Entity set or list of Entities. If None, then all entities of requested entity type will be considered
-        scope : str, default None
-            Scope name
-        hierarchy : str, default None
-            Hierarchy name
         scenario : str, default None
             Scenario name
+        context : str | dict | Context
+            Context name
+        scope : str | dict | Scope, default None
+            Scope name
+        entity_set : str | dict | EntitySet, default None
+            Entity set name
+        hierarchy : str | dict | Hierarchy, default None
+            Hierarchy name
+        entities : str | dict | Entity | list[str | dict | Entity], default None
+            Entity or list of Entities
         entity_type : str | list[str], default None
             Entity type. Used when entity_set, entities or context is not provided.
             If not None, will filter out entities defined in entity_set.
-        entities : str | list[str], default None
-            Entity or list of Entities
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -590,7 +597,6 @@ class SignalsMixin(
         context = (
             self.get_context(
                 context,
-                context=context,
                 entity_set=entity_set,
                 scope=scope,
                 hierarchy=hierarchy,

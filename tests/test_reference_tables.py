@@ -3,29 +3,35 @@ import pandas as pd
 import numpy as np
 import uuid
 
+
 def test_ref_tables(api: PetroVisor):
 
     # create entity
     entity_name = "Well 001"
-    api.add_item('Entity', {
-        'Name': entity_name,
-        'EntityTypeName': 'Well',
-        'Alias': '',
-        'IsOpportunity': False,
-    })
+    api.add_item(
+        "Entity",
+        {
+            "Name": entity_name,
+            "EntityTypeName": "Well",
+            "Alias": "",
+            "IsOpportunity": False,
+        },
+    )
 
     # create dataframe
     num_rows = int(10)
-    columns = list('ABCDEF')
-    df = pd.DataFrame(np.random.uniform(0, 1, size=(num_rows, len(columns))), columns=columns)
+    columns = list("ABCDEF")
+    df = pd.DataFrame(
+        np.random.uniform(0, 1, size=(num_rows, len(columns))), columns=columns
+    )
 
-    df['Entity'] = None
-    df.loc[:num_rows // 2, 'Entity'] = entity_name
-    df['Time'] = None
-    df['Key'] = [str(i) for i in range(0, len(df))]
+    df["Entity"] = None
+    df.loc[: num_rows // 2, "Entity"] = entity_name
+    df["Time"] = None
+    df["Key"] = [str(i) for i in range(0, len(df))]
 
-    df = df[['Entity', 'Time', 'Key', *columns]]
-    df['Key'] = df['Key'].values.astype(str)
+    df = df[["Entity", "Time", "Key", *columns]]
+    df["Key"] = df["Key"].values.astype(str)
 
     # create unique name to avoid interference
     name = str(uuid.uuid4())
@@ -33,10 +39,10 @@ def test_ref_tables(api: PetroVisor):
         name = str(uuid.uuid4())
 
     # add new reference table
-    api.add_ref_table(name, df, description='Testing API from Python')
+    api.add_ref_table(name, df, description="Testing API from Python")
 
     # add data to already existing table
-    api.add_ref_table(name, df, description='Testing API from Python')
+    api.add_ref_table(name, df, description="Testing API from Python")
 
     # check that table was created
     assert api.get_ref_table_data_info(name)
