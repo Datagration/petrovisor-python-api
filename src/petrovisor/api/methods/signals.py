@@ -14,19 +14,27 @@ import numpy as np
 import warnings
 
 from petrovisor.api.utils.validators import Validator
+from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.internal_dtypes import SignalType
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.enums.internal_dtypes import SignalType
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
+from petrovisor.api.models.signal import Signal
+from petrovisor.api.models.entity import Entity
+from petrovisor.api.models.entity_set import EntitySet
+from petrovisor.api.models.hierarchy import Hierarchy
+from petrovisor.api.models.scope import Scope
+from petrovisor.api.models.context import Context
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
     SupportsDataFrames,
     SupportsContextRequests,
     SupportsEntitiesRequests,
+    SupportsUnitsRequests,
 )
 
 
@@ -36,6 +44,7 @@ class SignalsMixin(
     SupportsContextRequests,
     SupportsEntitiesRequests,
     SupportsItemRequests,
+    SupportsUnitsRequests,
     SupportsRequests,
 ):
     """
@@ -118,33 +127,7 @@ class SignalsMixin(
         measurement_name = self.get_signal_measurement_name(signal, **kwargs)
         return self.get_measurement_unit_names(measurement_name, **kwargs)
 
-    # get measurement 'Units'
-    def get_measurement_units(self, measurement: str, **kwargs) -> Any:
-        """
-        Get measurement units
-
-        Parameters
-        ----------
-        measurement : str
-            Measurement name
-        """
-        route = "Units"
-        return self.get(f"{route}/{self.encode(measurement)}/Units", **kwargs)
-
-    # get measurement 'Unit' names
-    def get_measurement_unit_names(self, measurement: str, **kwargs) -> Any:
-        """
-        Get measurement unit names
-
-        Parameters
-        ----------
-        measurement : str
-            Measurement name
-        """
-        units = self.get_measurement_units(measurement, **kwargs)
-        return [unit["Name"] for unit in units]
-
-    # get 'Signal'
+    # get signal
     def get_signal(
         self, name: str, short_name: Optional[str] = "", **kwargs
     ) -> Optional[Dict]:
@@ -167,7 +150,7 @@ class SignalsMixin(
             return self.get(f"{route}/{self.encode(name)}", **kwargs)
         return None
 
-    # get 'Signals'
+    # get signals
     def get_signals(
         self,
         signal_type: Union[str, SignalType] = "",
@@ -202,7 +185,7 @@ class SignalsMixin(
             return []
         return signals if signals is not None else []
 
-    # get 'Signal' names
+    # get signal names
     def get_signal_names(
         self,
         signal_type: Optional[str] = "",
@@ -242,32 +225,91 @@ class SignalsMixin(
             signal_names = self.get(f"{route}", **kwargs)
         return signal_names if signal_names is not None else []
 
-    # add 'Signals'
-    def add_signals(self, signals: List, **kwargs) -> Any:
+    # add signal
+    def add_signal(self, signal: Union[Signal, Dict[str, Any]], **kwargs) -> Any:
+        """
+        Add signal
+
+        Parameters
+        ----------
+        signal : Signal | dict
+            Signal
+        """
+        route = "Signals"
+        if isinstance(signal, Signal):
+            validated_signal = signal.model_dump(by_alias=True)
+        elif isinstance(signal, dict):
+            validated_signal = signal
+        else:
+            raise ValueError(
+                "PetroVisor::add_signal(): "
+                "Invalid type. Signal should be of type dict or Signal."
+            )
+        return self.post(f"{route}", data=validated_signal, **kwargs)
+
+    # add signals
+    def add_signals(
+        self, signals: List[Union[Signal, Dict[str, Any]]], **kwargs
+    ) -> Any:
         """
         Add multiple signals
 
         Parameters
         ----------
-        signals : list
+        signals : list[Signal | dict]
             List of signals
         """
         route = "Signals"
-        return self.post(f"{route}/Add", data=signals, **kwargs)
+        validated_signals = [
+            e.model_dump(by_alias=True) if isinstance(e, Signal) else e
+            for e in signals
+            if isinstance(e, dict) or isinstance(e, Signal)
+        ]
+        return self.post(f"{route}/Add", data=validated_signals, **kwargs)
 
-    # delete 'Signals'
-    def delete_signals(self, signals: List, **kwargs) -> Any:
+    # delete signal
+    def delete_signal(
+        self, signal: Union[Signal, Dict[str, Any], str], **kwargs
+    ) -> Any:
+        """
+        Delete signal
+
+        Parameters
+        ----------
+        signal : Signal | dict | str
+            Signal
+        """
+        route = "Signals"
+        if isinstance(signal, Signal):
+            name = signal.name
+        else:
+            name = ApiHelper.get_object_name(signal)
+        if not name:
+            return ApiRequests.success()
+        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+
+    # delete signals
+    def delete_signals(
+        self, signals: List[Union[Signal, Dict[str, Any], str]], **kwargs
+    ) -> Any:
         """
         Delete multiple signals
 
         Parameters
         ----------
-        signals : list
+        signals : list[Signal | dict | str]
             List of signals
         """
         route = "Signals"
-        for signal_name in signals:
-            self.delete(f"{route}/{self.encode(signal_name)}", **kwargs)
+        names = [
+            s.name if isinstance(s, Signal) else ApiHelper.get_object_name(s)
+            for s in signals
+            if s
+        ]
+        names = [name for name in names if name]
+        for name in names:
+            self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        return ApiRequests.success()
 
     # get data range
     def get_data_range(
@@ -461,13 +503,15 @@ class SignalsMixin(
     def load_signals_data(
         self,
         signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
-        context: Union[str, Dict] = None,
-        entity_set: Union[str, Dict, List[Union[str, Dict]]] = None,
-        scope: Union[str, Dict] = None,
-        hierarchy: Union[str, Dict] = None,
-        scenario: Union[str, Dict] = None,
+        scenario: str = None,
+        context: Union[str, Dict[str, Any], Context] = None,
+        scope: Union[str, Dict[str, Any], Scope] = None,
+        entity_set: Union[str, Dict[str, Any], EntitySet] = None,
+        hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
+        entities: Union[
+            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        ] = None,
         entity_type: Union[str, List[str]] = None,
-        entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
         time_start: Union[str, datetime] = None,
         time_end: Union[str, datetime] = None,
         time_step: Union[str, TimeIncrement] = None,
@@ -484,21 +528,21 @@ class SignalsMixin(
         ----------
         signals : str | list[str] | list[dict|object]
             Signal name(s) or Signal objects. Single signal or multiple signals
-        context : Union[str, dict, object]
-            Context name or object
-        entity_set : str  | list[str], default None
-            Entity set or list of Entities. If None, then all entities of requested entity type will be considered
-        scope : str, default None
-            Scope name
-        hierarchy : str, default None
-            Hierarchy name
         scenario : str, default None
             Scenario name
+        context : str | dict | Context
+            Context or context name
+        scope : str | dict | Scope, default None
+            Scope or scope name
+        entity_set : str | dict | EntitySet, default None
+            Entity set or entity set name
+        hierarchy : str | dict | Hierarchy, default None
+            Hierarchy or hierarchy name
+        entities : str | dict | Entity | list[str | dict | Entity], default None
+            Entity or list of Entities
         entity_type : str | list[str], default None
             Entity type. Used when entity_set, entities or context is not provided.
             If not None, will filter out entities defined in entity_set.
-        entities : str | list[str], default None
-            Entity or list of Entities
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -553,7 +597,6 @@ class SignalsMixin(
         context = (
             self.get_context(
                 context,
-                context=context,
                 entity_set=entity_set,
                 scope=scope,
                 hierarchy=hierarchy,
@@ -728,7 +771,7 @@ class SignalsMixin(
                     scenarios = list(scenario)
                 else:
                     scenarios = [scenario]
-                data_rqst["Scenario"] = scenarios
+                data_rqst["ScenarioNames"] = scenarios
             if hierarchy:
                 data_rqst["HierarchyName"] = hierarchy
             if time_start is not None:
@@ -866,7 +909,7 @@ class SignalsMixin(
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
                         }
-                        if depth_unit is not None:
+                        if depth_unit:
                             data_rqst["DepthUnit"] = depth_unit
                         if scenario:
                             data_rqst["Scenario"] = scenario
@@ -917,13 +960,13 @@ class SignalsMixin(
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
                         }
-                        if depth_unit is not None:
+                        if depth_unit:
                             data_rqst["DepthUnit"] = depth_unit
                         if scenario:
                             data_rqst["Scenario"] = scenario
                         # if num_gap_value is not None:
                         #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
-                        data_num = self.post(
+                        data_str = self.post(
                             "Data/StringDepth/Retrieve", data=data_rqst
                         )
                     else:
@@ -1000,7 +1043,7 @@ class SignalsMixin(
                     df = df.reset_index()
                     df_static = df
 
-        def reorder_columns(df, signals, signal_names):
+        def reorder_columns(df, signal_names):
             non_signal_columns = [
                 col
                 for col in df.columns
@@ -1026,6 +1069,8 @@ class SignalsMixin(
                 df = df[columns]
             else:
                 df = df_depth
+            if depth_unit:
+                df = df.rename(columns={"Depth": f"Depth [{depth_unit}]"})
         if df_static is not None:
             if df is not None:
                 df = pd.merge(df, df_static, on="Entity")
@@ -1037,7 +1082,7 @@ class SignalsMixin(
                 RuntimeWarning,
             )
             return df
-        return reorder_columns(df, signals, signal_names)
+        return reorder_columns(df, signal_names)
 
     # load data
     def load_data(

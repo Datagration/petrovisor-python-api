@@ -392,7 +392,7 @@ class ApiHelper:
 
     # is iterable
     @staticmethod
-    def is_iterable(x: Any, **kwargs) -> bool:
+    def is_iterable(x: Any, exclude_str: bool = True, **kwargs) -> bool:
         """
         Is iterable object
 
@@ -400,8 +400,10 @@ class ApiHelper:
         ----------
         x : Any
             Object
+        exclude_str : bool, default True
+            Whether to exclude str as iterable
         """
-        if hasattr(x, "__len__"):
+        if hasattr(x, "__iter__") and (not isinstance(x, str) or not exclude_str):
             return True
         return False
 
@@ -481,7 +483,13 @@ class ApiHelper:
             return cast(list, x.values.tolist())
         elif isinstance(x, np.ndarray):
             return cast(list, x.tolist())
-        elif isinstance(x, (set,)):
+        elif isinstance(
+            x,
+            (
+                set,
+                tuple,
+            ),
+        ):
             return list(x)
         elif isinstance(x, (dict,)):
             return list(x.items())
