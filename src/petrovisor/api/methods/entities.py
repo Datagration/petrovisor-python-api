@@ -1,10 +1,13 @@
 from typing import (
     Any,
     Optional,
+    Union,
     List,
     Dict,
 )
 
+from petrovisor.api.models.entity import Entity
+from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
@@ -103,31 +106,89 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
             entity_names = self.get(f"{route}", **kwargs)
         return entity_names if entity_names is not None else []
 
+    # add entity
+    def add_entity(self, entity: Union[Entity, Dict[str, Any]], **kwargs) -> Any:
+        """
+        Add entity
+
+        Parameters
+        ----------
+        entity : Entity | dict
+            Entity
+        """
+        route = "Entities"
+        if isinstance(entity, Entity):
+            validated_entity = entity.model_dump(by_alias=True)
+        elif isinstance(entity, dict):
+            validated_entity = entity
+        else:
+            raise ValueError(
+                "PetroVisor::add_entity(): "
+                "Invalid type. Entity should be of type dict or Entity."
+            )
+        return self.post(f"{route}", data=validated_entity, **kwargs)
+
     # add entities
-    def add_entities(self, entities: List, **kwargs) -> Any:
+    def add_entities(
+        self, entities: List[Union[Entity, Dict[str, Any]]], **kwargs
+    ) -> Any:
         """
         Add multiple entities
 
         Parameters
         ----------
-        entities : list
+        entities : list[Entity | dict]
             List of entities
         """
         route = "Entities"
-        return self.post(f"{route}/AddOrEdit", data=entities, **kwargs)
+        validated_entities = [
+            e.model_dump(by_alias=True) if isinstance(e, Entity) else e
+            for e in entities
+            if isinstance(e, dict) or isinstance(e, Entity)
+        ]
+        return self.post(f"{route}/AddOrEdit", data=validated_entities, **kwargs)
+
+    # delete entity
+    def delete_entity(
+        self, entity: Union[Entity, Dict[str, Any], str], **kwargs
+    ) -> Any:
+        """
+        Delete entity
+
+        Parameters
+        ----------
+        entity : Entity | dict | str
+            Entity
+        """
+        route = "Entities"
+        if isinstance(entity, Entity):
+            name = entity.name
+        else:
+            name = ApiHelper.get_object_name(entity)
+        if not name:
+            return ApiRequests.success()
+        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
 
     # delete entities
-    def delete_entities(self, entities: List, **kwargs) -> Any:
+    def delete_entities(
+        self, entities: List[Union[Entity, Dict[str, Any], str]], **kwargs
+    ) -> Any:
         """
         Delete multiple entities
 
         Parameters
         ----------
-        entities : list
+        entities : list[Entity | dict | str]
             List of entities
         """
         route = "Entities"
-        return self.post(f"{route}/Delete", data=entities, **kwargs)
+        names = [
+            e.name if isinstance(e, Entity) else ApiHelper.get_object_name(e)
+            for e in entities
+            if e
+        ]
+        names = [name for name in names if name]
+        return self.post(f"{route}/Delete", data=names, **kwargs)
 
     # rename entity type
     def rename_entity_type(self, old_name: str, new_name: str, **kwargs) -> Any:

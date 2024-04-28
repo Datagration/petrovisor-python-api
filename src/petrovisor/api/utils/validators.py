@@ -1,12 +1,15 @@
 from typing import Union
 
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.internal_dtypes import SignalType
-from petrovisor.api.dtypes.ml import (
+from petrovisor.api.enums.internal_dtypes import (
+    SignalType,
+    AggregationType,
+)
+from petrovisor.api.enums.ml import (
     MLModelType,
     MLNormalizationType,
 )
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
@@ -155,6 +158,72 @@ class Validator:
             f"PetroVisor::get_depth_increment_enum(): "
             f"unknown depth increment: '{increment_type}'! "
             f"Should be one of: {[inc.name for inc in DepthIncrement]}"
+        )
+
+    # get valid aggregation type name
+    @staticmethod
+    def get_aggregation_type_enum(
+        aggregation_type: Union[str, AggregationType], **kwargs
+    ) -> AggregationType:
+        """
+        Get AggregationType enum
+
+        Parameters
+        ----------
+        aggregation_type : str | AggregationType
+            Aggregation type
+        """
+        if isinstance(aggregation_type, AggregationType):
+            return aggregation_type
+        # prepare name for comparison
+        aggregation_type = ApiHelper.get_comparison_string(aggregation_type, **kwargs)
+        if aggregation_type in ("sum", "concatenate", "concat"):
+            return AggregationType.Sum
+        elif aggregation_type in (
+            "average",
+            "avg",
+            "mean",
+        ):
+            return AggregationType.Average
+        elif aggregation_type in ("max", "maximum", "longest", "largest", "biggest"):
+            return AggregationType.Max
+        elif aggregation_type in ("min", "minimum", "shortest", "smallest"):
+            return AggregationType.Min
+        elif aggregation_type in ("first",):
+            return AggregationType.First
+        elif aggregation_type in ("last",):
+            return AggregationType.Last
+        elif aggregation_type in ("count",):
+            return AggregationType.Count
+        elif aggregation_type in (
+            "none",
+            "no",
+            "noaggregation",
+            "noagg",
+        ):
+            return AggregationType.NoAggregation
+        elif aggregation_type in ("median",):
+            return AggregationType.Median
+        elif aggregation_type in ("mode",):
+            return AggregationType.Mode
+        elif aggregation_type in (
+            "standarddeviation",
+            "std",
+        ):
+            return AggregationType.StandardDeviation
+        elif aggregation_type in (
+            "variance",
+            "var",
+        ):
+            return AggregationType.Variance
+        elif aggregation_type in ("percentile",):
+            return AggregationType.Percentile
+        elif aggregation_type in ("range",):
+            return AggregationType.Range
+        raise ValueError(
+            f"PetroVisor::get_aggregation_type_enum(): "
+            f"unknown data type: '{aggregation_type}'! "
+            f"Should be one of: {[t.name for t in AggregationType]}"
         )
 
     # get ML Model Type enum

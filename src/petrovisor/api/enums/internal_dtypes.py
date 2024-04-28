@@ -1,4 +1,8 @@
-from enum import Enum, IntEnum
+from enum import (
+    Enum,
+    IntEnum,
+    auto,
+)
 
 
 # Signal types
@@ -21,6 +25,37 @@ class SignalType(IntEnum):
     StringTimeDependent = 5
     # Signals which have a series of depth-based string values
     StringDepthDependent = 6
+
+
+class AggregationType(IntEnum):
+    # Sum
+    Sum = 0
+    # Average
+    Average = auto()
+    # Maximum
+    Max = auto()
+    # Minimum
+    Min = auto()
+    # First value
+    First = auto()
+    # Last Value
+    Last = auto()
+    # Number of values
+    Count = auto()
+    # No aggregation
+    NoAggregation = auto()
+    # Median of values
+    Median = auto()
+    # Mode of values
+    Mode = auto()
+    # Standard deviation of values
+    StandardDeviation = auto()
+    # Variance of values
+    Variance = auto()
+    # The 100th percentile of values
+    Percentile = auto()
+    # The range of the elements of values
+    Range = auto()
 
 
 # Reference table column type

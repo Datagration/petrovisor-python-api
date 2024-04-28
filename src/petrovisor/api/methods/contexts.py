@@ -12,8 +12,8 @@ import pandas as pd
 import numpy as np
 
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.dtypes.items import ItemType
-from petrovisor.api.dtypes.increments import (
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.enums.increments import (
     TimeIncrement,
     DepthIncrement,
 )
@@ -24,13 +24,12 @@ from petrovisor.api.protocols.protocols import (
     SupportsSignalsRequests,
     SupportsEntitiesRequests,
 )
-from petrovisor.models.contexts import (
-    ContextsManager,
-    Context,
-    Scope,
-    EntitySet,
-    Hierarchy,
-)
+from petrovisor.models.contexts_manager import ContextsManager
+from petrovisor.api.models.context import Context
+from petrovisor.api.models.scope import Scope
+from petrovisor.api.models.entity_set import EntitySet
+from petrovisor.api.models.entity import Entity
+from petrovisor.api.models.hierarchy import Hierarchy
 
 
 # Context API calls
@@ -48,13 +47,15 @@ class ContextMixin(
     # get 'Context'
     def get_context(
         self,
-        name: Union[str, Dict],
-        entity_set: Union[str, Dict] = None,
-        scope: Union[str, Dict] = None,
-        hierarchy: Union[str, Dict] = None,
+        context: Union[str, Dict[str, Any], Context],
+        scope: Union[str, Dict[str, Any], Scope] = None,
+        entity_set: Union[str, Dict[str, Any], EntitySet] = None,
+        hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
         relationship: Dict[str, str] = None,
+        entities: Union[
+            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        ] = None,
         entity_type: Union[str, List[str]] = None,
-        entities: Union[Union[str, Dict], List[Union[str, Dict]]] = None,
         time_start: Union[str, datetime] = None,
         time_end: Union[str, datetime] = None,
         time_step: Union[str, TimeIncrement] = None,
@@ -68,21 +69,21 @@ class ContextMixin(
 
         Parameters
         ----------
-        name : str | dict
-            Context name
-        entity_set : str, default None
-            Entity set name
-        scope : str, default None
-            Scope name
-        hierarchy : str, default None
-            Hierarchy name
+        context : str | dict | Context
+            Context or context name
+        scope : str | dict | Scope, default None
+            Scope or scope name
+        entity_set : str | dict | EntitySet, default None
+            Entity set or entity set name
+        hierarchy : str | dict | Hierarchy, default None
+            Hierarchy or hierarchy name
         relationship: dict, default None
             Hierarchy relationship as dictionary in form of 'Child': 'Parent'
+        entities : str | dict | Entity | list[str | dict | Entity], default None
+            Entity or list of Entities
         entity_type : str, default None
             Entity type. Used when entity_set, entities or context is not provided.
             If not None, will filter out entities defined in entity_set.
-        entities : str | list[str], default None
-            Entity or list of Entities
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -99,6 +100,8 @@ class ContextMixin(
         route = "Contexts"
 
         def is_context(obj):
+            if isinstance(obj, Context):
+                return True
             if not isinstance(obj, dict):
                 return False
             if "Name" in obj and "Scope" in obj and "EntitySet" in obj:
@@ -114,23 +117,27 @@ class ContextMixin(
             "Labels": [],
         }
 
-        if is_context(name):
-            default_context.update(name)
-            return name
+        if is_context(context):
+            context_obj = default_context
+            if isinstance(context, Context):
+                context_obj.update(context.model_dump(by_alias=True))
+            else:
+                context_obj.update(context)
+            return context_obj
 
-        context_name = ApiHelper.get_object_name(name) or ""
+        context_name = ApiHelper.get_object_name(context) or ""
         default_context.update({"Name": context_name})
 
         if context_name and self.item_exists("Context", context_name):
-            context = (
+            context_obj = (
                 self.get(f"{route}/{self.encode(context_name)}", **kwargs)
                 or default_context
             )
         else:
-            context = default_context
+            context_obj = default_context
 
         if (
-            context.get("Scope", None) is None
+            context_obj.get("Scope", None) is None
             or scope is not None
             or time_start is not None
             or time_end is not None
@@ -139,7 +146,7 @@ class ContextMixin(
             or depth_end is not None
             or depth_step is not None
         ):
-            context["Scope"] = self.get_scope(
+            context_obj["Scope"] = self.get_scope(
                 scope,
                 time_start=time_start,
                 time_end=time_end,
@@ -150,32 +157,32 @@ class ContextMixin(
                 **kwargs,
             )
         if (
-            context.get("EntitySet", None) is None
+            context_obj.get("EntitySet", None) is None
             or entity_set is not None
             or entities is not None
             or entity_type is not None
         ):
-            context["EntitySet"] = self.get_entity_set(
+            context_obj["EntitySet"] = self.get_entity_set(
                 entity_set, entities=entities, entity_type=entity_type, **kwargs
             )
         if (
-            context.get("Hierarchy", None) is None
+            context_obj.get("Hierarchy", None) is None
             or hierarchy is not None
             or relationship is not None
         ):
-            context["Hierarchy"] = self.get_hierarchy(
+            context_obj["Hierarchy"] = self.get_hierarchy(
                 hierarchy, relationship=relationship, **kwargs
             )
-            if context["Hierarchy"] is None or not context["Hierarchy"].get(
+            if context_obj["Hierarchy"] is None or not context_obj["Hierarchy"].get(
                 "Relationship", None
             ):
-                context.pop("Hierarchy")
-        return context
+                context_obj.pop("Hierarchy")
+        return context_obj
 
     # get 'Scope'
     def get_scope(
         self,
-        name: Union[str, Dict],
+        scope: Union[str, Dict[str, Any], Scope],
         time_start: Union[str, datetime] = None,
         time_end: Union[str, datetime] = None,
         time_step: Union[str, TimeIncrement] = None,
@@ -189,8 +196,8 @@ class ContextMixin(
 
         Parameters
         ----------
-        name : str | dict
-            Scope name
+        scope : str | dict | Scope
+            Scope or scope name
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -219,6 +226,8 @@ class ContextMixin(
         }
 
         def is_scope(obj):
+            if isinstance(obj, Scope):
+                return True
             if not isinstance(obj, dict):
                 return False
             if "Name" in obj and (
@@ -232,57 +241,64 @@ class ContextMixin(
                 return True
             return False
 
-        if is_scope(name):
-            scope = default_scope
-            scope.update(name)
-            return scope
+        if is_scope(scope):
+            scope_obj = default_scope
+            if isinstance(scope, Scope):
+                scope_obj.update(scope.model_dump(by_alias=True))
+            else:
+                scope_obj.update(scope)
+            return scope_obj
 
-        scope_name = ApiHelper.get_object_name(name) or ""
+        scope_name = ApiHelper.get_object_name(scope) or ""
         default_scope.update({"Name": scope_name})
 
         if scope_name and self.item_exists("Scope", scope_name):
-            scope = (
+            scope_obj = (
                 self.get(f"{route}/{self.encode(scope_name)}", **kwargs)
                 or default_scope
             )
         else:
-            scope = default_scope
+            scope_obj = default_scope
 
         if time_start is not None and not pd.isnull(time_start):
             # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
-            scope["Start"] = self.datetime_to_string(pd.to_datetime(time_start))
-        elif scope.get("Start", None) is None:
-            scope["Start"] = None
+            scope_obj["Start"] = self.datetime_to_string(pd.to_datetime(time_start))
+        elif scope_obj.get("Start", None) is None:
+            scope_obj["Start"] = None
         if time_end is not None and not pd.isnull(time_end):
             # convert to ISO time format '%Y-%m-%dT%H:%M:%S.%f'
-            scope["End"] = self.datetime_to_string(pd.to_datetime(time_end))
-        elif scope.get("End", None) is None:
-            scope["End"] = None
+            scope_obj["End"] = self.datetime_to_string(pd.to_datetime(time_end))
+        elif scope_obj.get("End", None) is None:
+            scope_obj["End"] = None
         if time_step:
-            scope["TimeIncrement"] = str(self.get_time_increment_enum(time_step).name)
-        elif scope.get("TimeIncrement", None) is None:
-            scope["TimeIncrement"] = None
+            scope_obj["TimeIncrement"] = str(
+                self.get_time_increment_enum(time_step).name
+            )
+        elif scope_obj.get("TimeIncrement", None) is None:
+            scope_obj["TimeIncrement"] = None
         if depth_start is not None and not pd.isnull(depth_start):
-            scope["StartDepth"] = float(depth_start)
-        elif scope.get("StartDepth", None) is None:
-            scope["StartDepth"] = None
+            scope_obj["StartDepth"] = float(depth_start)
+        elif scope_obj.get("StartDepth", None) is None:
+            scope_obj["StartDepth"] = None
         if depth_end is not None and not pd.isnull(depth_end):
-            scope["EndDepth"] = float(depth_end)
-        elif scope.get("EndDepth", None) is None:
-            scope["EndDepth"] = None
+            scope_obj["EndDepth"] = float(depth_end)
+        elif scope_obj.get("EndDepth", None) is None:
+            scope_obj["EndDepth"] = None
         if depth_step:
-            scope["DepthIncrement"] = str(
+            scope_obj["DepthIncrement"] = str(
                 self.get_depth_increment_enum(depth_step).name
             )
-        elif scope.get("DepthIncrementh", None) is None:
-            scope["DepthIncrement"] = None
-        return scope
+        elif scope_obj.get("DepthIncrementh", None) is None:
+            scope_obj["DepthIncrement"] = None
+        return scope_obj
 
     # get 'EntitySet'
     def get_entity_set(
         self,
-        name: Union[str, Dict],
-        entities: List[str] = None,
+        entity_set: Union[str, Dict[str, Any], EntitySet],
+        entities: Union[
+            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        ] = None,
         entity_type: Union[str, List[str]] = None,
         **kwargs,
     ) -> Optional[Dict]:
@@ -291,9 +307,9 @@ class ContextMixin(
 
         Parameters
         ----------
-        name : str | dict
-            Scope name
-        entities : list[str], default None
+        entity_set : str | dict | EntitySet
+            Entity set or entity set name
+        entities : str | dict | Entity | list[str | dict | Entity], default None
             Entity names or Entity objects
         entity_type : str | list[str], default None
             Entity type. Used when entity_set or entities is not provided.
@@ -309,29 +325,34 @@ class ContextMixin(
         }
 
         def is_entity_set(obj):
+            if isinstance(obj, EntitySet):
+                return True
             if not isinstance(obj, dict):
                 return False
             if "Name" in obj and "Entities" in obj:
                 return True
             return False
 
-        if is_entity_set(name):
-            entity_set = default_entity_set
-            entity_set.update(name)
-            return entity_set
+        if is_entity_set(entity_set):
+            entity_set_obj = default_entity_set
+            if isinstance(entity_set, EntitySet):
+                entity_set_obj.update(entity_set.model_dump(by_alias=True))
+            else:
+                entity_set_obj.update(entity_set)
+            return entity_set_obj
 
-        entity_set_name = ApiHelper.get_object_name(name) or ""
+        entity_set_name = ApiHelper.get_object_name(entity_set) or ""
         default_entity_set.update({"Name": entity_set_name})
 
         if entity_set_name and self.item_exists("EntitySet", entity_set_name):
-            entity_set = (
+            entity_set_obj = (
                 self.get(f"{route}/{self.encode(entity_set_name)}", **kwargs)
             ) or default_entity_set
         else:
-            entity_set = default_entity_set
+            entity_set_obj = default_entity_set
 
         if (
-            entity_set.get("Entities", None) is None
+            entity_set_obj.get("Entities", None) is None
             or entities is not None
             or entity_type is not None
         ):
@@ -367,13 +388,13 @@ class ContextMixin(
                     eset_entities = []
                     for et in entity_type:
                         eset_entities.extend(self.get_entities(entity_type=et))
-            entity_set["Entities"] = eset_entities or []
-        return entity_set
+            entity_set_obj["Entities"] = eset_entities or []
+        return entity_set_obj
 
     # get 'Hierarchy'
     def get_hierarchy(
         self,
-        name: Union[str, Dict],
+        hierarchy: Union[str, Dict[str, Any], Hierarchy],
         relationship: Dict[str, Union[str, None]] = None,
         **kwargs,
     ) -> Optional[Dict]:
@@ -382,8 +403,8 @@ class ContextMixin(
 
         Parameters
         ----------
-        name : str | dict
-            Hierarchy name
+        hierarchy : str | dict | Hierarchy
+            Hierarchy or hierarchy name
         relationship: dict, default None
             Hierarchy relationship as dictionary in form of 'Child': 'Parent'
         """
@@ -397,30 +418,35 @@ class ContextMixin(
         }
 
         def is_hierarchy(obj):
+            if isinstance(obj, Hierarchy):
+                return True
             if not isinstance(obj, dict):
                 return False
             if "Name" in obj and "Relationship" in obj:
                 return True
             return False
 
-        if is_hierarchy(name):
-            hierarchy = default_hierarchy
-            hierarchy.update(name)
-            return hierarchy
+        if is_hierarchy(hierarchy):
+            hierarchy_obj = default_hierarchy
+            if isinstance(hierarchy, Hierarchy):
+                hierarchy_obj.update(hierarchy.model_dump(by_alias=True))
+            else:
+                hierarchy_obj.update(hierarchy)
+            return hierarchy_obj
 
-        hierarchy_name = ApiHelper.get_object_name(name) or ""
+        hierarchy_name = ApiHelper.get_object_name(hierarchy) or ""
         default_hierarchy.update({"Name": hierarchy_name})
 
         if hierarchy_name and self.item_exists("Hierarchy", hierarchy_name):
-            hierarchy = (
+            hierarchy_obj = (
                 self.get(f"{route}/{self.encode(hierarchy_name)}", **kwargs)
             ) or default_hierarchy
         else:
-            hierarchy = default_hierarchy
+            hierarchy_obj = default_hierarchy
 
-        if hierarchy.get("Relationship", None) is None or relationship is not None:
-            hierarchy["Relationship"] = relationship or {}
-        return hierarchy
+        if hierarchy_obj.get("Relationship", None) is None or relationship is not None:
+            hierarchy_obj["Relationship"] = relationship or {}
+        return hierarchy_obj
 
     # create Context
     def create_context(
