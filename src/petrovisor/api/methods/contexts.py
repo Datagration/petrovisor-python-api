@@ -70,13 +70,13 @@ class ContextMixin(
         Parameters
         ----------
         context : str | dict | Context
-            Context name
+            Context or context name
         scope : str | dict | Scope, default None
-            Scope name
+            Scope or scope name
         entity_set : str | dict | EntitySet, default None
-            Entity set name
+            Entity set or entity set name
         hierarchy : str | dict | Hierarchy, default None
-            Hierarchy name
+            Hierarchy or hierarchy name
         relationship: dict, default None
             Hierarchy relationship as dictionary in form of 'Child': 'Parent'
         entities : str | dict | Entity | list[str | dict | Entity], default None
@@ -197,7 +197,7 @@ class ContextMixin(
         Parameters
         ----------
         scope : str | dict | Scope
-            Scope name
+            Scope or scope name
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -308,7 +308,7 @@ class ContextMixin(
         Parameters
         ----------
         entity_set : str | dict | EntitySet
-            Scope name
+            Entity set or entity set name
         entities : str | dict | Entity | list[str | dict | Entity], default None
             Entity names or Entity objects
         entity_type : str | list[str], default None
@@ -404,7 +404,7 @@ class ContextMixin(
         Parameters
         ----------
         hierarchy : str | dict | Hierarchy
-            Hierarchy name
+            Hierarchy or hierarchy name
         relationship: dict, default None
             Hierarchy relationship as dictionary in form of 'Child': 'Parent'
         """

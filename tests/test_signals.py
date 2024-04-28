@@ -99,13 +99,19 @@ def test_signals(api: PetroVisor):
                           )
 
     # create scope
+    time_start = "2021-01-01T00:00:00"
+    time_end = "2022-01-01T00:00:00"
+    time_step = TimeIncrement.Daily.name
+    depth_start = 0
+    depth_end = 10
+    depth_step = DepthIncrement.Meter.name
     scope = Scope(name="Field 1 Wells Scope",
-                  time_start="2021-01-01T00:00:00",
-                  time_end="2022-01-01T00:00:00",
-                  time_step=TimeIncrement.Daily.name,
-                  depth_start=0,
-                  depth_end=10,
-                  depth_step=DepthIncrement.Meter.name,
+                  time_start=time_start,
+                  time_end=time_end,
+                  time_step=time_step,
+                  depth_start=depth_start,
+                  depth_end=depth_end,
+                  depth_step=depth_step,
                   )
 
     # create context
@@ -115,29 +121,98 @@ def test_signals(api: PetroVisor):
                       hierarchy=hierarchy,
                       )
 
-    # create DataFrame
-    now = datetime.now()
-    n = 100
+    # data preparation
     entity_col = "Entity"
     time_col = "Date"
     depth_col = "Depth [m]"
-    depth_step = 10
-    df = pd.DataFrame({
-        entity_col: "Well 001",
-        time_col: pd.date_range("2021-01-01T00:00:00", periods=n, freq="d").to_list(),
-        # depth_col: np.arange(0,n*depth_step,depth_step).tolist(),
-        stat_num_signal: np.repeat(10, n),
-        stat_str_signal: np.repeat("a", n),
-        time_num_signal: np.random.uniform(1, 4, n),
-        time_str_signal: np.repeat("a", n),
-        # depth_num_signal: n*np.sin(np.linspace(0,1,n)*100),
-        # depth_str_signal: np.repeat("a", n),
-    })
-    num_rows = df.shape[0]
+    letters = list(map(chr, range(97, 123)))
+    num_wells = 5
+    depth_steps = 10
+    time_steps = 100
+    # now = datetime.now()
 
-    # save data
-    api.save_table_data(df)
+    # static data
+    data_stat = []
+    for i in range(0, num_wells):
+        well_idx = i + 1
+        entities = [f"Well 00{well_idx}"]
+        num_vals = [i]
+        str_vals = [letters[i]]
+        data_stat.append(pd.DataFrame({
+            entity_col: entities,
+            stat_num_signal: num_vals,
+            stat_str_signal: str_vals,
+        }))
+    df_stat = pd.concat(data_stat, ignore_index=True)
 
-    # load signals
-    df_loaded = api.load_signals_data(signals, context=context)
-    num_rows_loaded = df_loaded.shape[0]
+    # save static data
+    api.save_table_data(df_stat)
+
+    # time data
+    data_time = []
+    for i in range(0, num_wells):
+        well_idx = i + 1
+        entities = np.repeat(f"Well 00{well_idx}", time_steps)
+        dates = pd.date_range(time_start, periods=time_steps, freq="d").to_list()
+        num_vals = np.random.uniform(1, 4, time_steps)
+        str_vals = np.random.choice(letters, time_steps)
+        data_time.append(pd.DataFrame({
+            entity_col: entities,
+            time_col: dates,
+            time_num_signal: num_vals,
+            time_str_signal: str_vals,
+        }))
+    df_time = pd.concat(data_time, ignore_index=True)
+
+    # save time data
+    api.save_table_data(df_time)
+
+    # depth data
+    data_depth = []
+    for i in range(0,num_wells):
+        well_idx = i + 1
+        entities = np.repeat(f"Well 00{well_idx}",depth_steps)
+        depths = np.arange(0,depth_steps).tolist()
+        num_vals = np.sin(np.linspace(0,1,depth_steps))*100
+        str_vals = np.random.choice(letters, depth_steps)
+        data_depth.append(pd.DataFrame({
+            entity_col: entities,
+            depth_col: depths,
+            depth_num_signal: num_vals,
+            depth_str_signal: str_vals,
+        }))
+    df_depth = pd.concat(data_depth, ignore_index=True)
+
+    # save depth data
+    api.save_table_data(df_depth)
+
+    # load static signals
+    df_loaded = api.load_signals_data([stat_num_signal,
+                                       stat_str_signal,
+                                       ],
+                                      context=context)
+    assert df_loaded.shape[0] >= num_wells + 1
+
+    # load time signals
+    df_loaded = api.load_signals_data([time_num_signal,
+                                       time_str_signal],
+                                      context=context)
+    assert df_loaded.shape[0] >= num_wells * time_steps
+
+    # load depth signals
+    df_loaded = api.load_signals_data([depth_num_signal,
+                                       depth_str_signal,
+                                      ],
+                                      context=context)
+    assert df_loaded.shape[0] >= num_wells * depth_steps
+
+    # load static, time and depth signals
+    df_loaded = api.load_signals_data([stat_num_signal,
+                                       stat_str_signal,
+                                       time_num_signal,
+                                       time_str_signal,
+                                       depth_num_signal,
+                                       depth_str_signal,
+                                       ],
+                                      context=context)
+    assert df_loaded.shape[0] >= num_wells * time_steps * depth_steps

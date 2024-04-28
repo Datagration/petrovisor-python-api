@@ -479,7 +479,10 @@ class DataFrameMixin(
         # 'Depth' column
         depth_index = None
         for i, column_name in enumerate(col_names):
-            if column_name == depth_col:
+            if (
+                column_name == depth_col
+                or self.get_column_name_without_unit(column_name) == depth_col
+            ):
                 depth_index = i
                 break
 

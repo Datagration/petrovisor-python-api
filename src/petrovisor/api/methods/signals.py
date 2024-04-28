@@ -503,8 +503,8 @@ class SignalsMixin(
     def load_signals_data(
         self,
         signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
-        scenario: Union[str, Dict] = None,
-        context: Union[str, Dict] = None,
+        scenario: str = None,
+        context: Union[str, Dict[str, Any], Context] = None,
         scope: Union[str, Dict[str, Any], Scope] = None,
         entity_set: Union[str, Dict[str, Any], EntitySet] = None,
         hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
@@ -531,13 +531,13 @@ class SignalsMixin(
         scenario : str, default None
             Scenario name
         context : str | dict | Context
-            Context name
+            Context or context name
         scope : str | dict | Scope, default None
-            Scope name
+            Scope or scope name
         entity_set : str | dict | EntitySet, default None
-            Entity set name
+            Entity set or entity set name
         hierarchy : str | dict | Hierarchy, default None
-            Hierarchy name
+            Hierarchy or hierarchy name
         entities : str | dict | Entity | list[str | dict | Entity], default None
             Entity or list of Entities
         entity_type : str | list[str], default None
@@ -771,7 +771,7 @@ class SignalsMixin(
                     scenarios = list(scenario)
                 else:
                     scenarios = [scenario]
-                data_rqst["Scenario"] = scenarios
+                data_rqst["ScenarioNames"] = scenarios
             if hierarchy:
                 data_rqst["HierarchyName"] = hierarchy
             if time_start is not None:
@@ -909,7 +909,7 @@ class SignalsMixin(
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
                         }
-                        if depth_unit is not None:
+                        if depth_unit:
                             data_rqst["DepthUnit"] = depth_unit
                         if scenario:
                             data_rqst["Scenario"] = scenario
@@ -960,13 +960,13 @@ class SignalsMixin(
                             "StartDepth": depth_start,
                             "EndDepth": depth_end,
                         }
-                        if depth_unit is not None:
+                        if depth_unit:
                             data_rqst["DepthUnit"] = depth_unit
                         if scenario:
                             data_rqst["Scenario"] = scenario
                         # if num_gap_value is not None:
                         #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
-                        data_num = self.post(
+                        data_str = self.post(
                             "Data/StringDepth/Retrieve", data=data_rqst
                         )
                     else:
@@ -1069,6 +1069,8 @@ class SignalsMixin(
                 df = df[columns]
             else:
                 df = df_depth
+            if depth_unit:
+                df = df.rename(columns={"Depth": f"Depth [{depth_unit}]"})
         if df_static is not None:
             if df is not None:
                 df = pd.merge(df, df_static, on="Entity")
