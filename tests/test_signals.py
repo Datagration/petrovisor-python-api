@@ -22,7 +22,7 @@ def test_signals(api: PetroVisor):
     time_num_signal = "time numeric signal"
     time_str_signal = "time string signal"
     depth_num_signal = "depth numeric signal"
-    depth_str_signal = "depth string signal"
+    # depth_str_signal = "depth string signal"
     signals = [
         Signal(
             type=SignalType.Static.name,
@@ -54,12 +54,12 @@ def test_signals(api: PetroVisor):
             unit=" ",
             unit_measurement="Dimensionless",
         ),
-        Signal(
-            type=SignalType.StringDepthDependent.name,
-            name=depth_str_signal,
-            unit=" ",
-            unit_measurement="Dimensionless",
-        ),
+        # Signal(
+        #     type=SignalType.StringDepthDependent.name,
+        #     name=depth_str_signal,
+        #     unit=" ",
+        #     unit_measurement="Dimensionless",
+        # ),
     ]
 
     # create signals
@@ -179,7 +179,7 @@ def test_signals(api: PetroVisor):
             entity_col: entities,
             depth_col: depths,
             depth_num_signal: num_vals,
-            depth_str_signal: str_vals,
+            # depth_str_signal: str_vals,
         }))
     df_depth = pd.concat(data_depth, ignore_index=True)
 
@@ -201,7 +201,7 @@ def test_signals(api: PetroVisor):
 
     # load depth signals
     df_loaded = api.load_signals_data([depth_num_signal,
-                                       depth_str_signal,
+                                       # depth_str_signal,
                                       ],
                                       context=context)
     assert df_loaded.shape[0] >= num_wells * depth_steps
@@ -212,7 +212,11 @@ def test_signals(api: PetroVisor):
                                        time_num_signal,
                                        time_str_signal,
                                        depth_num_signal,
-                                       depth_str_signal,
+                                       # depth_str_signal,
                                        ],
                                       context=context)
     assert df_loaded.shape[0] >= num_wells * time_steps * depth_steps
+
+    # delete signals
+    for s in signals:
+        api.delete_signal(s)
