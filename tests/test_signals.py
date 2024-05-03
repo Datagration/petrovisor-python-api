@@ -67,6 +67,14 @@ def test_signals(api: PetroVisor):
         if not api.item_exists(ItemType.Signal, signal.name):
             api.add_signal(signal)
 
+    # wait until all signals created
+    all_signals_exist = False
+    while not all_signals_exist:
+        all_signals_exist = True
+        for signal in signals:
+            if not api.item_exists(ItemType.Signal, signal.name):
+                all_signals_exist = False
+
     # entities
     entities = [
         Entity(name="Well 001", type="Well"),
