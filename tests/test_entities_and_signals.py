@@ -21,10 +21,10 @@ def test_signals_by_entity(api: PetroVisor):
         },
     )
     # rename entity
-    new_entity_name = entity_name.replace("_entity", "_renamed entity")
-    # pv_api.rename_entity(old_name=entity_name, new_name=new_entity_name)
+    # new_entity_name = entity_name.replace("_entity", "_renamed entity")
+    # api.rename_entity(old_name=entity_name, new_name=new_entity_name)
     # delete entity
-    # pv_api.delete_entity(new_entity_name)
+    # api.delete_entity(new_entity_name)
     # add signal
     signal_name = "Time Signal"
     signal_unit = " "
