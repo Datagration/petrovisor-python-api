@@ -5,7 +5,6 @@ from typing import (
     Dict,
 )
 import warnings
-import time
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.utils.requests import ApiRequests

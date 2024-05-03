@@ -60,7 +60,7 @@ class ContextsManager(list):
             if isinstance(entity_set, str) and api.item_exists(
                 ItemType.EntitySet, entity_set
             ):
-                entity_set = api.get_entity(entity_set)
+                entity_set = api.get_entity_set(entity_set)
             entity_set = api.create_entity_set(entity_set)
 
         # get Scope
