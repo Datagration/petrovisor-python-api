@@ -103,11 +103,14 @@ class ContextsManager(list):
 
         if len(all_contexts) == 0:
             context = Context(name=default_name or "")
+            context.entity_set = entity_set
+            context.scope = scope
+            context.hierarchy = hierarchy
         elif len(all_contexts) == 1 or primary_context.casefold() == "first":
             context = all_contexts[0]
         else:
             context = api.merge_contexts(all_contexts)
         self.name = context.name
-        self.entity_set = context.entity_set
-        self.scope = context.scope
-        self.hierarchy = context.hierarchy
+        self.entity_set = context.entity_set or entity_set
+        self.scope = context.scope or scope
+        self.hierarchy = context.hierarchy or hierarchy
