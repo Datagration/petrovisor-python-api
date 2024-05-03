@@ -791,7 +791,7 @@ class SignalsMixin(
             data_time_num = table_data.get("DataNumeric", [])
             data_time_str = table_data.get("DataString", [])
             data_depth_num = table_data.get("DataDepth", [])
-            data_depth_str = table_data.get("DataStringDepth", [])
+            data_depth_str = table_data.get("DataDepthString", [])
 
             if data_time_num and data_time_str:
                 data_time = [*data_time_num, *data_time_str]
@@ -820,18 +820,24 @@ class SignalsMixin(
                 )
 
                 # generate PivotTable
-                df = df_normalized.pivot(
-                    index=["EntityName", "Date"], columns="ResultName", values="Value"
-                )
-                df.columns.name = None
-                df = df.rename(columns=signals_with_units_map)
-                df = df.reset_index()
-                df = df.rename(columns={"EntityName": "Entity"})
-                df["Date"] = pd.to_datetime(df["Date"])
-                if has_time_signals:
-                    df_time = df
+                if "Date" not in df_normalized.columns:
+                    warnings.warn(
+                        f"PetroVisor::load_signals_data():: Couldn't retrieve any 'time' data.",
+                        RuntimeWarning,
+                    )
                 else:
-                    df_static = df.drop(columns=["Date"])
+                    df = df_normalized.pivot(
+                        index=["EntityName", "Date"], columns="ResultName", values="Value"
+                    )
+                    df.columns.name = None
+                    df = df.rename(columns=signals_with_units_map)
+                    df = df.reset_index()
+                    df = df.rename(columns={"EntityName": "Entity"})
+                    df["Date"] = pd.to_datetime(df["Date"])
+                    if has_time_signals:
+                        df_time = df
+                    else:
+                        df_static = df.drop(columns=["Date"])
 
             if data_depth:
                 # create DataFrame by normalizing json
@@ -842,14 +848,20 @@ class SignalsMixin(
                 )
 
                 # generate PivotTable
-                df = df_normalized.pivot(
-                    index=["EntityName", "Depth"], columns="ResultName", values="Value"
-                )
-                df.columns.name = None
-                df = df.rename(columns=signals_with_units_map)
-                df = df.reset_index()
-                df = df.rename(columns={"EntityName": "Entity"})
-                df_depth = df
+                if "Depth" not in df_normalized.columns:
+                    warnings.warn(
+                        f"PetroVisor::load_signals_data():: Couldn't retrieve any 'depth' data.",
+                        RuntimeWarning,
+                    )
+                else:
+                    df = df_normalized.pivot(
+                        index=["EntityName", "Depth"], columns="ResultName", values="Value"
+                    )
+                    df.columns.name = None
+                    df = df.rename(columns=signals_with_units_map)
+                    df = df.reset_index()
+                    df = df.rename(columns={"EntityName": "Entity"})
+                    df_depth = df
         else:
             for data_type, data_type_signals in signal_types.items():
                 if data_type == "static":
@@ -996,7 +1008,7 @@ class SignalsMixin(
 
                 if not data:
                     warnings.warn(
-                        f"PetroVisor::load_signals_data():: Couldn't retrieve any {data_type} data.",
+                        f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
                         RuntimeWarning,
                     )
                     continue
@@ -1008,6 +1020,12 @@ class SignalsMixin(
                     )
 
                     # generate PivotTable
+                    if "Date" not in df_normalized.columns:
+                        warnings.warn(
+                            f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
+                            RuntimeWarning,
+                        )
+                        continue
                     df = df_normalized.pivot(
                         index=["Entity", "Date"], columns="Signal", values="Value"
                     )
@@ -1023,6 +1041,12 @@ class SignalsMixin(
                     )
 
                     # generate PivotTable
+                    if "Depth" not in df_normalized.columns:
+                        warnings.warn(
+                            f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
+                            RuntimeWarning,
+                        )
+                        continue
                     df = df_normalized.pivot(
                         index=["Entity", "Depth"], columns="Signal", values="Value"
                     )

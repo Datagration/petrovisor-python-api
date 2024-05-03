@@ -318,11 +318,10 @@ class ApiRequests:
         if data and not isinstance(data, str):
             data = json.dumps(data)
 
-        # request secs
+        # request specs
         timeout = None  # no timeout
-        max_retries = (
-            1  # increased to 3 times in case of 400 Bad Request or 4004 Not Found
-        )
+        max_retries_top = 5
+        max_retries = 1  # increased to max_retries_top times in case of 400 Bad Request or 404 Not Found
         waiting_time = 5  # in seconds
 
         # get response
@@ -426,7 +425,7 @@ class ApiRequests:
                     requests.codes.bad_request,
                     requests.codes.not_found,
                 }:
-                    max_retries = 3
+                    max_retries = max_retries_top
 
                 # retry request
                 if attempt < max_retries:
