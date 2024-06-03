@@ -82,7 +82,7 @@ class DataFrameMixin(
 
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe(
-        self, data: List, groupby_entity: bool = False, **kwargs
+        self, data: List, schema: Optional[List[str]] = None, groupby_entity: bool = False, **kwargs
     ):
         """
         Convert PivotTable to DataFrame
@@ -91,6 +91,8 @@ class DataFrameMixin(
         ----------
         data : list
             PivotTable data
+        schema : list[str], default None
+            PivotTable schema
         groupby_entity : bool, default False
             Return dictionary of DataFrames grouped by entity name
         """
@@ -107,18 +109,21 @@ class DataFrameMixin(
 
             # assign column types
             columns = df.columns
-            columns_dtype = {col: "Numeric" for col in columns}
-            entity_col = self.get_entity_column_name(**kwargs)
-            entity_type_col = self.get_entity_type_column_name(**kwargs)
-            alias_col = self.get_alias_column_name(**kwargs)
-            is_opportunity_col = self.get_opportunity_column_name(**kwargs)
-            date_col = self.get_date_column_name(**kwargs)
-            time_col = self.get_time_column_name(**kwargs)
-            for col in [date_col, time_col]:
-                columns_dtype[col] = "Time"
-            for col in [entity_col, alias_col, entity_type_col]:
-                columns_dtype[col] = "String"
-            columns_dtype[is_opportunity_col] = "Bool"
+            if schema:
+                columns_dtype = {col: ctype for col, ctype in zip(columns, schema)}
+            else:
+                columns_dtype = {}
+                entity_col = self.get_entity_column_name(**kwargs)
+                entity_type_col = self.get_entity_type_column_name(**kwargs)
+                alias_col = self.get_alias_column_name(**kwargs)
+                is_opportunity_col = self.get_opportunity_column_name(**kwargs)
+                date_col = self.get_date_column_name(**kwargs)
+                time_col = self.get_time_column_name(**kwargs)
+                for col in [date_col, time_col]:
+                    columns_dtype[col] = "Time"
+                for col in [entity_col, alias_col, entity_type_col]:
+                    columns_dtype[col] = "String"
+                columns_dtype[is_opportunity_col] = "Bool"
             df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
 
             # group by entity
@@ -803,7 +808,7 @@ class DataFrameMixin(
                 if is_null or (isinstance(value, str) and not value.strip())
                 else value
             )
-        elif dtype in {"time", "datetime64[ns]"}:
+        elif dtype in {"time", "datetime", "datetime64[ns]"}:
             return (
                 None
                 if is_null or (isinstance(value, str) and not value.strip())
@@ -866,7 +871,7 @@ class DataFrameMixin(
         dtype = dtype.lower()
         if dtype in {"numeric", "float64"}:
             return "float64"
-        elif dtype in {"time", "datetime64[ns]"}:
+        elif dtype in {"time", "datetime", "datetime64[ns]"}:
             return "datetime64[ns]"
         elif dtype in {"string"}:
             return "string"
@@ -892,10 +897,12 @@ class DataFrameMixin(
         dtype : str
             data type: 'numeric' or 'float64', 'time', 'bool' or 'boolean', 'unknown' or 'object'
         """
+        if not dtype:
+            return df[column]
         dtype = dtype.lower()
         if dtype in {"numeric", "float64"}:
             df[column] = self.column_to_numeric(df, column, **kwargs)
-        elif dtype in {"time", "datetime64[ns]"}:
+        elif dtype in {"time", "datetime", "datetime64[ns]"}:
             df[column] = self.column_to_datetime(df, column, **kwargs)
         elif dtype in {"string", "str"}:
             df[column] = self.column_to_string(df, column, **kwargs)
