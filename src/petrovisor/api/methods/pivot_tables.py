@@ -103,8 +103,10 @@ class PivotTableMixin(
                 **kwargs,
             )
         if pivot_table_data:
+            # get pivot table schema
+            schema = self.get(f"{route}/{self.encode(name)}/Schema")
             return self.convert_pivot_table_to_dataframe(
-                pivot_table_data, groupby_entity=groupby_entity, **kwargs
+                pivot_table_data, schema=schema, groupby_entity=groupby_entity, **kwargs
             )
 
         warnings.warn(
@@ -149,7 +151,7 @@ class PivotTableMixin(
                 ItemType.Scope, scope_name, **kwargs
             )
         if options:
-            self.post(
+            return self.post(
                 f"{route}/{self.encode(name)}/Save/Options", data=options, **kwargs
             )
         return self.get(f"{route}/{self.encode(name)}/Save", **kwargs)

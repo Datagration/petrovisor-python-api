@@ -30,10 +30,10 @@ class LogsMixin(SupportsRequests):
         log_entry = {
             "Timestamp": None,
             "Message": message,
-            "Category": None,
+            "Category": "Python Script",
             "UserName": None,
             "Severity": None,
-            "Workspace": None,
+            "Workspace": self.Workspace,
             "Schedule": None,
             "Workflow": None,
             "StartTime": None,
@@ -77,8 +77,8 @@ class LogsMixin(SupportsRequests):
         """
         return self.add_log_entry(
             message,
-            Workflow=workflow,
-            Category="Workflow Execution",
-            UserName="WorkflowService",
+            workflow=workflow,
+            category="Workflow Execution",
+            username="WorkflowService",
             **kwargs,
         )

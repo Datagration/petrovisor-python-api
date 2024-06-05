@@ -360,7 +360,7 @@ class SupportsDataFrames(Protocol):
 
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe(
-        self, data: List, groupby_entity: bool = False, **kwargs
+        self, data: List, schema: Optional[List[str]] = None, groupby_entity: bool = False, **kwargs
     ): ...
 
     # Get signal data from DataFrame
