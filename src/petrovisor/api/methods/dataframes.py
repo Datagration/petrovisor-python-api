@@ -1067,17 +1067,17 @@ class DataFrameMixin(
         return datetime.strptime(d, format)
 
     # get column name without unit
-    def get_column_name_without_unit(self, column_name: str, **kwargs) -> str:
+    def get_column_name_without_unit(self, column_name: Union[str,int], **kwargs) -> Union[str,int]:
         """
         Get column name without unit from column name
 
         Parameters
         ----------
-        column_name : str
+        column_name : str | int
             Column name
         """
         if not isinstance(column_name, str):
-            column_name = str(column_name)
+            return column_name
         cname = column_name.split("[")[0].strip()
         return cname
 
@@ -1092,7 +1092,7 @@ class DataFrameMixin(
             Column name
         """
         if not isinstance(column_name, str):
-            column_name = str(column_name)
+            return ""
         column_name = column_name.strip()
         cunit = re.findall(r"\[(.*?)\]", column_name)
         if cunit and len(cunit) > 0:
@@ -1110,7 +1110,7 @@ class DataFrameMixin(
             Column name
         """
         if not isinstance(column_name, str):
-            column_name = str(column_name)
+            return column_name, ""
         column_name = column_name.strip()
         cname = self.get_column_name_without_unit(column_name, **kwargs)
         cunit = self.get_column_unit(column_name, **kwargs)
