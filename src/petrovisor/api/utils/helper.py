@@ -56,7 +56,7 @@ class ApiHelper:
 
     # update dictionary
     @staticmethod
-    def update_dict(d: Dict, **kwargs) -> Dict:
+    def update_dict(d: Dict, ignore_case: bool = True, **kwargs) -> Dict:
         """
         Update dictionary fields with keyword argument values
 
@@ -64,11 +64,13 @@ class ApiHelper:
         ----------
         d : dict
             Dictionary
+        ignore_case : bool, default True
+            Whether to ignore case
         """
         if kwargs:
             updated_dict = {}
             for k, v in d.items():
-                val = ApiHelper.get_dict_value(kwargs, k)
+                val = ApiHelper.get_dict_value(kwargs, k, ignore_case=ignore_case)
                 updated_dict[k] = val if (val is not None) else v
             return updated_dict
         return d
@@ -245,11 +247,11 @@ class ApiHelper:
         key : str | Any
             Dictionary key.
         ignore_characters : list | bool | str, default True
-            Characters to ignore. If True self.get_default_ignore_characters() will be used.
+            Characters to ignore. If True get_default_ignore_characters() will be used.
         ignore_case: bool, default True
-            Ignore case.
+            Whether to ignore case
         strip : bool, default True
-            Strip/Trim string.
+            Strip/Trim string
         """
         if d:
             if not isinstance(key, str):
