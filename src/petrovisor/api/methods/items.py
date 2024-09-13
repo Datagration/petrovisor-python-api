@@ -94,7 +94,7 @@ class ItemsMixin(SupportsRequests):
         name = self.get_item_name(item, **kwargs)
         # make sure item is really deleted
         waiting_time = 3  # in seconds
-        while self.item_exists(ItemType.RefTable, name):
+        while self.item_exists(item_type, name):
             self.delete(f"{route}/{self.encode(name)}", **kwargs)
             time.sleep(waiting_time)
         return ApiRequests.success()
@@ -389,7 +389,6 @@ class ItemsMixin(SupportsRequests):
 
 # Items mixin helper
 class ItemsMixinHelper:
-
     # get item types
     @staticmethod
     def get_item_types() -> List:
