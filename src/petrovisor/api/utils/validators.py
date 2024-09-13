@@ -16,7 +16,6 @@ from petrovisor.api.enums.increments import (
 
 
 class Validator:
-
     # get valid signal type name
     @staticmethod
     def get_signal_type_enum(

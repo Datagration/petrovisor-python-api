@@ -10,7 +10,6 @@ def strconstants(cls=None, supress_warnings=False):
     """
 
     def wrap(cls):
-
         # static class
         class StaticClass:
             """

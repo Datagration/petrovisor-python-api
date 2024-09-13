@@ -389,7 +389,6 @@ class ItemsMixin(SupportsRequests):
 
 # Items mixin helper
 class ItemsMixinHelper:
-
     # get item types
     @staticmethod
     def get_item_types() -> List:
