@@ -569,8 +569,7 @@ class SignalsMixin(
                 signal_name = signal[0]
                 unit_name = signal[1] if len(signal) > 1 else None
             else:
-                signal_name = signal
-                unit_name = None
+                signal_name, unit_name = self.get_column_name_and_unit(signal)
             signal_name = ApiHelper.get_object_name(signal_name)
             s = self.get_signal(signal_name)
             s["UnitName"] = (

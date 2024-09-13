@@ -413,7 +413,6 @@ class ApiRequests:
                 # raise exception if error occurred
                 response.raise_for_status()
             except requests.exceptions.HTTPError as err:
-
                 # check if unauthorized request (401)
                 if (
                     retry_on_unauthorized

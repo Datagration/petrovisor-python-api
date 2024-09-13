@@ -82,7 +82,11 @@ class DataFrameMixin(
 
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe(
-        self, data: List, schema: Optional[List[str]] = None, groupby_entity: bool = False, **kwargs
+        self,
+        data: List,
+        schema: Optional[List[str]] = None,
+        groupby_entity: bool = False,
+        **kwargs,
     ):
         """
         Convert PivotTable to DataFrame
@@ -589,7 +593,6 @@ class DataFrameMixin(
                 # column index
                 column_index = col[1]
                 if column_name in column_signals and column_signals[column_name]:
-
                     signal = column_signals[column_name]
                     signal_name = signal["Signal"]
                     signal_unit_name = signal["Unit"]
@@ -1067,7 +1070,9 @@ class DataFrameMixin(
         return datetime.strptime(d, format)
 
     # get column name without unit
-    def get_column_name_without_unit(self, column_name: Union[str,int], **kwargs) -> Union[str,int]:
+    def get_column_name_without_unit(
+        self, column_name: Union[str, int], **kwargs
+    ) -> Union[str, int]:
         """
         Get column name without unit from column name
 
@@ -1264,7 +1269,6 @@ class DataFrameMixin(
 
 # DataFrame mixin helper
 class DataFrameMixinHelper:
-
     # set DataFrame indices
     @staticmethod
     def set_dataframe_index(

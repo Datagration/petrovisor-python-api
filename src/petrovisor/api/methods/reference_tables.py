@@ -120,7 +120,6 @@ class RefTableMixin(
         # add definition if it doesn't exists
         is_empty = df.empty
         if not self.item_exists(ItemType.RefTable, name):
-
             df_columns = list(df.columns)
             df_columns_without_unit = [
                 self.get_column_name_without_unit(col) for col in df.columns
@@ -559,7 +558,6 @@ class RefTableMixin(
 
 # Reference table mixin helper
 class RefTableMixinHelper:
-
     # create DataFrame in case if it is passed as dictionary
     @staticmethod
     def create_dataframe(d: Dict):

@@ -17,7 +17,6 @@ from petrovisor.api.protocols.protocols import SupportsRequests
 
 # Units API calls
 class UnitsMixin(SupportsRequests):
-
     # get unit
     def get_unit(self, name: str, **kwargs) -> Optional[Dict]:
         """
