@@ -40,7 +40,12 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
 
     # get entities
     def get_entities(
-        self, entity_type: Optional[str] = "", signal: Optional[str] = "", **kwargs
+        self,
+        entity_type: Optional[str] = "",
+        signal: Optional[str] = "",
+        include_entities: bool = True,
+        include_opportunities: bool = False,
+        **kwargs,
     ) -> List[Dict]:
         """
         Get entities. Filter optionally by entity type and signal
@@ -51,14 +56,25 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
             Entity type
         signal : str, default ''
             Signal object or Signal name
+        include_entities : bool, default True
+            Whether to include entities
+        include_opportunities : bool, default False
+            Whether to include opportunities
         """
         route = "Entities"
+        options = {
+            "IncludeEntities": include_entities,
+            "IncludeOpportunities": include_opportunities,
+        }
+        options = ApiHelper.update_dict(options, **kwargs)
         # get entities by 'Entity' type
         if entity_type:
-            entities = self.get(f"{route}/{entity_type}/Entities", **kwargs)
+            entities = self.get(
+                f"{route}/{entity_type}/Entities", query=options, **kwargs
+            )
         # get all entities
         else:
-            entities = self.get(f"{route}/All", **kwargs)
+            entities = self.get(f"{route}/All", query=options, **kwargs)
         # get entities by 'Signal' name
         if signal:
             entity_names = self.get_entity_names(
@@ -99,11 +115,22 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
                     return [e for e in entity_names if e in entity_type_names]
         # get entities by 'Entity' type
         elif entity_type:
-            entities = self.get_entities(entity_type=entity_type, signal=None, **kwargs)
+            entities = self.get_entities(
+                entity_type=entity_type,
+                signal=None,
+                include_entities=True,
+                include_opportunities=True,
+                **kwargs,
+            )
             return [e["Name"] for e in entities]
         # get all entities
         else:
-            entity_names = self.get(f"{route}", **kwargs)
+            options = {
+                "IncludeEntities": True,
+                "IncludeOpportunities": True,
+            }
+            options = ApiHelper.update_dict(options, **kwargs)
+            entity_names = self.get(f"{route}", query=options, **kwargs)
         return entity_names if entity_names is not None else []
 
     # add entity
