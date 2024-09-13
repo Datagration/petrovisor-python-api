@@ -2,7 +2,6 @@
 [![PyPI Latest Release](https://img.shields.io/pypi/v/petrovisor.svg)](https://pypi.org/project/petrovisor/)
 
 Python interface to PetroVisor REST API.
-*This lib is currently in development and is subject to change.*
 
 # Install
 
@@ -33,6 +32,9 @@ REST API interface is implemented using [requests](https://github.com/psf/reques
 Other dependencies include
 - [pandas](https://github.com/pandas-dev/pandas)
 - [numpy](https://github.com/numpy/numpy)
+- [pydantic](https://github.com/pydantic/pydantic)
+- [openpyxl](https://github.com/theorchard/openpyxl/tree/master)
+- [xlsxwriter](https://github.com/jmcnamara/XlsxWriter)
 
 # Documentation
 
