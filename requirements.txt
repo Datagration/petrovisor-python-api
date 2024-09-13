@@ -4,6 +4,7 @@ requests
 # common tools requirements
 pandas
 numpy
-typing_extensions
-pydantic
 openpyxl
+xlsxwriter
+pydantic
+typing-extensions
