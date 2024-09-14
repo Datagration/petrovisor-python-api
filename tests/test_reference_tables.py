@@ -5,7 +5,6 @@ import uuid
 
 
 def test_ref_tables(api: PetroVisor):
-
     # create entity
     entity_name = "Well 001"
     api.add_item(
