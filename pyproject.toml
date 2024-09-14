@@ -23,6 +23,7 @@ dependencies = [
     "numpy",
     "pydantic",
     "openpyxl",
+    "xlsxwriter",
     "typing-extensions"
 ]
 
