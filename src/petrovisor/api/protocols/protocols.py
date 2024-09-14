@@ -13,6 +13,7 @@ try:
 except BaseException:
     from typing_extensions import Protocol
 
+import io
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -424,6 +425,16 @@ class SupportsDataFrames(Protocol):
     ) -> Any:
         ...
 
+    # convert dataframe to file-like object
+    def convert_dataframe_to_file_object(
+        self,
+        df: pd.DataFrame,
+        file_name: str,
+        date_format: Optional[str] = None,
+        **kwargs,
+    ) -> io.BytesIO:
+        ...
+
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe(
         self,
@@ -434,8 +445,7 @@ class SupportsDataFrames(Protocol):
     ):
         ...
 
-    # Get signal data from DataFrame
-
+    # get signal data from DataFrame
     def get_signal_data_from_dataframe(
         self,
         df: pd.DataFrame,
