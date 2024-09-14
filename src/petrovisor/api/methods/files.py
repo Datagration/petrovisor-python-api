@@ -9,13 +9,14 @@ import os
 import io
 import json
 import pickle
+import pandas as pd
 
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.protocols.protocols import SupportsRequests
+from petrovisor.api.protocols.protocols import SupportsRequests, SupportsDataFrames
 
 
 # Files API calls
-class FilesMixin(SupportsRequests):
+class FilesMixin(SupportsDataFrames, SupportsRequests):
     """
     Files API calls
     """
@@ -156,11 +157,24 @@ class FilesMixin(SupportsRequests):
         binary : bool, default True
             Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
-        file_obj = self.get_file(name, format="bytes", **kwargs)
+        file_obj = self.get_file(name, **kwargs)
+
+        # custom binary deserialization
         if func and hasattr(func, "__call__"):
             return func(file_obj, **kwargs)
+        # DataFrame from csv
+        if name.lower().endswith(".csv"):
+            return pd.read_csv(io.BytesIO(file_obj))
+        # DataFrame from excel
+        if name.lower().endswith(".xlsx"):
+            return pd.read_excel(io.BytesIO(file_obj))
+        # unpickle
         if binary:
-            return pickle.loads(file_obj)
+            try:
+                return pickle.loads(file_obj)
+            except Exception:
+                return pd.read_pickle(io.BytesIO(file_obj), compression="gzip")
+        # deserialize json
         return json.load(io.BytesIO(file_obj), **kwargs)
 
     # upload object
@@ -186,17 +200,28 @@ class FilesMixin(SupportsRequests):
         binary : bool, default True
             Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
         """
-        # upload file by full path
+        # custom serialization
         if func and hasattr(func, "__call__"):
             file = func(obj, **kwargs)
+        # DataFrame
+        elif isinstance(obj, (pd.DataFrame, pd.Series)):
+            file = self.convert_dataframe_to_file_object(obj, name, **kwargs)
+        # pickle
         elif binary:
             file = pickle.dumps(obj)
+        # json
         else:
             file = json.dumps(obj, **kwargs)
-        # binary stream
-        if binary:
-            file_obj = io.BytesIO(file)
+
+        if isinstance(file, (io.BytesIO, io.StringIO)):
+            file_obj = file
         else:
-            file_obj = io.StringIO(file)
+            # binary stream
+            if binary:
+                file_obj = io.BytesIO(file)
+            # text stream
+            else:
+                file_obj = io.StringIO(file)
+        # define file name
         file_obj.name = name
         return self.upload_file(file=file_obj, name=name, **kwargs)
