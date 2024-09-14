@@ -12,6 +12,7 @@ import io
 import re
 import copy
 from datetime import datetime
+import pickle
 import pandas as pd
 
 from petrovisor.api.enums.internal_dtypes import SignalType
@@ -54,31 +55,38 @@ class DataFrameMixin(
         date_format : str, default None
             Date format
         """
-        with io.BytesIO() as file_obj:
-            file_obj.name = file_name
-            if file_name.lower().endswith(".csv"):
-                if date_format:
-                    df.to_csv(
-                        file_obj,
-                        header=True,
-                        index=False,
-                        encoding="utf-8",
-                        mode="wb",
-                        date_format="%Y-%m-%dT%H:%M:%S.%fZ",
-                    )
-                else:
-                    df.to_csv(
-                        file_obj, header=True, index=True, encoding="utf-8", mode="wb"
-                    )
-                file_obj.seek(0)
-            elif file_name.lower().endswith(".xlsx"):
-                excel_writer = pd.ExcelWriter(file_obj, engine="openpyxl")
-                df.to_excel(excel_writer, header=True, index=True, encoding="utf-8")
-                excel_writer.save()
-                file_obj.seek(0)
+        if not isinstance(df, (pd.DataFrame, pd.Series)):
+            return df
+        if file_name.lower().endswith(".csv"):
+            file_obj = io.BytesIO()
+            if date_format:
+                df.to_csv(
+                    file_obj,
+                    header=True,
+                    index=False,
+                    encoding="utf-8",
+                    mode="wb",
+                    date_format="%Y-%m-%dT%H:%M:%S.%fZ",
+                )
             else:
-                file_obj.close()
-            return file_obj
+                df.to_csv(
+                    file_obj, header=True, index=False, encoding="utf-8", mode="wb"
+                )
+            file_obj.seek(0)
+        elif file_name.lower().endswith(".xlsx"):
+            file_obj = io.BytesIO()
+            with pd.ExcelWriter(file_obj, engine="xlsxwriter") as writer:
+                df.to_excel(writer, index=False)
+            file_obj.seek(0)
+        else:
+            try:
+                file_obj = io.BytesIO()
+                df.to_pickle(file_obj, compression="gzip")
+                file_obj.seek(0)
+            except Exception:
+                file_obj = io.BytesIO(pickle.dumps(df))
+        file_obj.name = file_name
+        return file_obj
 
     # convert PivotTable to DataFrame
     def convert_pivot_table_to_dataframe(
