@@ -268,6 +268,7 @@ class RefTableMixin(
         self,
         name: str,
         entity: Optional[Union[str, Dict, List[str], List[Dict]]] = None,
+        date: Optional[Union[datetime, str]] = None,
         date_start: Optional[Union[datetime, str]] = None,
         date_end: Optional[Union[datetime, str]] = None,
         where_expression: Optional[str] = None,
@@ -285,6 +286,8 @@ class RefTableMixin(
             Reference table name
         entity : str, dict or list[str], list[dict]
             Entity object(s) or Entity name(s)
+        date : str, datetime, None
+            Date or None
         date_start : str, datetime, None
             Start Date or None
         date_end : str, datetime, None
@@ -328,16 +331,21 @@ class RefTableMixin(
                 ]
             else:
                 filter_options["Entity"] = ApiHelper.get_object_name(entity)
-        if date_start and date_end:
+        if date:
+            date = self.get_json_valid_value(date, "time", **kwargs) or ""
+            if date:
+                filter_options["Timestamp"] = date
+        if date_start:
             date_start = self.get_json_valid_value(date_start, "time", **kwargs) or ""
-            date_end = self.get_json_valid_value(date_start, "time", **kwargs) or ""
-            if date_start and not date_end:
-                filter_options["Timestamp"] = date_end
-            elif not date_start and date_end:
-                filter_options["Timestamp"] = date_end
-            elif date_start and date_end:
-                filter_options["StartTimestamp"] = date_start
-                filter_options["EndTimestamp"] = date_end
+        if date_end:
+            date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
+        if date_start and date_end:
+            filter_options["StartTimestamp"] = date_start
+            filter_options["EndTimestamp"] = date_end
+        elif date_start:
+            filter_options["StartTimestamp"] = date_start
+        elif date_end:
+            filter_options["EndTimestamp"] = date_end
         if where_expression:
             filter_options["WhereExpression"] = where_expression
         filter_options = ApiHelper.update_dict(filter_options, **kwargs)
