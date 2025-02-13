@@ -9,6 +9,7 @@ from typing import (
 import warnings
 from datetime import datetime
 import time
+import json
 import pandas as pd
 import numpy as np
 from pandas.api.types import (
@@ -270,11 +271,13 @@ class RefTableMixin(
     def load_ref_table_data(
         self,
         name: str,
-        entity: Optional[Union[str, Dict, List[str], List[Dict]]] = None,
-        date: Optional[Union[datetime, str]] = None,
+        entities: Optional[Union[str, Dict, List[str], List[Dict]]] = None,
         date_start: Optional[Union[datetime, str]] = None,
         date_end: Optional[Union[datetime, str]] = None,
-        where_expression: Optional[str] = None,
+        columns: Optional[Union[str, List[str]]] = None,
+        top: Optional[int] = None,
+        load_all_columns: Optional[bool] = False,
+        where: Optional[str] = None,
         options: Optional[Dict] = None,
         date_col: Optional[str] = "Timestamp",
         entity_col: Optional[str] = "Entity",
@@ -287,15 +290,19 @@ class RefTableMixin(
         ----------
         name : str
             Reference table name
-        entity : str, dict or list[str], list[dict]
+        entities : str, dict or list[str], list[dict]
             Entity object(s) or Entity name(s)
-        date : str, datetime, None
-            Date or None
         date_start : str, datetime, None
             Start Date or None
         date_end : str, datetime, None
             End Date or None
-        where_expression : str, default None
+        columns : str, list[str], default None
+            Columns to retrieve
+        top : int, default None
+            Top number of rows to retrieve
+        load_all_columns : bool, default None
+            Whether to return all columns
+        where : str, default None
             SQL like WHERE expression
         options : dict, None, default None
             Options to retrieve data
@@ -311,18 +318,43 @@ class RefTableMixin(
 
         # get table columns specs
         ref_table_info = self.get_ref_table_data_info(name)
-        if not ref_table_info:
+        if ref_table_info:
+            key_col = (
+                f"{ref_table_info['Key']['Name']}"
+            )
+            key_unit = f"{ref_table_info['Key']['UnitName']}"
+            cols = [
+                f"{d['Name']}" for d in ref_table_info["Values"]
+            ]
+            col_units = {
+                d['Name'] : d['UnitName'] for d in ref_table_info["Values"]
+            }
+        else:
+            key_col = None
+            key_unit = None
+            cols = []
+            col_units = {}
             warnings.warn(
                 "PetroVisor::load_ref_table_data():: "
                 f"Couldn't retrieve ref table '{name}' columns information. Trying to retrieve data only.",
                 RuntimeWarning,
             )
 
-        # retrieve data
+        # retrieve data with optional filters
         filter_options = options if options else {}
-        if entity:
+        # filter entities
+        if entities:
+            pass
+        elif 'entity' in kwargs:
+            warnings.warn(
+                "PetroVisor::load_ref_table_data():: "
+                "'entity' is deprecated and will be removed in a future version. Use 'entities' instead.",
+                DeprecationWarning,
+            )
+            entities = kwargs['entity']
+        if entities:
             if isinstance(
-                entity,
+                entities,
                 (
                     list,
                     tuple,
@@ -330,49 +362,90 @@ class RefTableMixin(
                 ),
             ):
                 filter_options["Entities"] = [
-                    ApiHelper.get_object_name(entity) for e in entity
+                    ApiHelper.get_object_name(e) for e in entities
                 ]
             else:
-                filter_options["Entity"] = ApiHelper.get_object_name(entity)
-        if date:
-            date = self.get_json_valid_value(date, "time", **kwargs) or ""
-            if date:
-                filter_options["Timestamp"] = date
+                filter_options["Entity"] = ApiHelper.get_object_name(entities)
+        # filter dates
         if date_start:
             date_start = self.get_json_valid_value(date_start, "time", **kwargs) or ""
         if date_end:
             date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
         if date_start and date_end:
-            filter_options["StartTimestamp"] = date_start
-            filter_options["EndTimestamp"] = date_end
+            if date_start == date_end:
+                filter_options["Timestamp"] = date
+            else:
+                filter_options["StartTimestamp"] = date_start
+                filter_options["EndTimestamp"] = date_end
         elif date_start:
             filter_options["StartTimestamp"] = date_start
         elif date_end:
             filter_options["EndTimestamp"] = date_end
-        if where_expression:
-            filter_options["WhereExpression"] = where_expression
+        # filter top
+        if top is not None:
+            filter_options["TopRows"] = top
+        # filter using columns
+        if columns:
+            if isinstance(columns, dict):
+                pass
+            else:
+                if not isinstance(columns, (list, tuple, set)):
+                    columns = [columns]
+                def get_column_and_unit(col):
+                    if isinstance(col, (list, tuple, set)):
+                        cname = col[0]
+                        cunit = col[1] if len(col) > 1 else ""
+                    else:
+                        cname, cunit = self.get_column_name_and_unit(col)
+                    return (cname, cunit)
+                columns = dict([(get_column_and_unit(col)) for col in columns])
+            if key_col in columns:
+                filter_options["KeyUnitName"] = columns[key_col]
+            filter_options["ValuesUnitNames"] = {k: v for k,v in columns.items() if k != key_col}
+        if load_all_columns is not None:
+            filter_options["ReturnOnlySpecifiedValuesUnitNames"] = not load_all_columns
+        # filter using where expression
+        if where:
+            filter_options["WhereExpression"] = where
+        elif 'where_expression' in kwargs:
+            warnings.warn(
+                "PetroVisor::load_ref_table_data():: "
+                "'where_expression' is deprecated and will be removed in a future version. Use 'where' instead.",
+                DeprecationWarning,
+            )
+            filter_options["WhereExpression"] = kwargs['where_expression']
         filter_options = ApiHelper.update_dict(filter_options, **kwargs)
+
+        # adjust column names with units
+        load_selected_columns_only = filter_options["ReturnOnlySpecifiedValuesUnitNames"]
+        if "KeyUnitName" in filter_options:
+            key_unit = filter_options["KeyUnitName"]
+        key_unit_col = f"{key_col} [{key_unit}]"
+        if "ValuesUnitNames" in filter_options:
+            columns = filter_options["ValuesUnitNames"]
+            if load_selected_columns_only:
+                column_units = [f"{col} [{unit}]" for col, unit in columns.items()]
+            else:
+                column_units = [f"{col} [{columns[col]}]" if col in columns else f"{col} [{col_units[col]}]" for col in
+                             cols]
+        else:
+            column_units = [f"{col} [{col_units[col]}]" for col in cols]
 
         # get filtered data
         data = self.post(
             f"{route}/{self.encode(name)}/Data", data=filter_options, **kwargs
         )
 
+        # create DataFrame
         if not ref_table_info:
             # assign data without column names
             df = pd.DataFrame(data=data)
         else:
             columns = [
-                f"{d['Name']} [{d['UnitName']}]" for d in ref_table_info["Values"]
-            ]
-            key_column = (
-                f"{ref_table_info['Key']['Name']} [{ref_table_info['Key']['UnitName']}]"
-            )
-            columns = [
                 entity_col or "Entity",
                 date_col or "Timestamp",
-                key_column,
-                *columns,
+                key_unit_col or "Key",
+                *column_units,
             ]
             # assign data and column names
             df = pd.DataFrame(data=data, columns=columns)
@@ -506,8 +579,13 @@ class RefTableMixin(
     def delete_ref_table_data(
         self,
         name: str,
+        entities: Optional[Union[str, List[str]]] = None,
         date_start: Optional[Union[datetime, float]] = None,
         date_end: Optional[Union[datetime, float]] = None,
+        drop_null_dates = False,
+        keys: Optional[Union[str, List[str]]] = None,
+        where: Optional[str] = None,
+        options: Optional[Dict] = None,
         **kwargs,
     ) -> Any:
         """
@@ -517,34 +595,136 @@ class RefTableMixin(
         ----------
         name : str
             Reference table name
+        entities : str, dict or list[str], list[dict]
+            Entity object(s) or Entity name(s)
         date_start : str, datetime, None
             Start Date or None
         date_end : str, datetime, None
             End Date or None
+        drop_null_dates : bool, default False
+            Whether to delete rows without date
+        keys : str, list[str], default None
+            Key(s) to delete
+        where : str, default None
+            SQL like WHERE expression
+        options : dict, None, default None
+            Options to retrieve data
         """
         route = "RefTables"
         if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
 
-        if date_start or date_end:
+        filter_options = options if options else {}
+
+        # filter entities
+        if entities:
+            if not isinstance(
+                entities,
+                (
+                    list,
+                    tuple,
+                    set,
+                ),
+            ):
+                entities = [entities]
+            filter_options["Entities"] = [
+                ApiHelper.get_object_name(e) for e in entities
+            ]
+        # filter dates
+        if date_start:
             date_start = self.get_json_valid_value(date_start, "time", **kwargs) or ""
-            date_end = self.get_json_valid_value(date_start, "time", **kwargs) or ""
-            if date_start and not date_end:
-                date_end = date_start
-            elif not date_start and date_end:
-                date_start = date_end
-            if date_start and date_end:
-                options = {
-                    "TimestampStart": date_start,
-                    "TimestampEnd": date_end,
-                    "IncludeWithNoTimestamp": False,  # Whether rows without timestamps should be deleted
-                }
-                options = ApiHelper.update_dict(options, **kwargs)
-                return self.delete(
-                    f"{route}/{self.encode(name)}/Data/Timestamp",
-                    query=options,
-                    **kwargs,
-                )
+        if date_end:
+            date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
+        if date_start and date_end:
+            filter_options["StartTimestamp"] = date_start
+            filter_options["EndTimestamp"] = date_end
+        elif date_start:
+            filter_options["StartTimestamp"] = date_start
+        elif date_end:
+            filter_options["EndTimestamp"] = date_end
+        if drop_null_dates:
+            filter_options["IncludeWithNoTimestamp"] = drop_null_dates
+        # filter keys
+        if keys and isinstance(keys, (list, tuple, set)):
+            filter_options["Keys"] = keys
+        # filter using where expression
+        if where:
+            filter_options["WhereExpression"] = where
+        elif 'where_expression' in kwargs:
+            warnings.warn(
+                "PetroVisor::delete_ref_table_data():: "
+                "'where_expression' is deprecated and will be removed in a future version. Use 'where' instead.",
+                DeprecationWarning,
+            )
+            filter_options["WhereExpression"] = kwargs['where_expression']
+
+        filter_options = ApiHelper.update_dict(filter_options, **kwargs)
+
+        filter_entities = "Entities" in filter_options
+        filter_time = "StartTimestamp" in filter_options or "EndTimestamp" in filter_options or "IncludeWithNoTimestamp" in filter_options
+        filter_keys = "Keys" in filter_options
+        filter_where = "WhereExpression" in filter_options
+
+        # delete only specified keys
+        if filter_keys and not filter_time and not filter_where and not filter_entities:
+            data = pd.DataFrame(filter_options["Keys"]).astype("string").to_json(orient="values")
+            return self.put(f"{route}/{self.encode(name)}/Data/String",
+                            data=data,
+                            **kwargs,
+                            )
+
+        if filter_keys or filter_time or filter_where or filter_entities:
+            where_expressions = []
+            entity_col = "Entity"
+            time_col = "Timestamp"
+            if filter_entities:
+                data = " OR ".join([f"[{entity_col}] = '{entity}'" if entity is not None else f"[{entity_col}] IS NULL" for entity in entities])
+                where_expressions.append(f"({data})")
+            if filter_time:
+                time_range_expressions = []
+                time_expressions = []
+                if "StartTimestamp" in filter_options:
+                    if filter_options["StartTimestamp"] is None:
+                        time_range_expressions.append(f"[{time_col}] IS NULL")
+                    else:
+                        time_range_expressions.append(f"[{time_col}] >= '{filter_options['StartTimestamp']}'")
+                if "EndTimestamp" in filter_options:
+                    if filter_options["EndTimestamp"] is None:
+                        time_range_expressions.append(f"[{time_col}] IS NULL")
+                    else:
+                        time_range_expressions.append(f"[{time_col}] <= '{filter_options['EndTimestamp']}'")
+                if time_range_expressions:
+                    time_expressions.append(f"({' AND '.join(time_range_expressions)})")
+                if "IncludeWithNoTimestamp" in filter_options:
+                    time_expressions.append(f"[{time_col}] IS NULL")
+                where_expressions.append(f"({' OR '.join(time_expressions)})")
+            if filter_keys:
+                # get table columns specs
+                ref_table_info = self.get_ref_table_data_info(name)
+                if ref_table_info:
+                    key_col = (
+                        f"{ref_table_info['Key']['Name']}"
+                    )
+                    cols = [entity_col, time_col, key_col]
+                    key_expressions = []
+                    keys_data = json.loads(pd.DataFrame(filter_options["Keys"]).astype("string").to_json(orient="values"))
+                    for t in keys_data:
+                        key_expressions.append(" AND ".join([f"[{col}] = '{val}'" if val is not None else f"[{col}] IS NULL" for col, val in zip(cols, t)]))
+                    if key_expressions:
+                        where_expressions.append(f"({' OR '.join([f'({k})' for k in key_expressions])})")
+                else:
+                    warnings.warn(
+                        "PetroVisor::delete_ref_table_data():: "
+                        f"Couldn't retrieve ref table '{name}' columns information to construct where expression.",
+                        RuntimeWarning,
+                    )
+            if filter_where:
+                where_expressions.append(f"({filter_options['WhereExpression']})")
+            if where_expressions:
+                return self.delete(f"{route}/{self.encode(name)}/Data",
+                                   query={"WhereExpression": " AND ".join(where_expressions)},
+                                   **kwargs)
+        # delete all data
         return self.delete(f"{route}/{self.encode(name)}/Data", **kwargs)
 
     # delete reference table
