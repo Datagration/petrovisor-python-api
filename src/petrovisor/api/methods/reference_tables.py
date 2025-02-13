@@ -276,7 +276,7 @@ class RefTableMixin(
         date_end: Optional[Union[datetime, str]] = None,
         columns: Optional[Union[str, List[str]]] = None,
         top: Optional[int] = None,
-        load_all_columns: Optional[bool] = False,
+        all_cols: Optional[bool] = False,
         where: Optional[str] = None,
         options: Optional[Dict] = None,
         date_col: Optional[str] = "Timestamp",
@@ -300,8 +300,8 @@ class RefTableMixin(
             Columns to retrieve
         top : int, default None
             Top number of rows to retrieve
-        load_all_columns : bool, default None
-            Whether to return all columns
+        all_cols : bool, default None
+            Whether to load all columns or only specified by 'columns' argument
         where : str, default None
             SQL like WHERE expression
         options : dict, None, default None
@@ -402,8 +402,8 @@ class RefTableMixin(
             if key_col in columns:
                 filter_options["KeyUnitName"] = columns[key_col]
             filter_options["ValuesUnitNames"] = {k: v for k,v in columns.items() if k != key_col}
-        if load_all_columns is not None:
-            filter_options["ReturnOnlySpecifiedValuesUnitNames"] = not load_all_columns
+        if all_cols is not None:
+            filter_options["ReturnOnlySpecifiedValuesUnitNames"] = not all_cols
         # filter using where expression
         if where:
             filter_options["WhereExpression"] = where
