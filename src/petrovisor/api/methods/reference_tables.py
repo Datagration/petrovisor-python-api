@@ -319,16 +319,10 @@ class RefTableMixin(
         # get table columns specs
         ref_table_info = self.get_ref_table_data_info(name)
         if ref_table_info:
-            key_col = (
-                f"{ref_table_info['Key']['Name']}"
-            )
+            key_col = f"{ref_table_info['Key']['Name']}"
             key_unit = f"{ref_table_info['Key']['UnitName']}"
-            cols = [
-                f"{d['Name']}" for d in ref_table_info["Values"]
-            ]
-            col_units = {
-                d['Name'] : d['UnitName'] for d in ref_table_info["Values"]
-            }
+            cols = [f"{d['Name']}" for d in ref_table_info["Values"]]
+            col_units = {d["Name"]: d["UnitName"] for d in ref_table_info["Values"]}
         else:
             key_col = None
             key_unit = None
@@ -345,13 +339,13 @@ class RefTableMixin(
         # filter entities
         if entities:
             pass
-        elif 'entity' in kwargs:
+        elif "entity" in kwargs:
             warnings.warn(
                 "PetroVisor::load_ref_table_data():: "
                 "'entity' is deprecated and will be removed in a future version. Use 'entities' instead.",
                 DeprecationWarning,
             )
-            entities = kwargs['entity']
+            entities = kwargs["entity"]
         if entities:
             if isinstance(
                 entities,
@@ -391,6 +385,7 @@ class RefTableMixin(
             else:
                 if not isinstance(columns, (list, tuple, set)):
                     columns = [columns]
+
                 def get_column_and_unit(col):
                     if isinstance(col, (list, tuple, set)):
                         cname = col[0]
@@ -398,26 +393,31 @@ class RefTableMixin(
                     else:
                         cname, cunit = self.get_column_name_and_unit(col)
                     return (cname, cunit)
+
                 columns = dict([(get_column_and_unit(col)) for col in columns])
             if key_col in columns:
                 filter_options["KeyUnitName"] = columns[key_col]
-            filter_options["ValuesUnitNames"] = {k: v for k,v in columns.items() if k != key_col}
+            filter_options["ValuesUnitNames"] = {
+                k: v for k, v in columns.items() if k != key_col
+            }
         if all_cols is not None:
             filter_options["ReturnOnlySpecifiedValuesUnitNames"] = not all_cols
         # filter using where expression
         if where:
             filter_options["WhereExpression"] = where
-        elif 'where_expression' in kwargs:
+        elif "where_expression" in kwargs:
             warnings.warn(
                 "PetroVisor::load_ref_table_data():: "
                 "'where_expression' is deprecated and will be removed in a future version. Use 'where' instead.",
                 DeprecationWarning,
             )
-            filter_options["WhereExpression"] = kwargs['where_expression']
+            filter_options["WhereExpression"] = kwargs["where_expression"]
         filter_options = ApiHelper.update_dict(filter_options, **kwargs)
 
         # adjust column names with units
-        load_selected_columns_only = filter_options["ReturnOnlySpecifiedValuesUnitNames"]
+        load_selected_columns_only = filter_options[
+            "ReturnOnlySpecifiedValuesUnitNames"
+        ]
         if "KeyUnitName" in filter_options:
             key_unit = filter_options["KeyUnitName"]
         key_unit_col = f"{key_col} [{key_unit}]"
@@ -426,8 +426,14 @@ class RefTableMixin(
             if load_selected_columns_only:
                 column_units = [f"{col} [{unit}]" for col, unit in columns.items()]
             else:
-                column_units = [f"{col} [{columns[col]}]" if col in columns else f"{col} [{col_units[col]}]" for col in
-                             cols]
+                column_units = [
+                    (
+                        f"{col} [{columns[col]}]"
+                        if col in columns
+                        else f"{col} [{col_units[col]}]"
+                    )
+                    for col in cols
+                ]
         else:
             column_units = [f"{col} [{col_units[col]}]" for col in cols]
 
@@ -650,35 +656,53 @@ class RefTableMixin(
         # filter using where expression
         if where:
             filter_options["WhereExpression"] = where
-        elif 'where_expression' in kwargs:
+        elif "where_expression" in kwargs:
             warnings.warn(
                 "PetroVisor::delete_ref_table_data():: "
                 "'where_expression' is deprecated and will be removed in a future version. Use 'where' instead.",
                 DeprecationWarning,
             )
-            filter_options["WhereExpression"] = kwargs['where_expression']
+            filter_options["WhereExpression"] = kwargs["where_expression"]
 
         filter_options = ApiHelper.update_dict(filter_options, **kwargs)
 
         filter_entities = "Entities" in filter_options
-        filter_time = "StartTimestamp" in filter_options or "EndTimestamp" in filter_options or "IncludeWithNoTimestamp" in filter_options
+        filter_time = (
+            "StartTimestamp" in filter_options
+            or "EndTimestamp" in filter_options
+            or "IncludeWithNoTimestamp" in filter_options
+        )
         filter_keys = "Keys" in filter_options
         filter_where = "WhereExpression" in filter_options
 
         # delete only specified keys
         if filter_keys and not filter_time and not filter_where and not filter_entities:
-            data = pd.DataFrame(filter_options["Keys"]).astype("string").to_json(orient="values")
-            return self.put(f"{route}/{self.encode(name)}/Data/String",
-                            data=data,
-                            **kwargs,
-                            )
+            data = (
+                pd.DataFrame(filter_options["Keys"])
+                .astype("string")
+                .to_json(orient="values")
+            )
+            return self.put(
+                f"{route}/{self.encode(name)}/Data/String",
+                data=data,
+                **kwargs,
+            )
 
         if filter_keys or filter_time or filter_where or filter_entities:
             where_expressions = []
             entity_col = "Entity"
             time_col = "Timestamp"
             if filter_entities:
-                data = " OR ".join([f"[{entity_col}] = '{entity}'" if entity is not None else f"[{entity_col}] IS NULL" for entity in entities])
+                data = " OR ".join(
+                    [
+                        (
+                            f"[{entity_col}] = '{entity}'"
+                            if entity is not None
+                            else f"[{entity_col}] IS NULL"
+                        )
+                        for entity in entities
+                    ]
+                )
                 where_expressions.append(f"({data})")
             if filter_time:
                 time_range_expressions = []
@@ -687,12 +711,16 @@ class RefTableMixin(
                     if filter_options["StartTimestamp"] is None:
                         time_range_expressions.append(f"[{time_col}] IS NULL")
                     else:
-                        time_range_expressions.append(f"[{time_col}] >= '{filter_options['StartTimestamp']}'")
+                        time_range_expressions.append(
+                            f"[{time_col}] >= '{filter_options['StartTimestamp']}'"
+                        )
                 if "EndTimestamp" in filter_options:
                     if filter_options["EndTimestamp"] is None:
                         time_range_expressions.append(f"[{time_col}] IS NULL")
                     else:
-                        time_range_expressions.append(f"[{time_col}] <= '{filter_options['EndTimestamp']}'")
+                        time_range_expressions.append(
+                            f"[{time_col}] <= '{filter_options['EndTimestamp']}'"
+                        )
                 if time_range_expressions:
                     time_expressions.append(f"({' AND '.join(time_range_expressions)})")
                 if "IncludeWithNoTimestamp" in filter_options:
@@ -702,16 +730,31 @@ class RefTableMixin(
                 # get table columns specs
                 ref_table_info = self.get_ref_table_data_info(name)
                 if ref_table_info:
-                    key_col = (
-                        f"{ref_table_info['Key']['Name']}"
-                    )
+                    key_col = f"{ref_table_info['Key']['Name']}"
                     cols = [entity_col, time_col, key_col]
                     key_expressions = []
-                    keys_data = json.loads(pd.DataFrame(filter_options["Keys"]).astype("string").to_json(orient="values"))
+                    keys_data = json.loads(
+                        pd.DataFrame(filter_options["Keys"])
+                        .astype("string")
+                        .to_json(orient="values")
+                    )
                     for t in keys_data:
-                        key_expressions.append(" AND ".join([f"[{col}] = '{val}'" if val is not None else f"[{col}] IS NULL" for col, val in zip(cols, t)]))
+                        key_expressions.append(
+                            " AND ".join(
+                                [
+                                    (
+                                        f"[{col}] = '{val}'"
+                                        if val is not None
+                                        else f"[{col}] IS NULL"
+                                    )
+                                    for col, val in zip(cols, t)
+                                ]
+                            )
+                        )
                     if key_expressions:
-                        where_expressions.append(f"({' OR '.join([f'({k})' for k in key_expressions])})")
+                        where_expressions.append(
+                            f"({' OR '.join([f'({k})' for k in key_expressions])})"
+                        )
                 else:
                     warnings.warn(
                         "PetroVisor::delete_ref_table_data():: "
@@ -721,9 +764,11 @@ class RefTableMixin(
             if filter_where:
                 where_expressions.append(f"({filter_options['WhereExpression']})")
             if where_expressions:
-                return self.delete(f"{route}/{self.encode(name)}/Data",
-                                   query={"WhereExpression": " AND ".join(where_expressions)},
-                                   **kwargs)
+                return self.delete(
+                    f"{route}/{self.encode(name)}/Data",
+                    query={"WhereExpression": " AND ".join(where_expressions)},
+                    **kwargs,
+                )
         # delete all data
         return self.delete(f"{route}/{self.encode(name)}/Data", **kwargs)
 
