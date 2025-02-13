@@ -367,7 +367,7 @@ class RefTableMixin(
             date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
         if date_start and date_end:
             if date_start == date_end:
-                filter_options["Timestamp"] = date
+                filter_options["Timestamp"] = date_start
             else:
                 filter_options["StartTimestamp"] = date_start
                 filter_options["EndTimestamp"] = date_end
