@@ -73,15 +73,7 @@ def test_ref_tables(api: PetroVisor):
     api.save_ref_table_data(name, df, skip_existing_data=True)
 
     # load full table
-    df = api.load_ref_table_data(
-        name,
-        date_start=datetime(2025, 1, 1),
-        date_end=datetime(2025, 1, 2),
-        columns=["F [cm]", "E [cm]"],
-        top=10,
-        all_cols=False,
-        where="[Entity] = 'Well 001' AND [Key] >= '20'",
-    )
+    df = api.load_ref_table_data(name)
     assert df.shape[0] == num_rows
 
     # load table using filter
