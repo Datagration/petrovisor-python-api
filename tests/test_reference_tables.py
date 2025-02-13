@@ -2,6 +2,7 @@ from petrovisor import PetroVisor, ItemType
 import pandas as pd
 import numpy as np
 import uuid
+from datetime import datetime, timedelta
 
 
 def test_ref_tables(api: PetroVisor):
