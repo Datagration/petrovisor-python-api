@@ -252,8 +252,11 @@ class RefTableMixin(
             return ApiRequests.success()
         # check that RefTable was created
         waiting_time = 3  # in seconds
-        while not self.item_exists(ItemType.RefTable, name):
+        i = 0
+        max_retries = 10
+        while not self.item_exists(ItemType.RefTable, name) and i < max_retries:
             time.sleep(waiting_time)
+            i += 1
         # save data to already exists RefTable
         return self.save_ref_table_data(
             name,
