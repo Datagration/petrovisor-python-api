@@ -300,7 +300,7 @@ class RefTableMixin(
             Columns to retrieve
         top : int, default None
             Top number of rows to retrieve
-        all_cols : bool, default None
+        all_cols : bool, default False
             Whether to load all columns or only specified by 'columns' argument
         where : str, default None
             SQL like WHERE expression
@@ -582,7 +582,7 @@ class RefTableMixin(
         entities: Optional[Union[str, List[str]]] = None,
         date_start: Optional[Union[datetime, float]] = None,
         date_end: Optional[Union[datetime, float]] = None,
-        drop_null_dates = False,
+        drop_null_dates: Optional[bool] = False,
         keys: Optional[Union[str, List[str]]] = None,
         where: Optional[str] = None,
         options: Optional[Dict] = None,
