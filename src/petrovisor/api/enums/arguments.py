@@ -1,22 +1,22 @@
 from typing import NewType, Literal, get_args
 
 # signals
-StaticNumericSignalArg = NewType("StaticNumericSignal", str)
-StaticStringSignalArg = NewType("StaticStringSignal", str)
-TimeNumericSignalArg = NewType("TimeNumericSignal", str)
-TimeStringSignalArg = NewType("TimeStringSignal", str)
-DepthNumericSignalArg = NewType("DepthNumericSignal", str)
-DepthStringSignalArg = NewType("DepthStringSignal", str)
-PVTSignalArg = NewType("PVTSignal", str)
+StaticNumericSignalArg = NewType("StaticNumericSignalArg", str)
+StaticStringSignalArg = NewType("StaticStringSignalArg", str)
+TimeNumericSignalArg = NewType("TimeNumericSignalArg", str)
+TimeStringSignalArg = NewType("TimeStringSignalArg", str)
+DepthNumericSignalArg = NewType("DepthNumericSignalArg", str)
+DepthStringSignalArg = NewType("DepthStringSignalArg", str)
+PVTSignalArg = NewType("PVTSignalArg", str)
 # workspace values
-WorkspaceValueArg = NewType("WorkspaceValue", str)
+WorkspaceValueArg = NewType("WorkspaceValueArg", str)
 # general types
-StringValueArg = NewType("StringValue", str)
-StringOptionsArg = NewType("StringOptions", str)
+StringValueArg = NewType("StringValueArg", str)
+StringOptionsArg = NewType("StringOptionsArg", str)
 # specific items
-TagEntriesArg = NewType("TagEntries", str)
-HierarchyArg = NewType("Hierarchy", str)
-RefTableArg = NewType("RefTable", str)
+TagEntriesArg = NewType("TagEntriesArg", str)
+HierarchyArg = NewType("HierarchyArg", str)
+RefTableArg = NewType("RefTableArg", str)
 
 
 class ArgumentType(Enum):
