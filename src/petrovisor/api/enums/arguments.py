@@ -19,7 +19,7 @@ HierarchyArg = NewType("HierarchyArg", str)
 RefTableArg = NewType("RefTableArg", str)
 
 
-class ArgumentType(Enum):
+class ArgumentType:
     """Registry of argument types"""
 
     # signals
