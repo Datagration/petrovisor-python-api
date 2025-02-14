@@ -13,6 +13,22 @@ from petrovisor.api.enums.internal_dtypes import (
 from petrovisor.api.enums.increments import TimeIncrement, DepthIncrement
 from petrovisor.api.enums.ml import MLModelType, MLNormalizationType
 from petrovisor.api.enums.data_grids import DataGridType, PointSetType
+from petrovisor.api.enums.arguments import (
+    ArgumentType,
+    StaticNumericSignalArg,
+    StaticStringSignalArg,
+    TimeNumericSignalArg,
+    TimeStringSignalArg,
+    DepthNumericSignalArg,
+    DepthStringSignalArg,
+    PVTSignalArg,
+    WorkspaceValueArg,
+    StringValueArg,
+    StringOptionsArg,
+    TagEntriesArg,
+    HierarchyArg,
+    RefTableArg,
+)
 from petrovisor.models.contexts_manager import ContextsManager
 from petrovisor.api.models.context import Context
 from petrovisor.api.models.scope import Scope
