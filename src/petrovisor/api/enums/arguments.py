@@ -1,4 +1,4 @@
-from typing import NewType, Literal, get_args
+from typing import NewType
 
 # signals
 StaticNumericSignalArg = NewType("StaticNumericSignalArg", str)
