@@ -4,207 +4,207 @@ from typing import NewType
 class ArgumentItemType:
     @property
     def BlobFile(self):
-        return NewType("BlobFileArg", str)
+        return NewType("BlobFile", str)
 
     @property
     def Calculation(self):
-        return NewType("CalculationArg", str)
+        return NewType("Calculation", str)
 
     @property
     def ChartDefinition(self):
-        return NewType("ChartDefinitionArg", str)
+        return NewType("ChartDefinition", str)
 
     @property
     def CleansingCalculation(self):
-        return NewType("CleansingCalculationArg", str)
+        return NewType("CleansingCalculation", str)
 
     @property
     def CleansingScript(self):
-        return NewType("CleansingScriptArg", str)
+        return NewType("CleansingScript", str)
 
     @property
     def Context(self):
-        return NewType("ContextArg", str)
+        return NewType("Context", str)
 
     @property
     def CustomWorkflowActivity(self):
-        return NewType("CustomWorkflowActivityArg", str)
+        return NewType("CustomWorkflowActivity", str)
 
     @property
     def Dashboard(self):
-        return NewType("DashboardArg", str)
+        return NewType("Dashboard", str)
 
     @property
     def DataConnection(self):
-        return NewType("DataConnectionArg", str)
+        return NewType("DataConnection", str)
 
     @property
     def DataGrid(self):
-        return NewType("DataGridArg", str)
+        return NewType("DataGrid", str)
 
     @property
     def DataIntegrationSession(self):
-        return NewType("DataIntegrationSessionArg", str)
+        return NewType("DataIntegrationSession", str)
 
     @property
     def DataIntegrationSet(self):
-        return NewType("DataIntegrationSetArg", str)
+        return NewType("DataIntegrationSet", str)
 
     @property
     def DataSource(self):
-        return NewType("DataSourceArg", str)
+        return NewType("DataSource", str)
 
     @property
     def DCA(self):
-        return NewType("DCAArg", str)
+        return NewType("DCA", str)
 
     @property
     def Entity(self):
-        return NewType("EntityArg", str)
+        return NewType("Entity", str)
 
     @property
     def EntitySet(self):
-        return NewType("EntitySetArg", str)
+        return NewType("EntitySet", str)
 
     @property
     def EntityType(self):
-        return NewType("EntityTypeArg", str)
+        return NewType("EntityType", str)
 
     @property
     def EventCalculation(self):
-        return NewType("EventCalculationArg", str)
+        return NewType("EventCalculation", str)
 
     @property
     def EventSubscription(self):
-        return NewType("EventSubscriptionArg", str)
+        return NewType("EventSubscription", str)
 
     @property
     def FilterDefinition(self):
-        return NewType("FilterDefinitionArg", str)
+        return NewType("FilterDefinition", str)
 
     @property
     def Hierarchy(self):
-        return NewType("HierarchyArg", str)
+        return NewType("Hierarchy", str)
 
     @property
     def Label(self):
-        return NewType("LabelArg", str)
+        return NewType("Label", str)
 
     @property
     def Message(self):
-        return NewType("MessageArg", str)
+        return NewType("Message", str)
 
     @property
     def MLModel(self):
-        return NewType("MLModelArg", str)
+        return NewType("MLModel", str)
 
     @property
     def PivotTable(self):
-        return NewType("PivotTableArg", str)
+        return NewType("PivotTable", str)
 
     @property
     def Plot(self):
-        return NewType("PlotArg", str)
+        return NewType("Plot", str)
 
     @property
     def PowerBIItem(self):
-        return NewType("PowerBIItemArg", str)
+        return NewType("PowerBIItem", str)
 
     @property
     def ProcessTemplate(self):
-        return NewType("ProcessTemplateArg", str)
+        return NewType("ProcessTemplate", str)
 
     @property
     def PSharpScript(self):
-        return NewType("PSharpScriptArg", str)
+        return NewType("PSharpScript", str)
 
     @property
     def PythonWorkflowActivity(self):
-        return NewType("PythonWorkflowActivityArg", str)
+        return NewType("PythonWorkflowActivity", str)
 
     @property
     def ReferenceTable(self):
-        return NewType("ReferenceTableArg", str)
+        return NewType("ReferenceTable", str)
 
     @property
     def RWorkflowActivity(self):
-        return NewType("RWorkflowActivityArg", str)
+        return NewType("RWorkflowActivity", str)
 
     @property
     def Scenario(self):
-        return NewType("ScenarioArg", str)
+        return NewType("Scenario", str)
 
     @property
     def Scope(self):
-        return NewType("ScopeArg", str)
+        return NewType("Scope", str)
 
     @property
     def Signal(self):
-        return NewType("SignalArg", str)
+        return NewType("Signal", str)
 
     @property
     def Snapshot(self):
-        return NewType("SnapshotArg", str)
+        return NewType("Snapshot", str)
 
     @property
     def Tag(self):
-        return NewType("TagArg", str)
+        return NewType("Tag", str)
 
     @property
     def TagEntry(self):
-        return NewType("TagEntryArg", str)
+        return NewType("TagEntry", str)
 
     @property
     def Ticket(self):
-        return NewType("TicketArg", str)
+        return NewType("Ticket", str)
 
     @property
     def TicketTimeInterval(self):
-        return NewType("TicketTimeIntervalArg", str)
+        return NewType("TicketTimeInterval", str)
 
     @property
     def Unit(self):
-        return NewType("UnitArg", str)
+        return NewType("Unit", str)
 
     @property
     def Unknown(self):
-        return NewType("UnknownArg", str)
+        return NewType("Unknown", str)
 
     @property
     def User(self):
-        return NewType("UserArg", str)
+        return NewType("User", str)
 
     @property
     def UserGroup(self):
-        return NewType("UserGroupArg", str)
+        return NewType("UserGroup", str)
 
     @property
     def UserSetting(self):
-        return NewType("UserSettingArg", str)
+        return NewType("UserSetting", str)
 
     @property
     def WebWorkflowActivity(self):
-        return NewType("WebWorkflowActivityArg", str)
+        return NewType("WebWorkflowActivity", str)
 
     @property
     def Workflow(self):
-        return NewType("WorkflowArg", str)
+        return NewType("Workflow", str)
 
     @property
     def WorkflowSchedule(self):
-        return NewType("WorkflowScheduleArg", str)
+        return NewType("WorkflowSchedule", str)
 
     @property
     def Workspace(self):
-        return NewType("WorkspaceArg", str)
+        return NewType("Workspace", str)
 
     @property
     def WorkspaceValue(self):
-        return NewType("WorkspaceValueArg", str)
+        return NewType("WorkspaceValue", str)
 
     @property
     def WorkspacePackage(self):
-        return NewType("WorkspacePackageArg", str)
+        return NewType("WorkspacePackage", str)
 
 
 class ArgumentType:
@@ -213,50 +213,50 @@ class ArgumentType:
     # signals
     @property
     def StaticNumericSignal(self):
-        return NewType("StaticNumericSignalArg", str)
+        return NewType("StaticNumericSignal", str)
 
     @property
     def StaticStringSignal(self):
-        return NewType("StaticStringSignalArg", str)
+        return NewType("StaticStringSignal", str)
 
     @property
     def TimeNumericSignal(self):
-        return NewType("TimeNumericSignalArg", str)
+        return NewType("TimeNumericSignal", str)
 
     @property
     def TimeStringSignal(self):
-        return NewType("TimeStringSignalArg", str)
+        return NewType("TimeStringSignal", str)
 
     @property
     def DepthNumericSignal(self):
-        return NewType("DepthNumericSignalArg", str)
+        return NewType("DepthNumericSignal", str)
 
     @property
     def DepthStringSignal(self):
-        return NewType("DepthStringSignalArg", str)
+        return NewType("DepthStringSignal", str)
 
     @property
     def PVTSignal(self):
-        return NewType("PVTSignalArg", str)
+        return NewType("PVTSignal", str)
 
     # specific types
     @property
     def TagEntries(self):
-        return NewType("TagEntriesArg", str)
+        return NewType("TagEntries", str)
 
     # general types
     @property
     def StringValue(self):
-        return NewType("StringValueArg", str)
+        return NewType("StringValue", str)
 
     @property
     def StringOptions(self):
-        return NewType("StringOptionsArg", str)
+        return NewType("StringOptions", str)
 
     @property
     def Item(self):
-        return NewType("ItemArg", ArgumentItemType)
+        return NewType("Item", ArgumentItemType)
 
     @property
     def ItemOptions(self):
-        return NewType("ItemOptionsArg", ArgumentItemType)
+        return NewType("ItemOptions", ArgumentItemType)
