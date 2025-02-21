@@ -103,10 +103,6 @@ class ArgumentItemType:
         return NewType("PivotTable", str)
 
     @property
-    def Plot(self):
-        return NewType("Plot", str)
-
-    @property
     def PowerBIItem(self):
         return NewType("PowerBIItem", str)
 
