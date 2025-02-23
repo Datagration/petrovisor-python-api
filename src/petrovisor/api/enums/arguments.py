@@ -242,8 +242,8 @@ class ArgumentType:
 
     # general types
     @property
-    def StringValue(self):
-        return NewType("StringValue", str)
+    def String(self):
+        return NewType("String", str)
 
     @property
     def StringOptions(self):
