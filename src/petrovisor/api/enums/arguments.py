@@ -254,5 +254,9 @@ class ArgumentType:
         return NewType("Item", ArgumentItemType)
 
     @property
+    def Items(self):
+        return NewType("Items", ArgumentItemType)
+
+    @property
     def ItemOptions(self):
         return NewType("ItemOptions", ArgumentItemType)
