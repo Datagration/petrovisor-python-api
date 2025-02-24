@@ -1,4 +1,4 @@
-from typing import NewType, List
+from typing import NewType
 
 
 class ArgumentItemType:
