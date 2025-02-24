@@ -1,4 +1,4 @@
-from typing import NewType
+from typing import NewType, List
 
 
 class ArgumentItemType:
@@ -252,6 +252,10 @@ class ArgumentType:
     @property
     def Item(self):
         return NewType("Item", ArgumentItemType)
+
+    @property
+    def Items(self):
+        return NewType("Items", ArgumentItemType)
 
     @property
     def ItemOptions(self):
