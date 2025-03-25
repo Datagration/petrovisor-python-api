@@ -8,3 +8,7 @@ openpyxl
 xlsxwriter
 pydantic
 typing-extensions
+
+# development requirements
+pre-commit
+ruff
