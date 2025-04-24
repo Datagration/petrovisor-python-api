@@ -5,6 +5,7 @@ petrovisor.egg-info/
 /venv/
 /.vscode/
 /.idea/
+/docs/api/
 __pycache__/
 *.pyc
 *.ipynb_checkpoints
