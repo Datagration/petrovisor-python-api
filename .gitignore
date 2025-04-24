@@ -1,11 +1,12 @@
 *.DS_Store
+/petrovisor.egg-info/
 /build/
-petrovisor.egg-info/
 /dist/
 /venv/
 /.vscode/
 /.idea/
 /docs/api/
+/experimental/
 __pycache__/
 *.pyc
 *.ipynb_checkpoints
