@@ -1,22 +1,16 @@
 [build-system]
-requires = [
-    "setuptools>=48",
-    "wheel >= 0.29.0"
-]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = 'petrovisor'
-dynamic = [
-    'version'
-]
-description = 'Python API for PetroVisor platform.'
-readme = 'README.md'
+name = "petrovisor"
+description = "Python API for PetroVisor platform."
+readme = "README.md"
 authors = [
-    { name = 'Weatherford International plc', email = 'support.datagration@weatherford.com' }
+    { name = "Weatherford International plc", email = "support.datagration@weatherford.com" }
 ]
-license = {file = 'LICENSE'}
-requires-python = '>=3.7'
+license = {file = "LICENSE"}
+requires-python = ">=3.7"
 dependencies = [
     "requests",
     "pandas",
@@ -26,27 +20,44 @@ dependencies = [
     "xlsxwriter",
     "typing-extensions"
 ]
-
 classifiers = [
-    'Operating System :: OS Independent',
-    'License :: OSI Approved :: MIT License',
-    'Programming Language :: Python',
-    'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
-    'Programming Language :: Python :: 3.13',
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
+dynamic = ["version"]
 
 [project.urls]
-"repository" = "https://github.com/Datagration/petrovisor-python-api"
+repository = "https://github.com/Datagration/petrovisor-python-api"
 
-[tool.setuptools.dynamic]
-version = {attr = "petrovisor.__version__"}
+[tool.hatch.version]
+path = "petrovisor/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["petrovisor"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "examples/*",
+    "experimental/*",
+    "tests/*",
+    "website/*",
+    "docs/*",
+    "scripts/*",
+    "*.egg-info",
+    ".gitignore",
+    ".git",
+]
+
+# Keep existing Ruff configuration
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [

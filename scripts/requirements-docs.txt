@@ -1,0 +1,6 @@
+numpydoc
+sphinx
+docstring-parser
+# myst-parser
+docutils
+# rst-to-myst[sphinx]

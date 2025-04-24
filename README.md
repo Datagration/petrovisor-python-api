@@ -3,36 +3,111 @@
 
 Python interface to PetroVisor REST API.
 
-# Install
+# Installing petrovisor
 
-Install `petrovisor` package from `pip`
+`petrovisor` can be installed using `pip` or `uv` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
 
-    pip install petrovisor
+## Prerequisites
 
-or from the source
+- Python 3.7 or higher, Python 3.12 (Recommended)
+- [pip](https://pypi.org/project/pip/) (Python package installer) or [uv](https://docs.astral.sh/uv/) (extremely fast Python package and project manager, written in Rust)
 
-    python -m pip install .
+## Installation Options
 
-Make sure that `pip`, `setuptools` and `build` are up to date
+### From PyPI (Recommended)
 
-    python -m pip install --upgrade pip
-    python -m pip install --upgrade setuptools
-    python -m pip install --upgrade build
+```bash
+pip install petrovisor
+```
 
-# Uninstall
+or
+
+```bash
+uv pip install petrovisor
+```
+
+### From GitHub
+
+```bash
+pip install git+https://github.com/Datagration/petrovisor-python-api.git
+```
+
+or
+
+```bash
+uv pip install git+https://github.com/Datagration/petrovisor-python-api.git
+```
+
+### From Source
+
+1. Clone the repository
+```bash
+git clone https://github.com/Datagration/petrovisor-python-api.git
+cd petrovisor-python-api
+```
+
+2. Install the package
+```bash
+pip install .
+```
+
+or
+
+```bash
+uv pip install .
+```
+
+## Verify Installation
+
+You can verify that petrovisor is installed correctly by importing it in Python:
+
+```python
+import petrovisor as pv
+print(pv.__version__)
+```
+
+## Development Setup
+
+For contributors, you can install development dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+or 
+
+```bash
+uv pip install -r requirements.txt
+```
+
+Note that package installation dependencies are defined in `pyproject.toml`, while the `requirements.txt` file includes additional packages needed for development, testing and documentation.
+
+## Package Build System
+
+This package uses [Hatchling](https://hatch.pypa.io/) as its build system. Hatchling is a modern, extensible Python build backend that follows the latest packaging standards (PEP 517/518).
+
+## Uninstalling petrovisor
 
 Uninstall `petrovisor` package
 
-    python -m pip uninstall petrovisor
+```bash
+pip uninstall petrovisor
+```
 
-# Dependencies
+or
+
+```bash
+uv pip uninstall petrovisor
+```
+
+## Dependencies
 
 REST API interface is implemented using [requests](https://github.com/psf/requests)
 
 Other dependencies include
-- [pandas](https://github.com/pandas-dev/pandas)
-- [numpy](https://github.com/numpy/numpy)
 - [pydantic](https://github.com/pydantic/pydantic)
+- [numpy](https://github.com/numpy/numpy)
+- [pandas](https://github.com/pandas-dev/pandas)
 - [openpyxl](https://github.com/theorchard/openpyxl/tree/master)
 - [xlsxwriter](https://github.com/jmcnamara/XlsxWriter)
 
@@ -54,25 +129,24 @@ Other documentation can be found by the following link.
 If one uses Jupyter notebook or running Python script from console for authorization the user required to specify the `workspace`  and `discovery_url`.
 
 ```python
-# workspace
 workspace = 'Workspace Name'
-# url
+# url for authentification (US or EU)
 discovery_url = r'https://identity.us1.petrovisor.com' # US
-# discovery_url = r'https://identity.eu1.petrovisor.com' # EU (alternative)
+discovery_url = r'https://identity.eu1.petrovisor.com' # EU
 ```
 
 `username` and `password` credentials can be entered either by using the login dialog
 ```python
-pv_api = pv.PetroVisor(workspace = workspace,
-                       discovery_url = discovery_url)
+api = pv.PetroVisor(workspace = workspace,
+                    discovery_url = discovery_url)
 ```
 
 or by specifying `username` and `password` arguments directly
 ```python
-pv_api = pv.PetroVisor(workspace = workspace,
-                       discovery_url = discovery_url,
-                       username = username,
-                       password = password)
+api = pv.PetroVisor(workspace = workspace,
+                    discovery_url = discovery_url,
+                    username = username,
+                    password = password)
 ```
 
 ### Examples: Get, Post, Put, Delete requests
