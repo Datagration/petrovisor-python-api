@@ -1,0 +1,13 @@
+{
+  "skip_modules": [
+    "petrovisor.api.protocols.*",
+    "petrovisor.api.internal.*",
+    ".*\\.tests\\..*"
+  ],
+  "skip_classes": [
+    ".*Protocol$",
+    ".*Base$"
+  ],
+  "inherit_docs": true,
+  "collapse_inherited_methods": false
+}
