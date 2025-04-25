@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
 Script to convert Python docstrings to Markdown files.
-Handles NumPy-style docstrings with comprehensive formatting.
 """
 
-import sys
 import inspect
 import importlib
 import pkgutil
@@ -12,7 +10,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from docstring_utils import docstring_to_markdown
+from scripts.docstring_to_mdx import docstring_to_markdown
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Python docstrings to Markdown files")
@@ -33,7 +31,12 @@ def main():
         "inherit_docs": True,
         "include_only_modules": [],
         "from_init": True,
-        "sidebar_position": 4
+        "sidebar": {
+            "position": 4,
+            "label": "API Reference",
+            "title": "API Documentation",
+            "collapsed": False
+        }
     }
     
     if args.config and Path(args.config).exists():
@@ -56,57 +59,38 @@ def main():
             # Store the mapping of classes to their modules
             config['class_modules'] = class_modules
 
-    # Get sidebar position from config - should be a number (already calculated in shell script if it was "last")
-    sidebar_position = config.get("sidebar_position", 4)
+    # Get sidebar properties from config
+    sidebar_config = config.get("sidebar", {})
+    position = sidebar_config.get("position", 4)
+    label = sidebar_config.get("label", "API Reference")
+    title = sidebar_config.get("title", "API Documentation")
+    collapsed = sidebar_config.get("collapsed", False)
     
-    # Make sure sidebar_position is treated as an integer
+    # Make sure position is treated as an integer
     try:
-        sidebar_position = int(sidebar_position)
+        position = int(position)
     except (ValueError, TypeError):
-        sidebar_position = 1
-        print(f"Warning: Invalid sidebar_position value in config, using default: {sidebar_position}")
+        position = 1
+        print(f"Warning: Invalid sidebar position value in config, using default: {position}")
     
     # Create API index file
     with open(output_path / "index.md", "w") as f:
-        f.write("""---
+        f.write(f"""---
 sidebar_position: 1
-title: API Documentation
+title: {title}
 sidebar_label: Overview
 ---
 
-# API Documentation
+# {title}
 
 This section contains the automatically generated API documentation for all modules in the project.
 
-The documentation is generated from NumPy-style docstrings in the Python source code using a custom script.
+## Explore Avaliable Modules
 
-## Available Modules
-
-Each module contains its own classes and functions. Browse the modules in the sidebar to explore the API documentation.
-
-## How to Use This Documentation
-
-Each module's documentation includes:
+Each module includes:
 
 - **Functions** with their parameters, return values, examples, and notes
 - **Classes** with their methods, properties, and usage examples
-
-The documentation follows the NumPy docstring standard, which provides a consistent format for:
-
-- Parameter descriptions with types
-- Return value descriptions
-- Examples showing usage
-- Notes, warnings, and references
-
-## Updating the Documentation
-
-This documentation is automatically generated from the docstrings in the source code. To update it:
-
-1. Update the docstrings in the Python code
-2. Run the docstring conversion script
-3. The changes will be reflected in the documentation
-
-## Explore API Modules
 
 import DocCardList from '@theme/DocCardList';
 
@@ -116,9 +100,10 @@ import DocCardList from '@theme/DocCardList';
     # Create category file for API root using the specified position
     create_category_file(
         output_path,
-        "API Reference",
-        sidebar_position,
+        label,
+        position,
         doc_id="api/index",
+        collapsed=collapsed
     )
 
     if args.package:
@@ -395,10 +380,13 @@ def process_module(module_name: str, output_dir: Path, package_name: str=None, c
                     
             f.write("\n".join(content))
 
+        # Get the format_titles config option
+        format_titles = config.get("format_titles", True)
+
         # Create category file for Docusaurus - point to the index.md file to avoid duplicate routes
         create_category_file(
             module_dir,
-            f"{simple_module_name.replace('_', ' ').title()}",  # Convert snake_case to Title Case
+            format_module_name(simple_module_name, format_titles),  # Use the format_module_name function
             1,  # Position
             None,  # No description needed when using doc ID
             f"api/{simple_module_name}/index",  # Point to the index.md file
@@ -442,7 +430,7 @@ def process_module(module_name: str, output_dir: Path, package_name: str=None, c
         import traceback
         traceback.print_exc()
 
-def create_category_file(dir_path, label, position, description=None, doc_id=None, collapsed=False):
+def create_category_file(dir_path, label, position, description=None, doc_id=None, collapsed=False, title=None):
     """
     Create a _category_.json file for Docusaurus sidebar customization.
 
@@ -461,6 +449,8 @@ def create_category_file(dir_path, label, position, description=None, doc_id=Non
         If not provided, a generated index page is created.
     collapsed : bool, optional
         Whether the category should be collapsed by default
+    title : str, optional
+        Custom title for the category page. If not provided, label is used.
     """
     category = {
         "label": label,
@@ -468,6 +458,10 @@ def create_category_file(dir_path, label, position, description=None, doc_id=Non
         "collapsible": True,
         "collapsed": collapsed
     }
+    
+    # Add title if provided
+    if title:
+        category["title"] = title
 
     # When doc_id is not provided or is explicitly set to None, use generated-index
     if doc_id is None:
@@ -511,6 +505,26 @@ def is_from_main_package(obj, main_package_name=None):
     
     # Check if the module starts with the main package name
     return obj_module.startswith(main_package_name)
+
+def format_module_name(module_name, format_titles=True):
+    """
+    Format a module name for display in documentation.
+    
+    Parameters
+    ----------
+    module_name : str
+        The module name to format
+    format_titles : bool
+        Whether to convert snake_case to Title Case
+        
+    Returns
+    -------
+    str
+        The formatted module name
+    """
+    if format_titles:
+        return module_name.replace('_', ' ').title()
+    return module_name
 
 if __name__ == "__main__":
     main()

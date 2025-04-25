@@ -9,5 +9,11 @@
   ],
   "inherit_docs": true,
   "from_init": true,
-  "sidebar_position": 4
+  "format_titles": false,
+  "sidebar": {
+    "position": 4,
+    "label": "API Reference",
+    "title": "API Documentation",
+    "collapsed": false
+  }
 }
