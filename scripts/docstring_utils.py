@@ -121,7 +121,7 @@ def docstring_to_markdown(obj_name: str, obj: Any, module_path: str, config: dic
 
             # Add the rest of the content in a collapsible section
             if remaining_content:
-                markdown.append(create_details_element(
+                markdown.append(create_container_block(
                     "See detailed documentation",
                     remaining_content,
                     icon="📑",
@@ -129,7 +129,7 @@ def docstring_to_markdown(obj_name: str, obj: Any, module_path: str, config: dic
                 ))
         else:
             # If we can't parse out a first paragraph, just add everything to collapsible
-            markdown.append(create_details_element(
+            markdown.append(create_container_block(
                 "See detailed documentation",
                 mdx_content,
                 icon="📑",
@@ -391,14 +391,14 @@ def docstring_to_markdown(obj_name: str, obj: Any, module_path: str, config: dic
                             method_remaining = method_md[len(method_first_para):].strip()
                             markdown.append(method_first_para)
                             if method_remaining:
-                                markdown.append(create_details_element(
+                                markdown.append(create_container_block(
                                     "See detailed documentation",
                                     method_remaining,
                                     icon="📑",
                                     is_open=True,
                                 ))
                         else:
-                            markdown.append(create_details_element(
+                            markdown.append(create_container_block(
                                 "See detailed documentation",
                                 method_md,
                                 icon="📑",
@@ -1020,9 +1020,9 @@ def _format_as_collapsible(section_name, content):
     # Use the unified format_section_block function with collapsible=True
     return format_section_block(section_name, content, collapsible=True)
 
-def _format_section_block(section_name, content, collapsible=False):
+def format_section_block(section_name, content, collapsible=False):
     """
-    Format a section as either a collapsible block or a regular block with icon.
+    Format a section as either a collapsible admonition or a regular admonition.
 
     Parameters
     ----------
@@ -1031,152 +1031,57 @@ def _format_section_block(section_name, content, collapsible=False):
     content : str
         Content to put inside the block
     collapsible : bool, default=False
-        Whether to make the section collapsible
-
-    Returns
-    -------
-    str
-        Formatted block in Markdown
-    """
-    if not content:
-        return ""
-
-    # Map section types to icons
-    icon_map = {
-        "Notes": "📝",
-        "See Also": "🔗",
-        "References": "📚",
-        "Examples": "💻",
-        "Warning": "⚠️",
-        "Warnings": "⚠️",
-        "Tip": "💡",
-        "Tips": "💡",
-        "Info": "ℹ️",
-        "Information": "ℹ️"
-    }
-
-    # Get icon for this section
-    icon = icon_map.get(section_name, "📋")
-
-    # Check if the content is already a list (starts with -) or has code blocks
-    is_list = re.match(r'^- ', content.strip())
-    has_code_blocks = "```" in content
-
-    # Only wrap in code block if it's not a list or already has code blocks
-    if not is_list and not has_code_blocks and not content.strip().startswith("```"):
-        content = f"```\n{content}\n```"
-
-    # Create either a collapsible section or a regular header section with icon
-    return create_details_element(section_name, content, is_open=not collapsible, icon=icon)
-
-def _create_details_element(summary_text, content, is_open=True, icon=None):
-    """
-    Create an HTML details element with consistent styling.
-
-    Parameters
-    ----------
-    summary_text : str
-        Text to display in the summary (clickable header)
-    content : str
-        Content to put inside the details element
-    is_open : bool, default=True
-        Whether the details element should be open by default
-    icon : str, optional
-        Optional icon to display before the summary text
-
-    Returns
-    -------
-    str
-        Formatted HTML details element
-    """
-    if not content:
-        return ""
-
-    # Add icon if provided
-    summary = f"{icon} {summary_text}" if icon else summary_text
-
-    # Create the details element with optional open attribute
-    open_attr = " open" if is_open else ""
-    details = f"<details{open_attr}>\n<summary>{summary}</summary>\n\n{content}\n</details>"
-
-    return details
-
-def _create_admonition(admonition_type, content, title=None, is_open=True, collapsible=False):
-    """
-    Create a Docusaurus-style admonition with optional collapsibility.
-
-    Parameters
-    ----------
-    admonition_type : str
-        Type of admonition (note, info, tip, warning, danger, etc.)
-    content : str
-        Content inside the admonition
-    title : str, optional
-        Optional custom title. If None, uses the capitalized admonition type
-    is_open : bool, default=True
-        For collapsible admonitions, whether it's open by default
-    collapsible : bool, default=False
-        Whether to make the admonition content collapsible
+        Whether to make the admonition collapsible
 
     Returns
     -------
     str
         Formatted admonition in Markdown
     """
-    # Map admonition types to supported Docusaurus types
-    docusaurus_type_map = {
-        # Standard Docusaurus admonition types
-        "note": "note",
-        "tip": "tip",
-        "info": "info",
-        "warning": "warning",
-        "danger": "danger",
+    if not content:
+        return ""
 
-        # Map alternate types to the standard ones
-        "caution": "danger",
-        "failure": "danger",
-        "important": "info",
-        "see_also": "info",
-        "references": "info",
-        "examples": "tip",
-        "notes": "note",
-        "example": "tip",
-        "success": "tip",
-        "question": "info",
-        "bug": "warning",
-        "quote": "note"
+    # Map section names to admonition types in Docusaurus
+    admonition_map = {
+        "Notes": "note",
+        "Note": "note",
+        "See Also": "info",
+        "References": "info",
+        "Examples": "tip",
+        "Example": "tip",
+        "Warning": "warning",
+        "Warnings": "warning",
+        "Caution": "danger",
+        "Danger": "danger",
+        "Important": "tip",
+        "Tip": "tip",
+        "Tips": "tip",
+        "Info": "info",
+        "Information": "info",
+        "Parameters": "note",
+        "Returns": "note",
+        "Usage": "tip",
+        "Implementation": "info",
+        "Details": "info",
+        "Algorithm": "info",
+        "Error": "danger",
+        "Errors": "danger",
+        "Bug": "warning",
+        "Bugs": "warning"
     }
 
-    # Map to official Docusaurus admonition type, default to "note"
-    docusaurus_type = docusaurus_type_map.get(admonition_type.lower(), "note")
+    # Get the admonition type, default to "note"
+    admonition_type = admonition_map.get(section_name, "note")
 
-    # Titles mapping for common sections
-    type_title_map = {
-        "note": "Note",
-        "tip": "Tip",
-        "info": "Info",
-        "warning": "Warning",
-        "danger": "Danger",
-        "caution": "Caution",
-        "important": "Important",
-        "see_also": "See Also",
-        "references": "References",
-        "examples": "Examples",
-        "notes": "Notes",
-        "example": "Example",
-        "success": "Success",
-        "question": "Question",
-        "failure": "Failure",
-        "bug": "Bug",
-        "quote": "Quote"
-    }
+    # Check if content needs to be wrapped in a code block
+    is_list = re.match(r'^- ', content.strip())
+    has_code_blocks = "```" in content
 
-    # Use provided title or get default from map
-    display_title = title if title is not None else type_title_map.get(admonition_type.lower(), admonition_type.capitalize())
+    if not is_list and not has_code_blocks and not content.strip().startswith("```"):
+        content = f"```\n{content}\n```"
 
-    admonition = f":::{docusaurus_type}[{display_title}]\n\n{content}\n\n:::"
-
-    return admonition
+    # Create admonition with optional collapsibility
+    return create_admonition(admonition_type, content, title=section_name, is_open=True, collapsible=collapsible)
 
 def create_admonition(admonition_type, content, title=None, is_open=True, collapsible=False):
     """
@@ -1264,72 +1169,9 @@ def create_admonition(admonition_type, content, title=None, is_open=True, collap
         # Use standard Docusaurus admonition syntax
         return f":::{docusaurus_type}[{display_title}]\n\n{content}\n\n:::"
 
-def format_section_block(section_name, content, collapsible=False):
+def create_container_block(summary_text, content, is_open=True, icon=None):
     """
-    Format a section as either a collapsible admonition or a regular admonition.
-
-    Parameters
-    ----------
-    section_name : str
-        Name of the section
-    content : str
-        Content to put inside the block
-    collapsible : bool, default=False
-        Whether to make the admonition collapsible
-
-    Returns
-    -------
-    str
-        Formatted admonition in Markdown
-    """
-    if not content:
-        return ""
-
-    # Map section names to admonition types in Docusaurus
-    admonition_map = {
-        "Notes": "note",
-        "Note": "note",
-        "See Also": "info",
-        "References": "info",
-        "Examples": "tip",
-        "Example": "tip",
-        "Warning": "warning",
-        "Warnings": "warning",
-        "Caution": "danger",
-        "Danger": "danger",
-        "Important": "tip",
-        "Tip": "tip",
-        "Tips": "tip",
-        "Info": "info",
-        "Information": "info",
-        "Parameters": "note",
-        "Returns": "note",
-        "Usage": "tip",
-        "Implementation": "info",
-        "Details": "info",
-        "Algorithm": "info",
-        "Error": "danger",
-        "Errors": "danger",
-        "Bug": "warning",
-        "Bugs": "warning"
-    }
-
-    # Get the admonition type, default to "note"
-    admonition_type = admonition_map.get(section_name, "note")
-
-    # Check if content needs to be wrapped in a code block
-    is_list = re.match(r'^- ', content.strip())
-    has_code_blocks = "```" in content
-
-    if not is_list and not has_code_blocks and not content.strip().startswith("```"):
-        content = f"```\n{content}\n```"
-
-    # Create admonition with optional collapsibility
-    return create_admonition(admonition_type, content, title=section_name, is_open=True, collapsible=collapsible)
-
-def create_details_element(summary_text, content, is_open=True, icon=None):
-    """
-    Create a collapsible section styled as a Docusaurus admonition.
+    Create a container block styled as a Docusaurus admonition.
 
     Parameters
     ----------
@@ -1345,7 +1187,7 @@ def create_details_element(summary_text, content, is_open=True, icon=None):
     Returns
     -------
     str
-        Formatted collapsible admonition
+        Formatted container block
     """
     if not content:
         return ""

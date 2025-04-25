@@ -20,8 +20,6 @@ def main():
     parser.add_argument("output_dir", help="Output directory for Markdown files")
     parser.add_argument("--package", help="Base package name")
     parser.add_argument("--config", help="Path to documentation configuration JSON file", default=None)
-    parser.add_argument("--from-init", action="store_true", help="Import only modules defined in __init__.py")
-    parser.add_argument("--sidebar-position", type=int, default=4, help="Sidebar position for the API Reference category")
 
     args = parser.parse_args()
 
@@ -33,8 +31,9 @@ def main():
         "skip_modules": [],
         "skip_classes": [],
         "inherit_docs": True,
-        "collapse_inherited_methods": False,
-        "include_only_modules": []
+        "include_only_modules": [],
+        "from_init": True,
+        "sidebar_position": 4
     }
     
     if args.config and Path(args.config).exists():
@@ -45,18 +44,28 @@ def main():
     init_modules = []
     allowed_classes = []
     class_modules = {}
-    if args.from_init and args.package:
+    if config.get("from_init", True) and args.package:
         init_modules, allowed_classes, class_modules = extract_modules_from_init(args.package)
         if init_modules:
             print(f"Found {len(init_modules)} modules in __init__.py")
             print(f"Found {len(allowed_classes)} classes/functions in __all__: {allowed_classes}")
-            # Override include_only_modules with modules found in __init__ if --from-init is used
+            # Override include_only_modules with modules found in __init__ if from_init is enabled
             config['include_only_modules'] = init_modules
             # Store the allowed class names in config
             config['allowed_classes'] = allowed_classes
             # Store the mapping of classes to their modules
             config['class_modules'] = class_modules
 
+    # Get sidebar position from config - should be a number (already calculated in shell script if it was "last")
+    sidebar_position = config.get("sidebar_position", 4)
+    
+    # Make sure sidebar_position is treated as an integer
+    try:
+        sidebar_position = int(sidebar_position)
+    except (ValueError, TypeError):
+        sidebar_position = 1
+        print(f"Warning: Invalid sidebar_position value in config, using default: {sidebar_position}")
+    
     # Create API index file
     with open(output_path / "index.md", "w") as f:
         f.write("""---
@@ -108,7 +117,7 @@ import DocCardList from '@theme/DocCardList';
     create_category_file(
         output_path,
         "API Reference",
-        args.sidebar_position,  # Use the provided position from command line
+        sidebar_position,
         doc_id="api/index",
     )
 
@@ -320,20 +329,20 @@ def process_module(module_name: str, output_dir: Path, package_name: str=None, c
                 
             if not is_from_main_package(cls, main_package_name):
                 continue
-                
+            
             skip_class = False
             for skip_pattern in config.get('skip_classes', []):
                 if re.match(skip_pattern, f"{module_name}.{class_name}") or re.match(skip_pattern, class_name):
                     skip_class = True
                     break
-                    
+            
             allowed_classes = config.get('allowed_classes', [])
             if allowed_classes and class_name not in allowed_classes:
                 skip_class = True
                 
             if skip_class:
                 continue
-                
+            
             documentable_classes.append((class_name, cls))
         
         # Check if module has any substantial documentation

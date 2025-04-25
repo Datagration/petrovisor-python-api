@@ -49,7 +49,7 @@ as well as an optional `data` and `query` string arguments.
 
 ```python
 name = 'Well'
-pv_api.put(f'Entities/{name}', data = {
+api.put(f'Entities/{name}', data = {
   'Name': name,
   'EntityTypeName': 'Well',
   'Alias': 'Well Alias',
@@ -62,7 +62,7 @@ pv_api.put(f'Entities/{name}', data = {
 ```python
 old_name = 'Well'
 new_name = 'New Well'
-pv_api.post(f'Entities/Rename', query = {
+api.post(f'Entities/Rename', query = {
     'OldName': old_name,
     'NewName': new_name,
 })
@@ -72,14 +72,14 @@ pv_api.post(f'Entities/Rename', query = {
 
 ```python
 name = 'New Well'
-pv_api.get(f'Entities/{name}')
+api.get(f'Entities/{name}')
 ```
 
 #### Delete request
 
 ```python
 name = 'New Well'
-pv_api.delete(f'Entities/{name}')
+api.delete(f'Entities/{name}')
 ```
 
 More examples can be found in the `examples` directory of the repository.
