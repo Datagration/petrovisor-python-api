@@ -156,12 +156,31 @@ def docstring_to_markdown(
                 bool
                     True if attribute should be included, False otherwise
                 """
-                # Skip built-in functions/methods common in Enum classes
-                if (
-                    attr_name in {"from_bytes", "to_bytes"}
-                    and type(attr_value).__name__ == "builtin_function_or_method"
-                ):
-                    return False
+                # Get built-in methods to skip from config, or use defaults
+                skip_builtin_methods = config.get(
+                    "skip_builtin_methods",
+                    [
+                        "from_bytes",
+                        "to_bytes",
+                        "__format__",
+                        "__reduce__",
+                        "__reduce_ex__",
+                        "__subclasshook__",
+                        "__init_subclass__",
+                        "__dir__",
+                        "__sizeof__",
+                    ],
+                )
+
+                # Skip common built-in methods
+                if attr_name in skip_builtin_methods:
+                    # Check if it's a built-in method
+                    if type(attr_value).__name__ in [
+                        "builtin_function_or_method",
+                        "method_descriptor",
+                        "wrapper_descriptor",
+                    ]:
+                        return False
 
                 # Check if attribute is directly defined in this class's __dict__ (not inherited)
                 if attr_name in obj.__dict__:
@@ -343,8 +362,19 @@ def docstring_to_markdown(
                         )
                         continue
 
-                    # Skip protocols if the class name contains "Protocol"
-                    if "Protocol" in cls.__name__:
+                    # Skip classes based on patterns in skip_classes configuration
+                    skip_class = False
+                    for skip_pattern in config.get("skip_classes", []):
+                        if re.match(
+                            skip_pattern, f"{cls_module}.{cls.__name__}"
+                        ) or re.match(skip_pattern, cls.__name__):
+                            skip_class = True
+                            print(
+                                f"  Skipping methods from class: {cls.__module__}.{cls.__name__} (matched pattern: {skip_pattern})"
+                            )
+                            break
+
+                    if skip_class:
                         continue
 
                     # Get methods from this class that are defined in this class's module
