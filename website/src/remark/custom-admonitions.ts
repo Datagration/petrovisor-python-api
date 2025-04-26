@@ -26,6 +26,9 @@ interface PluginOptions {
  * - Container directives: :::admonition[Title] {attr1="value1" attr2="value2"}
  * - Leaf directives: ::admonition[Title] {attr1="value1" attr2="value2"}
  * - Text directives: :admonition[Title] {attr1="value1" attr2="value2"}
+ * 
+ * It also supports shorthand boolean attributes:
+ * - :::admonition[Title] {collapsible}  // equivalent to collapsible=true
  */
 const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
   options = {},
@@ -56,6 +59,25 @@ const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
         const data = directiveNode.data || (directiveNode.data = {});
         const attributes = directiveNode.attributes || {};
 
+        // Process attributes to handle shorthand boolean syntax
+        const processedAttributes: Record<string, unknown> = {};
+        
+        // Process each attribute
+        for (const [key, value] of Object.entries(attributes)) {
+          if (value === '' || value === undefined) {
+            // If an attribute has no value, consider it a boolean attribute with value true
+            processedAttributes[key] = true;
+          } else {
+            // Normal case: keep the original value
+            processedAttributes[key] = value;
+          }
+          
+          // Special handling for boolean text values
+          if (value === 'true' || value === 'false') {
+            processedAttributes[key] = value === 'true';
+          }
+        }
+
         // Set up the hProperties which will be passed to the React component
         data.hName =
           directiveNode.type === 'textDirective' ? 'span' : 'admonition';
@@ -67,7 +89,7 @@ const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
               'admonition-inline',
               `admonition-inline-${directiveNode.name}`,
             ],
-            ...attributes,
+            ...processedAttributes, // Use processed attributes instead
           };
 
           // If there's a title in the label, add it as a data attribute
@@ -78,7 +100,7 @@ const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
           // For container and leaf directives, use the admonition component
           data.hProperties = {
             type: directiveNode.name,
-            ...attributes,
+            ...processedAttributes, // Use processed attributes instead
           };
 
           // If there's a title in the label (from [Title])

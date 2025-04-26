@@ -12,8 +12,8 @@ interface CustomAdmonitionProps {
   title?: ReactNode;
   children: ReactNode;
   type: string;
-  collapsible?: boolean | string;
-  open?: boolean | string;
+  collapsible?: boolean;
+  open?: boolean;
   icon?: ReactNode;
   [key: string]: unknown;
 }
@@ -28,8 +28,8 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
   // Use default icon, title if none provided
   const admonitionIcon = icon || DEFAULT_ICONS[type] || null;
   const admonitionTitle = title || type.charAt(0).toUpperCase() + type.slice(1);
-  const isCollapsible = collapsible === 'true' || collapsible === true;
-  const isOpen = !(open === 'false' || open === false);
+  const isCollapsible = !!collapsible;
+  const isOpen = !(open == false);
 
   // Generate admonition class names
   const baseClasses = [

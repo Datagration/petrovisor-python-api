@@ -10,8 +10,8 @@ interface EnhancedAdmonitionProps {
   className?: string;
   icon?: ReactNode;
   title?: ReactNode;
-  collapsible?: boolean | string;
-  open?: boolean | string;
+  collapsible?: boolean;
+  open?: boolean;
   [key: string]: unknown;
 }
 
@@ -38,7 +38,7 @@ const enhanceAdmonition = (
     const { collapsible, open, className, ...restProps } = props;
 
     // Check if component should be collapsible
-    const isCollapsible = collapsible === true || collapsible === 'true';
+    const isCollapsible = !!collapsible;
 
     // If not collapsible, render the original component
     if (!isCollapsible) {
@@ -46,7 +46,7 @@ const enhanceAdmonition = (
     }
 
     // For collapsible admonitions, modify with details/summary
-    const isOpen = !(open === false || open === 'false');
+    const isOpen = !(open == false);
 
     // Simple approach: Render the original component inside details/summary
     return (
