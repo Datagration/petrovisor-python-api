@@ -26,7 +26,7 @@ interface PluginOptions {
  * - Container directives: :::admonition[Title] {attr1="value1" attr2="value2"}
  * - Leaf directives: ::admonition[Title] {attr1="value1" attr2="value2"}
  * - Text directives: :admonition[Title] {attr1="value1" attr2="value2"}
- * 
+ *
  * It also supports shorthand boolean attributes:
  * - :::admonition[Title] {collapsible}  // equivalent to collapsible=true
  */
@@ -61,7 +61,7 @@ const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
 
         // Process attributes to handle shorthand boolean syntax
         const processedAttributes: Record<string, unknown> = {};
-        
+
         // Process each attribute
         for (const [key, value] of Object.entries(attributes)) {
           if (value === '' || value === undefined) {
@@ -71,7 +71,7 @@ const customAdmonitionsPlugin: Plugin<[PluginOptions?], Root> = (
             // Normal case: keep the original value
             processedAttributes[key] = value;
           }
-          
+
           // Special handling for boolean text values
           if (value === 'true' || value === 'false') {
             processedAttributes[key] = value === 'true';
