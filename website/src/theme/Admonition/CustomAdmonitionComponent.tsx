@@ -21,9 +21,7 @@ export interface CustomAdmonitionProps {
 /**
  * Common implementation for all custom admonition types
  */
-export default function CustomAdmonitionComponent(
-  props: CustomAdmonitionProps,
-): JSX.Element {
+function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
   const { title, children, collapsible, open, icon, type, ...restProps } =
     props;
 
@@ -81,3 +79,17 @@ export default function CustomAdmonitionComponent(
     </div>
   );
 }
+
+// Register all custom admonitions
+const admonitionTypes = ['function', 'class'];
+const CustomAdmonitions: Record<
+  string,
+  React.ComponentType<CustomAdmonitionProps>
+> = {};
+admonitionTypes.forEach((type) => {
+  CustomAdmonitions[type] = (props: CustomAdmonitionProps) => (
+    <CustomAdmonitionComponent {...props} type={type} />
+  );
+});
+
+export default CustomAdmonitions;

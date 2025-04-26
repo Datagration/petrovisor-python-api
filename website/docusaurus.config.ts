@@ -16,6 +16,7 @@ const CUSTOM_ADMONITION_TYPES = [
   'warning',
   'danger',
   // custom admonitions
+  'details',
   'function',
   'class',
 ];

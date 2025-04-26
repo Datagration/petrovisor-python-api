@@ -76,8 +76,6 @@ const enhanceAdmonition = (
 
 // Create enhanced versions of all default admonition types
 const EnhancedAdmonitions: Record<string, AdmonitionComponentType> = {};
-
-// Process each original admonition type and enhance it
 Object.entries(DefaultAdmonitionTypes).forEach(([key, component]) => {
   EnhancedAdmonitions[key] = enhanceAdmonition(
     key,
