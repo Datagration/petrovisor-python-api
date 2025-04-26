@@ -1,6 +1,6 @@
-import React, { ReactNode } from "react";
-import clsx from "clsx";
-import DefaultAdmonitionTypes from "@theme-original/Admonition/Types";
+import React, { ReactNode } from 'react';
+import clsx from 'clsx';
+import DefaultAdmonitionTypes from '@theme-original/Admonition/Types';
 
 /**
  * Props for enhanced admonition components
@@ -31,14 +31,14 @@ type AdmonitionComponentType = React.ComponentType<{
  */
 const enhanceAdmonition = (
   type: string,
-  OriginalAdmonition: AdmonitionComponentType
+  OriginalAdmonition: AdmonitionComponentType,
 ) => {
   return (props: EnhancedAdmonitionProps) => {
     // Extract collapsible related props
     const { collapsible, open, className, ...restProps } = props;
 
     // Check if component should be collapsible
-    const isCollapsible = collapsible === true || collapsible === "true";
+    const isCollapsible = collapsible === true || collapsible === 'true';
 
     // If not collapsible, render the original component
     if (!isCollapsible) {
@@ -46,14 +46,13 @@ const enhanceAdmonition = (
     }
 
     // For collapsible admonitions, modify with details/summary
-    const isOpen = !(open === false || open === "false");
+    const isOpen = !(open === false || open === 'false');
 
     // Simple approach: Render the original component inside details/summary
     return (
       <OriginalAdmonition
         {...restProps}
-        className={clsx(className, "admonition-collapsible")}
-      >
+        className={clsx(className, 'admonition-collapsible')}>
         <details open={isOpen} className="admonition-details">
           <summary className="admonition-summary">
             <div className="admonition-summary-content">
@@ -68,9 +67,7 @@ const enhanceAdmonition = (
               <div className="admonition-arrow"></div>
             </div>
           </summary>
-          <div className="admonition-content">
-            {props.children}
-          </div>
+          <div className="admonition-content">{props.children}</div>
         </details>
       </OriginalAdmonition>
     );
@@ -84,7 +81,7 @@ const EnhancedAdmonitions: Record<string, AdmonitionComponentType> = {};
 Object.entries(DefaultAdmonitionTypes).forEach(([key, component]) => {
   EnhancedAdmonitions[key] = enhanceAdmonition(
     key,
-    component as AdmonitionComponentType
+    component as AdmonitionComponentType,
   );
 });
 

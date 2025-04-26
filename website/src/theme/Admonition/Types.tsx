@@ -1,11 +1,11 @@
-import React, { JSX, ReactNode } from "react";
-import clsx from "clsx";
-import EnhancedDefaultAdmonitions from "./EnhancedDefaultAdmonitions";
+import React, { JSX, ReactNode } from 'react';
+import clsx from 'clsx';
+import EnhancedDefaultAdmonitions from './EnhancedDefaultAdmonitions';
 
 // Default icons for custom admonition types
 const DEFAULT_ICONS = {
-  function: "🔧", // Wrench icon for functions
-  class: "📦", // Package icon for classes
+  function: '🔧', // Wrench icon for functions
+  class: '📦', // Package icon for classes
 };
 
 interface CustomAdmonitionProps {
@@ -28,24 +28,23 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
   // Use default icon, title if none provided
   const admonitionIcon = icon || DEFAULT_ICONS[type] || null;
   const admonitionTitle = title || type.charAt(0).toUpperCase() + type.slice(1);
-  const isCollapsible = collapsible === "true" || collapsible === true;
-  const isOpen = !(open === "false" || open === false);
+  const isCollapsible = collapsible === 'true' || collapsible === true;
+  const isOpen = !(open === 'false' || open === false);
 
   // Generate admonition class names
   const baseClasses = [
-    "admonition",
+    'admonition',
     `admonition-${type}`,
-    "alert",
-    "alert--secondary",
+    'alert',
+    'alert--secondary',
   ];
 
   // Collapsible admonitions, using the same structure as the EnhancedDefaultAdmonitions
   if (isCollapsible) {
     return (
       <div
-        className={clsx(baseClasses, "admonition-collapsible")}
-        {...restProps}
-      >
+        className={clsx(baseClasses, 'admonition-collapsible')}
+        {...restProps}>
         <details open={isOpen} className="admonition-details">
           <summary className="admonition-summary">
             <div className="admonition-summary-content">
@@ -66,7 +65,7 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
 
   // Regular version
   return (
-    <div className={baseClasses.join(" ")} {...restProps}>
+    <div className={baseClasses.join(' ')} {...restProps}>
       <div className="admonition-heading">
         {admonitionIcon && (
           <span className="admonition-icon">{admonitionIcon}</span>
@@ -79,7 +78,7 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
 }
 
 // Define admonition types from the config
-const admonitionTypes = ["function", "class"];
+const admonitionTypes = ['function', 'class'];
 
 // Create a map of all custom admonitions
 const CustomAdmonitions: Record<
