@@ -17,8 +17,7 @@ const FeatureList: FeatureItem[] = [
     logo: '/petrovisor-python-api/img/logos/dotnet-logo.svg',
     description: (
       <>
-        Advanced machine learning with our .NET C# SDK using ML.NET. Build
-        intelligent applications for petroleum engineering workflows.
+        REST API access with high-performance C# and ML.NET machine learning integration.
       </>
     ),
     linkUrl: 'https://www.nuget.org/packages/MyrConn.PetroVisor.Web.Client',
@@ -28,8 +27,7 @@ const FeatureList: FeatureItem[] = [
     logo: '/petrovisor-python-api/img/logos/r-logo.svg',
     description: (
       <>
-        Statistical analysis and visualization with our R language SDK. Built
-        for statistical modeling and petroleum engineering workflows.
+        REST API access with powerful statistical tools and data visualization.
       </>
     ),
     linkUrl: 'https://github.com/Datagration/petrovisor-r-api',
@@ -39,8 +37,7 @@ const FeatureList: FeatureItem[] = [
     logo: '/petrovisor-python-api/img/logos/python-logo.svg',
     description: (
       <>
-        Access PetroVisor platform capabilities with our Python SDK. Perfect for
-        data science, engineering analysis, and automation.
+        REST API access with versatile data processing and machine learning capabilities.
       </>
     ),
     linkUrl: 'https://pypi.org/project/petrovisor/',
@@ -53,8 +50,12 @@ function Feature({ title, logo, description, linkUrl }: FeatureItem) {
       <Link to={linkUrl} className={styles.cardLink}>
         <div className={styles.featureCard}>
           <div className={styles.cardHeader}>
-            <img src={logo} className={styles.featureLogo} alt={title} />
-            <Heading as="h3">{title}</Heading>
+            <div className={styles.logoWrapper}>
+              <img src={logo} className={styles.featureLogo} alt={title} />
+            </div>
+            <Heading as="h3" className={styles.cardTitle}>
+              {title}
+            </Heading>
           </div>
           <div className={styles.cardBody}>
             <p>{description}</p>

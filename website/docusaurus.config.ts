@@ -21,8 +21,8 @@ const CUSTOM_ADMONITION_TYPES = [
 ];
 
 const config: Config = {
-  title: 'PetroVisor Documentation',
-  //tagline: 'PetroVisor SDK',
+  title: 'PetroVisor Developer Hub',
+  tagline: 'Build, Integrate and Automate with our SDKs',
   favicon: 'img/favicon.png',
 
   // Set the production url of your site here
