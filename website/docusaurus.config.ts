@@ -1,8 +1,24 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import customAdmonitionsPlugin from './src/remark/custom-admonitions';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
+
+// List of all custom admonition types we want to support
+const CUSTOM_ADMONITION_TYPES = [
+  // standard Docusaurus admonitions
+  'note',
+  'tip',
+  'info',
+  'warning',
+  'danger',
+  // custom admonitions
+  'function',
+  'class',
+];
 
 const config: Config = {
   title: 'PetroVisor Documentation',
@@ -46,6 +62,19 @@ const config: Config = {
           // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/Datagration/petrovisor-python-api/tree/main/website',
+          // Add support for custom admonition types
+          admonitions: {
+            keywords: CUSTOM_ADMONITION_TYPES,
+            extendDefaults: true,
+          },
+          // Add our custom remark plugin with the list of admonition types
+          remarkPlugins: [
+            [customAdmonitionsPlugin, { keywords: CUSTOM_ADMONITION_TYPES }],
+            remarkMath, // Add support for math equations
+          ],
+          rehypePlugins: [
+            rehypeKatex, // Add KaTeX rendering for math equations
+          ],
         },
         blog: false, // Disable the blog feature
         theme: {
@@ -69,6 +98,17 @@ const config: Config = {
         docsRouteBasePath: '/docs',
       }),
     ],
+  ],
+
+  // Add KaTeX CSS for styling math equations
+  stylesheets: [
+    {
+      href: 'https://cdn.jsdelivr.net/npm/katex@0.13.24/dist/katex.min.css',
+      type: 'text/css',
+      integrity:
+        'sha384-odtC+0UGzzFL/6PNoE8rX/SPcQDXBJ+uRepguP4QkPCm2LBxH3FA3y+fKSiJ+AmM',
+      crossorigin: 'anonymous',
+    },
   ],
 
   themeConfig: {
