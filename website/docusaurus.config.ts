@@ -146,8 +146,9 @@ const config: Config = {
         },
         {
           href: 'https://github.com/Datagration/petrovisor-python-api',
-          label: 'GitHub',
           position: 'right',
+          className: 'header-github-link',
+          'aria-label': 'GitHub repository',
         },
       ],
     },
@@ -168,19 +169,23 @@ const config: Config = {
           ],
         },
         {
-          title: 'PetroVisor SDK',
+          title: 'PetroVisor SDKs',
           items: [
             {
-              label: 'PetroVisor Python SDK',
+              label: 'Python SDK',
               href: 'https://pypi.org/project/petrovisor/',
             },
             {
-              label: 'PetroVisor R SDK',
+              label: 'R SDK',
               href: 'https://github.com/Datagration/petrovisor-r-api',
             },
             {
-              label: 'PetroVisor .NET SDK',
+              label: '.NET SDK',
               href: 'https://www.nuget.org/packages/MyrConn.PetroVisor.Web.Client#readme-body-tab',
+            },
+            {
+              label: 'REST API',
+              href: 'https://api.us1.petrovisor.com/index.html',
             },
           ],
         },
@@ -188,7 +193,7 @@ const config: Config = {
           title: 'More',
           items: [
             {
-              label: 'PetroVisor Knowledge Base',
+              label: 'Weatherford Knowledge Base',
               href: 'https://hs.weatherford.com/knowledge',
             },
             {
@@ -198,7 +203,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Weatherford`,
+      copyright: `Copyright © ${new Date().getFullYear()} Weatherford. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

@@ -11,9 +11,9 @@
   "from_init": true,
   "format_titles": false,
   "sidebar": {
-    "position": 4,
+    "position": 5,
     "label": "API Reference",
     "title": "API Documentation",
-    "collapsed": false
+    "collapsed": true
   }
 }
