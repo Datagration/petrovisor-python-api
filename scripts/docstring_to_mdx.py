@@ -112,7 +112,7 @@ def docstring_to_markdown(
         function_admonition_type = function_config.get("format", "function")
         function_collapsible = function_config.get("collapsible", True)
         function_is_open = function_config.get("open", True)
-        
+
         # Get method admonition configuration
         method_config = config.get("methods", {}) if config else {}
         method_admonition_type = method_config.get("format", "function")
@@ -1233,7 +1233,8 @@ def create_admonition(
     content : str
         Content inside the admonition
     title : str, optional
-        Optional custom title. If None, uses the capitalized admonition type
+        Optional custom title. If None, uses the capitalized admonition type.
+        Can include JSX/MDX elements like icons or formatting.
     is_open : bool, default=True
         For collapsible admonitions, whether it's open by default
     collapsible : bool, default=False
@@ -1302,6 +1303,7 @@ def create_admonition(
     }
 
     # Use provided title or get default from map
+    # The title can now contain JSX/MDX elements that will be properly rendered
     display_title = (
         title
         if title is not None
@@ -1313,7 +1315,7 @@ def create_admonition(
     if collapsible:
         options["collapsible"] = True
         options["open"] = is_open
-    
+
     # Format the options string if there are any options
     options_str = format_options_string(options)
 
@@ -1337,7 +1339,7 @@ def format_options_string(options):
     """
     if not options:
         return ""
-        
+
     # Convert options dict to attribute string
     attrs = []
     for key, value in options.items():
@@ -1347,13 +1349,20 @@ def format_options_string(options):
             attrs.append(f"{key}=false")
         else:
             attrs.append(f"{key}={str(value).lower()}")
-    
+
     if attrs:
         return f"{{{' '.join(attrs)}}}"
     return ""
 
 
-def create_container_block(summary_text, content, admonition_type=None, collapsible=True, is_open=True, icon=None):
+def create_container_block(
+    summary_text,
+    content,
+    admonition_type=None,
+    collapsible=True,
+    is_open=True,
+    icon=None,
+):
     """
     Create a container block styled as a Docusaurus admonition.
 
@@ -1403,11 +1412,11 @@ def create_container_block(summary_text, content, admonition_type=None, collapsi
             admonition_type = "info"
 
     return create_admonition(
-        admonition_type, content, title=title, is_open=is_open, collapsible=True
+        admonition_type, content, title=title, is_open=is_open, collapsible=collapsible
     )
 
 
-def creaate_details_block(summary_text, content, is_open=True, icon=None):
+def create_details_block(summary_text, content, is_open=True, icon=None):
     """
     Create a details block.
 

@@ -40,18 +40,14 @@ def main():
             "title": "API Documentation",
             "collapsed": False,
         },
-        "modules": {
-            "skip": []
-        },
-        "classes": {
-            "skip": []
-        }
+        "modules": {"skip": []},
+        "classes": {"skip": []},
     }
 
     if args.config and Path(args.config).exists():
         with open(args.config, "r") as f:
             config.update(json.load(f))
-            
+
     # Extract modules from __init__.py if requested
     init_modules = []
     allowed_classes = []
