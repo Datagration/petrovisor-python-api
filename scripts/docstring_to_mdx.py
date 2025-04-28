@@ -107,6 +107,18 @@ def docstring_to_markdown(
             first_paragraph_match.group(0) if first_paragraph_match else ""
         )
 
+        # Get function admonition configuration
+        function_config = config.get("functions", {}) if config else {}
+        function_admonition_type = function_config.get("format", "function")
+        function_collapsible = function_config.get("collapsible", True)
+        function_is_open = function_config.get("open", True)
+        
+        # Get method admonition configuration
+        method_config = config.get("methods", {}) if config else {}
+        method_admonition_type = method_config.get("format", "function")
+        method_collapsible = method_config.get("collapsible", True)
+        method_is_open = method_config.get("open", True)
+
         # Remove the first paragraph from the content
         if first_paragraph:
             remaining_content = mdx_content[len(first_paragraph) :].strip()
@@ -117,20 +129,24 @@ def docstring_to_markdown(
             if remaining_content:
                 markdown.append(
                     create_container_block(
-                        "See detailed documentation",
-                        remaining_content,
+                        summary_text="See detailed documentation",
+                        content=remaining_content,
                         icon="📑",
-                        is_open=True,
+                        admonition_type=function_admonition_type,
+                        collapsible=function_collapsible,
+                        is_open=function_is_open,
                     )
                 )
         else:
             # If we can't parse out a first paragraph, just add everything to collapsible
             markdown.append(
                 create_container_block(
-                    "See detailed documentation",
-                    mdx_content,
+                    summary_text="See detailed documentation",
+                    content=mdx_content,
                     icon="📑",
-                    is_open=True,
+                    admonition_type=function_admonition_type,
+                    collapsible=function_collapsible,
+                    is_open=function_is_open,
                 )
             )
 
@@ -482,19 +498,23 @@ def docstring_to_markdown(
                             if method_remaining:
                                 markdown.append(
                                     create_container_block(
-                                        "See detailed documentation",
-                                        method_remaining,
+                                        summary_text="See detailed method documentation",
+                                        content=method_remaining,
                                         icon="📑",
-                                        is_open=True,
+                                        admonition_type=method_admonition_type,
+                                        collapsible=method_collapsible,
+                                        is_open=method_is_open,
                                     )
                                 )
                         else:
                             markdown.append(
                                 create_container_block(
-                                    "See detailed documentation",
-                                    method_md,
+                                    summary_text="See detailed method documentation",
+                                    content=method_md,
                                     icon="📑",
-                                    is_open=True,
+                                    admonition_type=method_admonition_type,
+                                    collapsible=method_collapsible,
+                                    is_open=method_is_open,
                                 )
                             )
 
@@ -1005,14 +1025,6 @@ def format_examples_section(examples_content):
     """
     # Format Python interactive examples with special style
     examples_content = format_interactive_examples(examples_content)
-    # # Format code blocks properly
-    # # This regex will handle >>> style Python interactive examples
-    # examples_content = re.sub(
-    #     r'>>> (.*?)(?=\n>>> |\n\n|$)',
-    #     lambda m: f"```python\n>>> {m.group(1)}\n```",
-    #     examples_content,
-    #     flags=re.DOTALL
-    # )
 
     # Make sure all code blocks are properly closed
     # Check if there are any unclosed code blocks
@@ -1138,26 +1150,6 @@ def format_references_content(content):
     return "\n".join(formatted_items)
 
 
-def _format_as_collapsible(section_name, content):
-    """
-    Format a section as a collapsible Markdown detail block with icon.
-
-    Parameters
-    ----------
-    section_name : str
-        Name of the section
-    content : str
-        Content to put inside the collapsible block
-
-    Returns
-    -------
-    str
-        Formatted collapsible block
-    """
-    # Use the unified format_section_block function with collapsible=True
-    return format_section_block(section_name, content, collapsible=True)
-
-
 def format_section_block(section_name, content, collapsible=False):
     """
     Format a section as either a collapsible admonition or a regular admonition.
@@ -1260,6 +1252,10 @@ def create_admonition(
         "info": "info",
         "warning": "warning",
         "danger": "danger",
+        # Custom admonition types for specific use cases
+        "details": "details",
+        "function": "function",
+        "class": "class",
         # Map alternate types to the standard ones
         "caution": "danger",
         "failure": "danger",
@@ -1280,11 +1276,17 @@ def create_admonition(
 
     # Titles mapping for common sections
     type_title_map = {
+        # Standard Docusaurus admonition types
         "note": "Note",
         "tip": "Tip",
         "info": "Info",
         "warning": "Warning",
         "danger": "Danger",
+        # Custom admonition types for specific use cases
+        "details": "Details",
+        "function": "Function",
+        "class": "Class",
+        # Alternate admonition types
         "caution": "Caution",
         "important": "Important",
         "see_also": "See Also",
@@ -1306,21 +1308,52 @@ def create_admonition(
         else type_title_map.get(admonition_type.lower(), admonition_type.capitalize())
     )
 
+    # Prepare the options object for the admonition
+    options = {}
     if collapsible:
-        # For collapsible sections, use HTML details elements with admonition classes
-        open_attr = " open" if is_open else ""
-        return f"""<details{open_attr}>
-<summary>{display_title}</summary>
+        options["collapsible"] = True
+        options["open"] = is_open
+    
+    # Format the options string if there are any options
+    options_str = format_options_string(options)
 
-{content}
-
-</details>"""
-    else:
-        # Use standard Docusaurus admonition syntax
-        return f":::{docusaurus_type}[{display_title}]\n\n{content}\n\n:::"
+    # Use standard Docusaurus admonition syntax
+    return f":::{docusaurus_type}[{display_title}]{options_str}\n\n{content}\n\n:::"
 
 
-def create_container_block(summary_text, content, is_open=True, icon=None):
+def format_options_string(options):
+    """
+    Format options dictionary into a string for Docusaurus admonitions.
+
+    Parameters
+    ----------
+    options : dict
+        Dictionary of options to format
+
+    Returns
+    -------
+    str
+        Formatted options string for Docusaurus admonitions (e.g. {collapsible open})
+    """
+    if not options:
+        return ""
+        
+    # Convert options dict to attribute string
+    attrs = []
+    for key, value in options.items():
+        if value is True:
+            attrs.append(f"{key}")
+        elif value is False:
+            attrs.append(f"{key}=false")
+        else:
+            attrs.append(f"{key}={str(value).lower()}")
+    
+    if attrs:
+        return f"{{{' '.join(attrs)}}}"
+    return ""
+
+
+def create_container_block(summary_text, content, admonition_type=None, collapsible=True, is_open=True, icon=None):
     """
     Create a container block styled as a Docusaurus admonition.
 
@@ -1330,6 +1363,10 @@ def create_container_block(summary_text, content, is_open=True, icon=None):
         Text to display in the summary (clickable header)
     content : str
         Content to put inside the admonition
+    admonition_type : str, optional
+        Type of admonition (note, info, tip, warning, danger, function, class, etc.)
+    collapsible : bool, default=True
+        Whether the admonition should be collapsible
     is_open : bool, default=True
         Whether the admonition should be open by default
     icon : str, optional
@@ -1347,15 +1384,14 @@ def create_container_block(summary_text, content, is_open=True, icon=None):
     title = f"{icon} {summary_text}" if icon else summary_text
 
     # For "See detailed documentation" sections, use "info" admonition type
-    if "detailed documentation" in summary_text.lower():
-        admonition_type = "info"
-    else:
-        # For other section types, try to infer the appropriate type
-        admonition_type = "note"  # default
-
-        # Check for common keywords in the title to determine type
+    if not admonition_type:
         title_lower = summary_text.lower()
-        if any(word in title_lower for word in ["example", "usage", "how to"]):
+        # Try to infer the appropriate type
+        admonition_type = "note"  # default
+        # Check for common keywords in the title to determine type
+        if "detailed documentation" in title_lower:
+            admonition_type = "info"
+        elif any(word in title_lower for word in ["example", "usage", "how to"]):
             admonition_type = "tip"
         elif any(word in title_lower for word in ["warning", "caution", "important"]):
             admonition_type = "warning"
@@ -1369,3 +1405,38 @@ def create_container_block(summary_text, content, is_open=True, icon=None):
     return create_admonition(
         admonition_type, content, title=title, is_open=is_open, collapsible=True
     )
+
+
+def creaate_details_block(summary_text, content, is_open=True, icon=None):
+    """
+    Create a details block.
+
+    Parameters
+    ----------
+    summary_text : str
+        Text to display in the summary (clickable header)
+    content : str
+        Content to put inside the admonition
+    admonition_type : str, optional
+        Type of admonition (note, info, tip, warning, danger, function, class, etc.)
+    collapsible : bool, default=True
+        Whether the admonition should be collapsible
+    is_open : bool, default=True
+        Whether the admonition should be open by default
+    icon : str, optional
+        Optional icon to display before the summary text
+
+    Returns
+    -------
+    str
+        Formatted container block
+    """
+    #  HTML details elements
+    details_summary = f"{icon} {summary_text}" if icon else summary_text
+    open_attr = " open" if is_open else ""
+    return f"""<details{open_attr}>
+<summary>{details_summary}</summary>
+
+{content}
+
+</details>"""

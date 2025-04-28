@@ -1,12 +1,4 @@
 {
-  "skip_modules": [
-    "petrovisor.api.protocols.*",
-    "petrovisor.api.utils.*"
-  ],
-  "skip_classes": [
-    ".*Protocol$",
-    ".*Base$"
-  ],
   "inherit_docs": true,
   "from_init": true,
   "format_titles": false,
@@ -15,5 +7,33 @@
     "label": "API Reference",
     "title": "API Documentation",
     "collapsed": true
+  },
+  "functions": {
+    "format": "function",
+    "collapsible": true,
+    "open": false
+  },
+  "methods": {
+    "format": "function",
+    "collapsible": true,
+    "open": false
+  },
+  "classes": {
+    "format": "details",
+    "collapsible": true,
+    "open": false,
+    "skip": [
+      ".*Protocol$",
+      ".*Base$"
+    ]
+  },
+  "modules": {
+    "format": "details",
+    "collapsible": true,
+    "open": false,
+    "skip": [
+      "petrovisor.api.protocols.*",
+      "petrovisor.api.utils.*"
+    ]
   }
 }

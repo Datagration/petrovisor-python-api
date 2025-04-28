@@ -31,8 +31,6 @@ def main():
 
     # Load configuration
     config = {
-        "skip_modules": [],
-        "skip_classes": [],
         "inherit_docs": True,
         "include_only_modules": [],
         "from_init": True,
@@ -42,12 +40,18 @@ def main():
             "title": "API Documentation",
             "collapsed": False,
         },
+        "modules": {
+            "skip": []
+        },
+        "classes": {
+            "skip": []
+        }
     }
 
     if args.config and Path(args.config).exists():
         with open(args.config, "r") as f:
             config.update(json.load(f))
-
+            
     # Extract modules from __init__.py if requested
     init_modules = []
     allowed_classes = []
@@ -225,7 +229,7 @@ def should_process_module(module_name, config):
         True if module should be processed, False if it should be skipped
     """
     # Skip modules in the skip list
-    for skip_pattern in config.get("skip_modules", []):
+    for skip_pattern in config.get("modules", {}).get("skip", []):
         if re.match(skip_pattern, module_name):
             print(f"Module '{module_name}' skipped by config: {skip_pattern}")
             return False
@@ -341,7 +345,7 @@ def process_module(
                 continue
 
             skip_class = False
-            for skip_pattern in config.get("skip_classes", []):
+            for skip_pattern in config.get("classes", {}).get("skip", []):
                 if re.match(skip_pattern, f"{module_name}.{class_name}") or re.match(
                     skip_pattern, class_name
                 ):
