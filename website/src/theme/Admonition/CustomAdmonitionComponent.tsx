@@ -1,4 +1,4 @@
-import React, { JSX, ReactNode } from 'react';
+import React, { JSX, ReactNode, ReactElement } from 'react';
 import clsx from 'clsx';
 import { FunctionIcon, ClassIcon } from '../Icons';
 
@@ -9,7 +9,7 @@ const ICON_COMPONENTS = {
 };
 
 export interface CustomAdmonitionProps {
-  title?: ReactNode;
+  title?: ReactElement | string;
   children: ReactNode;
   type: string;
   collapsible?: boolean;
@@ -31,6 +31,7 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
   // Use provided icon, component icon, or null
   const admonitionIcon = icon || (IconComponent ? <IconComponent /> : null);
   const admonitionTitle = title || type.charAt(0).toUpperCase() + type.slice(1);
+  
   const isCollapsible = !!collapsible;
   const isOpen = !(open == false);
 

@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactElement, ReactNode } from 'react';
 import clsx from 'clsx';
 import DefaultAdmonitionTypes from '@theme-original/Admonition/Types';
 
@@ -9,7 +9,7 @@ interface EnhancedAdmonitionProps {
   children: ReactNode;
   className?: string;
   icon?: ReactNode;
-  title?: ReactNode;
+  title?: ReactElement | string;
   collapsible?: boolean;
   open?: boolean;
   [key: string]: unknown;
@@ -20,7 +20,7 @@ type AdmonitionComponentType = React.ComponentType<{
   children: ReactNode;
   className?: string;
   icon?: ReactNode;
-  title?: ReactNode;
+  title?: ReactElement | string;
   [key: string]: unknown;
 }>;
 
