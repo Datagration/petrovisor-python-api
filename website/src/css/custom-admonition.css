@@ -54,9 +54,9 @@
 
 /* Dark mode adjustments */
 [data-theme='dark'] .admonition-function {
-  --ifm-alert-background-color: rgba(147, 51, 234, 0.15);
+  --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
 }
 
 [data-theme='dark'] .admonition-class {
-  --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
+  --ifm-alert-background-color: rgba(147, 51, 234, 0.15);
 }
