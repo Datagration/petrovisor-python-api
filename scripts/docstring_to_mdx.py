@@ -68,7 +68,9 @@ def docstring_to_markdown(
         # Get signature for functions and classes
         if not inspect.ismodule(obj):
             try:
-                signature = str(inspect.signature(obj))
+                signature = get_signature(
+                    obj, remove_self=False, remove_type_hints=False
+                )
                 markdown.append(f"```python\n{obj_name}{signature}\n```\n")
             except (ValueError, TypeError):
                 # Some objects might not have a signature
@@ -465,6 +467,68 @@ def get_class_attributes(obj, main_package_name, skip_builtin_methods):
     return class_attributes
 
 
+def get_signature(obj, remove_self=True, remove_type_hints=True):
+    """
+    Get object signature by optionally removing the 'self' parameter and type hints.
+
+    Parameters
+    ----------
+    method : Any
+        Object to get the signature from
+    remove_self : bool, default=True
+        If True, remove the 'self' parameter from the signature
+    remove_type_hints : bool, default=True
+        If True, remove type annotations from parameters
+
+    Returns
+    -------
+    str
+        The cleaned signature string with parentheses
+    """
+    try:
+        # Get the signature
+        sig = inspect.signature(obj)
+
+        if remove_type_hints or remove_self:
+            # Create a list to hold the cleaned parameters
+            clean_params = []
+
+            # Process each parameter in the signature
+            for param_name, param in sig.parameters.items():
+                # Skip 'self' parameter if remove_self is True
+                if param_name == "self" and remove_self:
+                    continue
+
+                # Format the parameter based on the options
+                if remove_type_hints:
+                    # Handle special parameter kinds with their asterisks
+                    if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                        clean_params.append(f"*{param_name}")
+                    elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                        clean_params.append(f"**{param_name}")
+                    # Handle default values
+                    elif param.default != inspect.Parameter.empty:
+                        if isinstance(param.default, str):
+                            clean_params.append(f"{param_name}='{param.default}'")
+                        else:
+                            clean_params.append(f"{param_name}={param.default}")
+                    # Normal parameter
+                    else:
+                        clean_params.append(param_name)
+                else:
+                    # Keep the full parameter representation including type annotations
+                    clean_params.append(str(param))
+
+            # Format as a string with parentheses
+            return "(" + ", ".join(clean_params) + ")"
+        else:
+            # Return the full signature as a string
+            return str(sig)
+
+    except (ValueError, TypeError):
+        return "(...)"
+
+
 def get_class_methods(obj, main_package_name):
     """
     Extract methods from a class object.
@@ -493,11 +557,7 @@ def get_class_methods(obj, main_package_name):
         if not method_module.startswith(main_package_name):
             continue
 
-        try:
-            # method_sig = str(inspect.signature(method))
-            method_sig = "(...)"
-        except (ValueError, TypeError):
-            method_sig = "(...)"
+        method_sig = get_signature(method, remove_self=True, remove_type_hints=True)
 
         # Extract method description from docstring for the summary
         method_doc = inspect.getdoc(method)
@@ -632,7 +692,9 @@ def document_class_methods(obj, obj_name, main_package_name, config_params):
 
         # Add method signature
         try:
-            signature = str(inspect.signature(method))
+            signature = get_signature(
+                method, remove_self=False, remove_type_hints=False
+            )
             markdown.append(f"```python\n{method_name}{signature}\n```\n")
         except (ValueError, TypeError):
             pass
