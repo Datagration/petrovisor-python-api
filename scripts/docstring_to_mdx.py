@@ -493,7 +493,8 @@ def get_class_methods(obj, main_package_name):
             continue
 
         try:
-            method_sig = str(inspect.signature(method))
+            # method_sig = str(inspect.signature(method))
+            method_sig = "(...)"
         except (ValueError, TypeError):
             method_sig = "(...)"
 
@@ -1056,6 +1057,45 @@ def escape_for_mdx(text):
     return text
 
 
+def format_description_for_table_cell(desc):
+    """
+    Format description text for use in Markdown table cells.
+
+    This function handles:
+    - Multi-line descriptions by replacing newlines with <br/> tags
+    - Bullet points/lists by formatting them with HTML bullet points
+    - Proper spacing for table compatibility in MDX
+
+    Parameters
+    ----------
+    desc : str
+        The description text to format
+
+    Returns
+    -------
+    str
+        Formatted description suitable for Markdown table cells
+    """
+    if not desc:
+        return ""
+
+    desc = desc.strip()
+
+    # Make multi-line descriptions work in table cells by replacing newlines with <br/>
+    # Also handle bullet points/lists - use self-closing tags
+    formatted_desc = []
+    for line in desc.split("\n"):
+        line = line.strip()
+        if line.startswith("-") or line.startswith("*"):
+            # Format list items with HTML (using self-closing tags)
+            formatted_desc.append(f"<br/>• {line[1:].strip()}")
+        else:
+            formatted_desc.append(line)
+
+    # Join lines with space or <br/> for proper table formatting in MDX
+    return " ".join(formatted_desc).replace("<br/> ", "<br/>")
+
+
 def format_parameters_section(params_content, format="table"):
     """
     Format parameters section as a Markdown table or list.
@@ -1112,24 +1152,12 @@ def format_parameters_section(params_content, format="table"):
             if default_match:
                 default = default_match.group(1).strip()
 
-            # Clean description and format multi-line descriptions for table compatibility
-            desc = desc.strip()
+            # Format description for table cell
+            formatted_desc = format_description_for_table_cell(desc)
 
-            # Make multi-line descriptions work in table cells by replacing newlines with <br/>
-            # Also handle bullet points/lists - use self-closing tags
-            formatted_desc = []
-            for line in desc.split("\n"):
-                line = line.strip()
-                if line.startswith("-") or line.startswith("*"):
-                    # Format list items with HTML (using self-closing tags)
-                    formatted_desc.append(f"<br/>• {line[1:].strip()}")
-                else:
-                    formatted_desc.append(line)
-
-            # Join lines with space or <br/> for proper table formatting in MDX
-            desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
-
-            param_table += f"| **{name}** | `{type_str}` | {desc} | {default} |\n"
+            param_table += (
+                f"| **{name}** | `{type_str}` | {formatted_desc} | {default} |\n"
+            )
 
         return param_table
     else:
@@ -1201,21 +1229,12 @@ def format_returns_section(returns_content, format="table"):
 
     if format == "table":
         # Table format
-        formatted_desc = []
-        for line in returns_desc.split("\n"):
-            line = line.strip()
-            if line.startswith("-") or line.startswith("*"):
-                # Format list items with HTML (using self-closing tags)
-                formatted_desc.append(f"<br/>• {line[1:].strip()}")
-            else:
-                formatted_desc.append(line)
-
-        # Join lines with space or <br/> for proper table formatting
-        returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
+        # Format description for table cell using the reusable function
+        formatted_desc = format_description_for_table_cell(returns_desc)
 
         returns_table = header
         returns_table += "| Type | Description |\n|------|-------------|\n"
-        returns_table += f"| `{rtype}` | {returns_desc} |\n"
+        returns_table += f"| `{rtype}` | {formatted_desc} |\n"
 
         return returns_table
     else:
@@ -1272,10 +1291,10 @@ def format_methods_summary(methods_list, format="table", class_name=None):
             anchor = f"{class_name}{method_name}" if class_name else method_name
             method_link = f"[{method_name}{method_sig}](#{anchor.lower()})"
 
-            # Format description: use provided description
-            display_description = description if description else ""
+            # Format description for table cell using the reusable function
+            formatted_description = format_description_for_table_cell(description)
 
-            methods_summary += f"| {method_link} | {display_description} |\n"
+            methods_summary += f"| {method_link} | {formatted_description} |\n"
 
         return methods_summary
     else:
@@ -1371,7 +1390,10 @@ def format_class_attributes(class_attributes, format="table"):
                 # We have the actual property object with a docstring
                 desc = attr_value.__doc__.strip()
 
-            attr_table += f"| **{attr_name}** | {type_str} | {desc} |\n"
+            # Format description for table cell using the reusable function
+            formatted_desc = format_description_for_table_cell(desc)
+
+            attr_table += f"| **{attr_name}** | {type_str} | {formatted_desc} |\n"
 
         return attr_table
     else:

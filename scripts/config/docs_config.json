@@ -43,9 +43,9 @@
     "format": "list"
   },
   "attributes": {
-    "format": "list"
+    "format": "table"
   },
   "methods_summary": {
-    "format": "list"
+    "format": "table"
   }
 }
