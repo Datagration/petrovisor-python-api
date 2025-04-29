@@ -33,7 +33,18 @@
   },
   "functions": {
     "format": "function",
+    "parameters_format": "list",
+    "returns_format": "list",
     "collapsible": true,
     "open": false
+  },
+  "parameters": {
+    "format": "list"
+  },
+  "returns": {
+    "format": "list"
+  },
+  "attributes": {
+    "format": "list"
   }
 }

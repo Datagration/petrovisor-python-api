@@ -44,6 +44,34 @@ def docstring_to_markdown(
     elif inspect.ismodule(obj):
         obj_type = "module"
 
+    # Get function admonition configuration
+    function_config = config.get("functions", {}) if config else {}
+    function_admonition_type = function_config.get("format", "function")
+    function_collapsible = function_config.get("collapsible", True)
+    function_is_open = function_config.get("open", True)
+
+    # Get method admonition configuration
+    method_config = config.get("methods", {}) if config else {}
+    method_admonition_type = method_config.get("format", "method")
+    method_collapsible = method_config.get("collapsible", True)
+    method_is_open = method_config.get("open", True)
+
+    # Get class admonition configuration
+    class_config = config.get("classes", {}) if config else {}
+    class_admonition_type = class_config.get("format", "class")
+
+    # Get parameters configuration
+    parameters_config = config.get("parameters", {}) if config else {}
+    parameters_format = parameters_config.get("format", "table")
+
+    # Get returns configuration
+    returns_config = config.get("returns", {}) if config else {}
+    returns_format = returns_config.get("format", "table")
+
+    # Get attributes configuration
+    attributes_config = config.get("attributes", {}) if config else {}
+    attributes_format = attributes_config.get("format", "table")
+    
     # Skip docstrings from built-in or external modules
     if obj_type == "class":
         # Get the actual module of this class, check if it's from our main package
@@ -96,8 +124,10 @@ def docstring_to_markdown(
                 # Some objects might not have a signature
                 pass
 
-        # Convert docstring to RST, then to Markdown
-        mdx_content = docstring_to_mdx(docstring, obj_type)
+        # Convert docstring to RST, then to Markdown - pass formatting parameters
+        mdx_content = docstring_to_mdx(
+            docstring, obj_type, parameters_format, returns_format, attributes_format
+        )
 
         # First extract the short description (first paragraph)
         first_paragraph_match = re.match(
@@ -106,18 +136,6 @@ def docstring_to_markdown(
         first_paragraph = (
             first_paragraph_match.group(0) if first_paragraph_match else ""
         )
-
-        # Get function admonition configuration
-        function_config = config.get("functions", {}) if config else {}
-        function_admonition_type = function_config.get("format", "function")
-        function_collapsible = function_config.get("collapsible", True)
-        function_is_open = function_config.get("open", True)
-
-        # Get method admonition configuration
-        method_config = config.get("methods", {}) if config else {}
-        method_admonition_type = method_config.get("format", "method")
-        method_collapsible = method_config.get("collapsible", True)
-        method_is_open = method_config.get("open", True)
 
         # Remove the first paragraph from the content
         if first_paragraph:
@@ -145,8 +163,8 @@ def docstring_to_markdown(
                     content=mdx_content,
                     icon="📑",
                     admonition_type=function_admonition_type,
-                    collapsible=function_collapsible,
-                    is_open=function_is_open,
+                    collapsible=method_collapsible,
+                    is_open=method_is_open,
                 )
             )
 
@@ -353,7 +371,9 @@ def docstring_to_markdown(
             # If we found any attributes, document them using the format_class_attributes function
             if class_attributes:
                 markdown.append("\n")
-                markdown.append(format_class_attributes(class_attributes))
+                markdown.append(
+                    format_class_attributes(class_attributes, attributes_format)
+                )
 
             # Determine if we should include inherited methods
             include_inherited = config.get("include_inherited_docs", True)
@@ -480,7 +500,7 @@ def docstring_to_markdown(
                     try:
                         # Convert method docstring to RST, then to Markdown
                         method_rst = docstring_to_rst(method_doc, "method")
-                        method_md = rst_to_mdx(method_rst)
+                        method_md = rst_to_mdx(method_rst, parameters_format=parameters_format, returns_format=returns_format, attributes_format=attributes_format)
 
                         # Apply the same first paragraph extraction/collapsible approach for methods
                         method_first_para = re.match(
@@ -535,7 +555,13 @@ def docstring_to_markdown(
     return "\n".join(markdown)
 
 
-def docstring_to_mdx(docstring, obj_type="function"):
+def docstring_to_mdx(
+    docstring,
+    obj_type="function",
+    parameters_format="table",
+    returns_format="table",
+    attributes_format="table",
+):
     """
     Convert a NumPy-style docstring to MDX format.
 
@@ -545,6 +571,12 @@ def docstring_to_mdx(docstring, obj_type="function"):
         The docstring to convert
     obj_type : str
         The type of object ('function', 'class', 'module')
+    parameters_format : str, default="table"
+        Format for parameters section ("table" or "list")
+    returns_format : str, default="table"
+        Format for returns section ("table" or "list")
+    attributes_format : str, default="table"
+        Format for class attributes section ("table" or "list")
 
     Returns
     -------
@@ -552,7 +584,9 @@ def docstring_to_mdx(docstring, obj_type="function"):
         Markdown content
     """
     rst_content = docstring_to_rst(docstring, obj_type)
-    mdx_content = rst_to_mdx(rst_content)
+    mdx_content = rst_to_mdx(
+        rst_content, parameters_format, returns_format, attributes_format
+    )
     return mdx_content
 
 
@@ -589,7 +623,12 @@ def docstring_to_rst(docstring, obj_type="function"):
     return str(rst)
 
 
-def rst_to_mdx(rst_text):
+def rst_to_mdx(
+    rst_text,
+    parameters_format="table",
+    returns_format="table",
+    attributes_format="table",
+):
     """
     Convert RST to Markdown using simple conversion method.
 
@@ -597,6 +636,12 @@ def rst_to_mdx(rst_text):
     ----------
     rst_text : str
         RST content to convert
+    parameters_format : str, default="table"
+        Format for parameters section ("table" or "list")
+    returns_format : str, default="table"
+        Format for returns section ("table" or "list")
+    attributes_format : str, default="table"
+        Format for class attributes section ("table" or "list")
 
     Returns
     -------
@@ -604,10 +649,17 @@ def rst_to_mdx(rst_text):
         Markdown content
     """
     # Directly use simple_rst_to_markdown without trying other methods
-    return simple_rst_to_markdown(rst_text)
+    return simple_rst_to_markdown(
+        rst_text, parameters_format, returns_format, attributes_format
+    )
 
 
-def simple_rst_to_markdown(rst_text):
+def simple_rst_to_markdown(
+    rst_text,
+    parameters_format="table",
+    returns_format="table",
+    attributes_format="table",
+):
     """
     Simplified conversion of RST to Markdown for fallback.
 
@@ -615,6 +667,12 @@ def simple_rst_to_markdown(rst_text):
     ----------
     rst_text : str
         RST content to convert
+    parameters_format : str, default="table"
+        Format for parameters section ("table" or "list")
+    returns_format : str, default="table"
+        Format for returns section ("table" or "list")
+    attributes_format : str, default="table"
+        Format for class attributes section ("table" or "list")
 
     Returns
     -------
@@ -711,10 +769,10 @@ def simple_rst_to_markdown(rst_text):
         flags=re.DOTALL,
     )
 
-    # Process parameters - fixed escape sequences with raw strings (r prefix)
-    parameters_section = format_parameters_section(md_text)
+    # Process parameters - pass the format parameter
+    parameters_section = format_parameters_section(md_text, parameters_format)
     if parameters_section:
-        # Replace parameter blocks with the formatted table
+        # Replace parameter blocks with the formatted table or list
         md_text = re.sub(
             r":param .*?(?=\n\n|$)", parameters_section, md_text, flags=re.DOTALL
         )
@@ -722,10 +780,10 @@ def simple_rst_to_markdown(rst_text):
         # Remove type blocks
         md_text = re.sub(r":type .*?(?=\n\n|$)", "", md_text, re.DOTALL)
 
-    # Process returns - fixed escape sequences
-    returns_section = format_returns_section(md_text)
+    # Process returns - pass the format parameter
+    returns_section = format_returns_section(md_text, returns_format)
     if returns_section:
-        # Replace returns blocks with the formatted table
+        # Replace returns blocks with the formatted table or list
         md_text = re.sub(
             r":returns?:.*?(?=\n\n|$)", returns_section, md_text, flags=re.DOTALL
         )
@@ -826,19 +884,21 @@ def escape_for_mdx(text):
     return text
 
 
-def format_parameters_section(params_content):
+def format_parameters_section(params_content, format="table"):
     """
-    Format parameters section as a Markdown table.
+    Format parameters section as a Markdown table or list.
 
     Parameters
     ----------
     params_content : str
         Raw parameters content from docstring
+    format : str, default="table"
+        Format to use: "table" or "list"
 
     Returns
     -------
     str
-        Formatted parameters table in Markdown
+        Formatted parameters in Markdown
     """
     param_blocks = re.findall(
         r":param (\w+): (.*?)(?=:param|:type|:returns|:rtype|$)",
@@ -848,135 +908,234 @@ def format_parameters_section(params_content):
     if not param_blocks:
         return ""
 
-    param_table = "## Parameters\n\n| Name | Type | Description | Default |\n|------|------|-------------|--------|\n"
+    if format == "table":
+        # Table format
+        param_table = "**Parameters:**\n\n| Name | Type | Description | Default |\n|------|------|-------------|--------|\n"
 
-    for name, desc in param_blocks:
-        # Find matching type
-        type_match = re.search(
-            rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
-            params_content,
-            re.DOTALL,
-        )
-        type_str = type_match.group(1).strip() if type_match else ""
+        for name, desc in param_blocks:
+            # Find matching type
+            type_match = re.search(
+                rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
+                params_content,
+                re.DOTALL,
+            )
+            type_str = type_match.group(1).strip() if type_match else ""
 
-        # Escape pipe characters in type annotations to prevent them from breaking the Markdown table
-        # Replace | with the \| in type strings
-        if "|" in type_str:
-            type_str = type_str.replace("|", r"\|")
+            # Escape pipe characters in type annotations to prevent them from breaking the Markdown table
+            # Replace | with the \| in type strings
+            if "|" in type_str:
+                type_str = type_str.replace("|", r"\|")
 
-        # Check for default/optional
-        is_optional = "optional" in type_str.lower()
-        default = "Optional" if is_optional else "*Required*"
+            # Check for default/optional
+            is_optional = "optional" in type_str.lower()
+            default = "Optional" if is_optional else "*Required*"
 
-        # Extract explicit default value
-        default_match = re.search(
-            r"[Dd]efault(?:s)?(?: is| are| value is)? *[=:]? *(.+?)\.?$", desc
-        )
-        if default_match:
-            default = default_match.group(1).strip()
+            # Extract explicit default value
+            default_match = re.search(
+                r"[Dd]efault(?:s)?(?: is| are| value is)? *[=:]? *(.+?)\.?$", desc
+            )
+            if default_match:
+                default = default_match.group(1).strip()
 
-        # Clean description and format multi-line descriptions for table compatibility
-        desc = desc.strip()
+            # Clean description and format multi-line descriptions for table compatibility
+            desc = desc.strip()
 
-        # Make multi-line descriptions work in table cells by replacing newlines with <br/>
-        # Also handle bullet points/lists - use self-closing tags
-        formatted_desc = []
-        for line in desc.split("\n"):
-            line = line.strip()
-            if line.startswith("-") or line.startswith("*"):
-                # Format list items with HTML (using self-closing tags)
-                formatted_desc.append(f"<br/>• {line[1:].strip()}")
-            else:
-                formatted_desc.append(line)
+            # Make multi-line descriptions work in table cells by replacing newlines with <br/>
+            # Also handle bullet points/lists - use self-closing tags
+            formatted_desc = []
+            for line in desc.split("\n"):
+                line = line.strip()
+                if line.startswith("-") or line.startswith("*"):
+                    # Format list items with HTML (using self-closing tags)
+                    formatted_desc.append(f"<br/>• {line[1:].strip()}")
+                else:
+                    formatted_desc.append(line)
 
-        # Join lines with space or <br/> for proper table formatting in MDX
-        desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
+            # Join lines with space or <br/> for proper table formatting in MDX
+            desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
 
-        param_table += f"| **{name}** | `{type_str}` | {desc} | {default} |\n"
+            param_table += f"| **{name}** | `{type_str}` | {desc} | {default} |\n"
 
-    return param_table
+        return param_table
+    else:
+        # List format - NumPy style with bullet points
+        param_list = "**Parameters:**\n\n"
+        
+        for name, desc in param_blocks:
+            # Find matching type
+            type_match = re.search(
+                rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
+                params_content,
+                re.DOTALL,
+            )
+            type_str = type_match.group(1).strip() if type_match else ""
+            
+            # Check for optional parameters
+            is_optional = "optional" in type_str.lower() or "optional" in desc.lower()
+            
+            # Build the formatted parameter entry - NumPy style with bullet points
+            type_suffix = ", optional" if is_optional else ""
+            
+            # Clean description - remove "optional" mentions since we handle them in the type
+            desc = desc.strip()
+            desc = re.sub(r'(?i)^\s*\(?optional\)?[,:\s]*', '', desc)
+            desc = re.sub(r'(?i)\(?optional\)?[,:\s]*$', '', desc)
+            
+            # Format as bullet point with indented description on new lines
+            param_list += f"- **{name}** : {type_str}{type_suffix}\n"
+            param_list += "\n"
+            
+            # Indent the description with 4 spaces for readability
+            # Handle multi-line descriptions by preserving line breaks and adding indentation
+            indented_desc = ""
+            for line in desc.split("\n"):
+                indented_desc += f"    {line.strip()}\n"
+            
+            param_list += f"{indented_desc}\n"
+        
+        return param_list
 
 
-def format_class_attributes(class_attributes):
+def format_class_attributes(class_attributes, format="table"):
     """
-    Format class attributes as a Markdown table.
+    Format class attributes as a Markdown table or list.
 
     Parameters
     ----------
     class_attributes : list of tuples
         List of (attr_name, attr_type, attr_value) tuples representing class attributes
+    format : str, default="table"
+        Format to use: "table" or "list"
 
     Returns
     -------
     str
-        Formatted Markdown table of class attributes
+        Formatted Markdown representation of class attributes
     """
     if not class_attributes:
         return ""
 
-    attr_table = "## Class Attributes\n\n"
-    attr_table += "| Name | Type | Description |\n"
-    attr_table += "|------|------|-------------|\n"
+    if format == "table":
+        # Table format
+        attr_table = "**Class Attributes:**\n\n"
+        attr_table += "| Name | Type | Description |\n"
+        attr_table += "|------|------|-------------|\n"
 
-    for attr_name, attr_type, attr_value in sorted(
-        class_attributes, key=lambda x: x[0]
-    ):
-        # Format the type nicely
-        if isinstance(attr_type, str):
-            type_str = f"`{attr_type}`"
-        else:
-            try:
-                # Get the name of the type
-                type_str = f"`{attr_type.__name__}`"
-            except AttributeError:
+        for attr_name, attr_type, attr_value in sorted(
+            class_attributes, key=lambda x: x[0]
+        ):
+            # Format the type nicely
+            if isinstance(attr_type, str):
+                type_str = f"`{attr_type}`"
+            else:
                 try:
-                    # Try using str representation instead
-                    type_str = f"`{str(attr_type)}`"
-                except Exception:
-                    type_str = "`Unknown`"
+                    # Get the name of the type
+                    type_str = f"`{attr_type.__name__}`"
+                except AttributeError:
+                    try:
+                        # Try using str representation instead
+                        type_str = f"`{str(attr_type)}`"
+                    except Exception:
+                        type_str = "`Unknown`"
 
-        # Get the value (for enums and constants, otherwise empty)
-        if attr_value == "(property)":
-            value_str = "*Property*"
-        elif attr_value is None:
-            value_str = ""
-        else:
-            try:
-                # Try to represent the value, but limit its size
-                value_repr = repr(attr_value)
-                if isinstance(attr_value, property):
-                    value_str = "*Property*"
-                else:
-                    value_str = f"*Default:* `{value_repr}`"
-            except Exception:
+            # Get the value (for enums and constants, otherwise empty)
+            if attr_value == "(property)":
+                value_str = "*Property*"
+            elif attr_value is None:
                 value_str = ""
+            else:
+                try:
+                    # Try to represent the value, but limit its size
+                    value_repr = repr(attr_value)
+                    if isinstance(attr_value, property):
+                        value_str = "*Property*"
+                    else:
+                        value_str = f"*Default:* `{value_repr}`"
+                except Exception:
+                    value_str = ""
 
-        # Extract property docstring
-        desc = value_str
+            # Extract property docstring
+            desc = value_str
 
-        # Handle property docstring
-        if isinstance(attr_value, property) and attr_value.__doc__:
-            # We have the actual property object with a docstring
-            desc = attr_value.__doc__.strip()
+            # Handle property docstring
+            if isinstance(attr_value, property) and attr_value.__doc__:
+                # We have the actual property object with a docstring
+                desc = attr_value.__doc__.strip()
 
-        attr_table += f"| **{attr_name}** | {type_str} | {desc} |\n"
+            attr_table += f"| **{attr_name}** | {type_str} | {desc} |\n"
 
-    return attr_table
+        return attr_table
+    else:
+        # List format - NumPy style with bullet points
+        attr_list = "**Class Attributes:**\n\n"
+        
+        for attr_name, attr_type, attr_value in sorted(
+            class_attributes, key=lambda x: x[0]
+        ):
+            # Format the type nicely
+            if isinstance(attr_type, str):
+                type_str = attr_type
+            else:
+                try:
+                    # Get the name of the type
+                    type_str = attr_type.__name__
+                except AttributeError:
+                    try:
+                        # Try using str representation instead
+                        type_str = str(attr_type)
+                    except Exception:
+                        type_str = "Unknown"
+            
+            # Get the description
+            if attr_value == "(property)":
+                attr_desc = "*Property*"
+            elif attr_value is None:
+                attr_desc = ""
+            else:
+                if isinstance(attr_value, property) and attr_value.__doc__:
+                    # Use the property docstring
+                    attr_desc = attr_value.__doc__.strip()
+                else:
+                    # For non-properties, create a description based on the value
+                    attr_desc = ""
+                    try:
+                        if not isinstance(attr_value, property):
+                            value_repr = repr(attr_value)
+                            if len(value_repr) < 50:  # Only show short default values
+                                attr_desc = f"Default: `{value_repr}`"
+                    except Exception:
+                        pass
+            
+            # Format as bullet point with indented description on new lines
+            attr_list += f"- **{attr_name}** : {type_str}\n"
+            attr_list += "\n"
+            
+            # If we have a description, add it indented with 4 spaces
+            # Handle multi-line descriptions by preserving line breaks and adding indentation
+            indented_desc = ""
+            for line in attr_desc.split("\n"):
+                indented_desc += f"    {line.strip()}\n"
+            
+            attr_list += f"{indented_desc}\n"
+            
+        return attr_list
 
 
-def format_returns_section(returns_content):
+def format_returns_section(returns_content, format="table"):
     """
-    Format returns section as a Markdown table.
+    Format returns section as a Markdown table or list.
 
     Parameters
     ----------
     returns_content : str
         Raw returns content from docstring
+    format : str, default="table"
+        Format to use: "table" or "list"
 
     Returns
     -------
     str
-        Formatted returns table in Markdown
+        Formatted returns in Markdown
     """
     # Extract returns description and type
     returns_match = re.search(
@@ -990,23 +1149,39 @@ def format_returns_section(returns_content):
     returns_desc = returns_match.group(1).strip()
     rtype = rtype_match.group(1).strip() if rtype_match else ""
 
-    # Format multi-line return descriptions with self-closing tags
-    formatted_desc = []
-    for line in returns_desc.split("\n"):
-        line = line.strip()
-        if line.startswith("-") or line.startswith("*"):
-            # Format list items with HTML (using self-closing tags)
-            formatted_desc.append(f"<br/>• {line[1:].strip()}")
-        else:
-            formatted_desc.append(line)
+    if format == "table":
+        # Table format
+        formatted_desc = []
+        for line in returns_desc.split("\n"):
+            line = line.strip()
+            if line.startswith("-") or line.startswith("*"):
+                # Format list items with HTML (using self-closing tags)
+                formatted_desc.append(f"<br/>• {line[1:].strip()}")
+            else:
+                formatted_desc.append(line)
 
-    # Join lines with space or <br/> for proper table formatting
-    returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
+        # Join lines with space or <br/> for proper table formatting
+        returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
 
-    returns_table = "## Returns\n\n| Type | Description |\n|------|-------------|\n"
-    returns_table += f"| `{rtype}` | {returns_desc} |\n"
+        returns_table = "**Returns:**\n\n| Type | Description |\n|------|-------------|\n"
+        returns_table += f"| `{rtype}` | {returns_desc} |\n"
 
-    return returns_table
+        return returns_table
+    else:
+        # List format - NumPy style with bullet points
+        returns_list = "**Returns:**\n\n"
+        returns_list += f"- **{rtype}**\n"
+        returns_list += "\n"
+        
+        # Indent the description with 4 spaces for readability
+        # Handle multi-line descriptions
+        indented_desc = ""
+        for line in returns_desc.split("\n"):
+            indented_desc += f"    {line.strip()}\n"
+        
+        returns_list += f"{indented_desc}\n"
+        
+        return returns_list
 
 
 def format_examples_section(examples_content):
