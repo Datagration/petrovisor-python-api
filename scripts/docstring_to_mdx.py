@@ -38,11 +38,13 @@ def docstring_to_markdown(
     main_package_name = module_path.split(".")[0] if module_path else None
 
     # Determine object type for better RST conversion
-    obj_type = "function"
     if inspect.isclass(obj):
         obj_type = "class"
     elif inspect.ismodule(obj):
         obj_type = "module"
+    else:
+        obj_type = "function"
+
 
     # Get function admonition configuration
     function_config = config.get("functions", {}) if config else {}
@@ -59,6 +61,8 @@ def docstring_to_markdown(
     # Get class admonition configuration
     class_config = config.get("classes", {}) if config else {}
     class_admonition_type = class_config.get("format", "class")
+    class_collapsible = class_config.get("collapsible", True)
+    class_is_open = class_config.get("open", True)
 
     # Get parameters configuration
     parameters_config = config.get("parameters", {}) if config else {}
@@ -129,44 +133,32 @@ def docstring_to_markdown(
             docstring, obj_type, parameters_format, returns_format, attributes_format
         )
 
-        # First extract the short description (first paragraph)
-        first_paragraph_match = re.match(
-            r"^(.*?)(?=\n\n|$)", mdx_content.strip(), re.DOTALL
-        )
-        first_paragraph = (
-            first_paragraph_match.group(0) if first_paragraph_match else ""
-        )
-
-        # Remove the first paragraph from the content
-        if first_paragraph:
-            remaining_content = mdx_content[len(first_paragraph) :].strip()
-            # Add the first paragraph outside the collapsible area
-            markdown.append(first_paragraph)
-
-            # Add the rest of the content in a collapsible section
-            if remaining_content:
-                markdown.append(
-                    create_container_block(
-                        summary_text="See detailed documentation",
-                        content=remaining_content,
-                        icon="📑",
-                        admonition_type=function_admonition_type,
-                        collapsible=function_collapsible,
-                        is_open=function_is_open,
-                    )
-                )
-        else:
-            # If we can't parse out a first paragraph, just add everything to collapsible
+        # Add function or class docstring
+        if obj_type == "function":
             markdown.append(
                 create_container_block(
                     summary_text="See detailed documentation",
                     content=mdx_content,
                     icon="📑",
                     admonition_type=function_admonition_type,
-                    collapsible=method_collapsible,
-                    is_open=method_is_open,
+                    collapsible=function_collapsible,
+                    is_open=function_is_open,
                 )
             )
+        elif obj_type == "class":
+            markdown.append(
+                create_container_block(
+                    summary_text="See detailed documentation",
+                    content=mdx_content,
+                    icon="📑",
+                    admonition_type=class_admonition_type,
+                    collapsible=class_collapsible,
+                    is_open=class_is_open,
+                )
+            )
+        else:
+            # For modules, just add the docstring directly
+            markdown.append(mdx_content)
 
         # If it's a class, also document its class attributes, properties, and methods
         if inspect.isclass(obj):
@@ -501,42 +493,18 @@ def docstring_to_markdown(
                         # Convert method docstring to RST, then to Markdown
                         method_rst = docstring_to_rst(method_doc, "method")
                         method_md = rst_to_mdx(method_rst, parameters_format=parameters_format, returns_format=returns_format, attributes_format=attributes_format)
-
-                        # Apply the same first paragraph extraction/collapsible approach for methods
-                        method_first_para = re.match(
-                            r"^(.*?)(?=\n\n|$)", method_md.strip(), re.DOTALL
-                        )
-                        method_first_para = (
-                            method_first_para.group(0) if method_first_para else ""
-                        )
-
-                        if method_first_para:
-                            method_remaining = method_md[
-                                len(method_first_para) :
-                            ].strip()
-                            markdown.append(method_first_para)
-                            if method_remaining:
-                                markdown.append(
-                                    create_container_block(
-                                        summary_text="See detailed method documentation",
-                                        content=method_remaining,
-                                        icon="📑",
-                                        admonition_type=method_admonition_type,
-                                        collapsible=method_collapsible,
-                                        is_open=method_is_open,
-                                    )
-                                )
-                        else:
-                            markdown.append(
-                                create_container_block(
-                                    summary_text="See detailed method documentation",
-                                    content=method_md,
-                                    icon="📑",
-                                    admonition_type=method_admonition_type,
-                                    collapsible=method_collapsible,
-                                    is_open=method_is_open,
-                                )
+                        
+                        # Add the method documentation
+                        markdown.append(
+                            create_container_block(
+                                summary_text="See detailed method documentation",
+                                content=method_md,
+                                icon="📑",
+                                admonition_type=method_admonition_type,
+                                collapsible=method_collapsible,
+                                is_open=method_is_open,
                             )
+                        )
 
                     except Exception as e:
                         markdown.append(
