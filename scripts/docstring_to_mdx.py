@@ -45,46 +45,193 @@ def docstring_to_markdown(
     else:
         obj_type = "function"
 
+    # Get formatting configuration
+    config_params = get_formatting_config(config, obj_type)
+
+    # Check for external or inherited docstrings
+    docstring = process_external_or_inherited_docstring(
+        obj, obj_name, obj_type, docstring, main_package_name
+    )
+
+    if not docstring:
+        return f"# {obj_name}\n\nNo documentation available."
+
+    # Build header for Markdown output
+    markdown = ["---", "sidebar_position: 2", "---", "", f"# {obj_name}", ""]
+
+    # Add import path
+    if module_path:
+        markdown.append(f"*Defined in `{module_path}.{obj_name}`*\n")
+
+    try:
+        # Get signature for functions and classes
+        if not inspect.ismodule(obj):
+            try:
+                signature = str(inspect.signature(obj))
+                markdown.append(f"```python\n{obj_name}{signature}\n```\n")
+            except (ValueError, TypeError):
+                # Some objects might not have a signature
+                pass
+
+        # Convert docstring to RST, then to Markdown - pass formatting parameters
+        mdx_content = docstring_to_mdx(
+            docstring,
+            obj_type,
+            config_params["parameters_format"],
+            config_params["returns_format"],
+            config_params["attributes_format"],
+        )
+
+        # Process based on object type
+        if obj_type == "function":
+            markdown.append(
+                create_container_block(
+                    summary_text="See detailed documentation",
+                    content=mdx_content,
+                    icon="📑",
+                    admonition_type=config_params["function_admonition_type"],
+                    collapsible=config_params["function_collapsible"],
+                    is_open=config_params["function_is_open"],
+                )
+            )
+        elif obj_type == "class":
+            # Process class-specific content (attributes and methods)
+            class_content = get_class_attributes_and_methods_docs(
+                obj, obj_name, mdx_content, main_package_name, config_params
+            )
+
+            # Add the combined content to the container block
+            markdown.append(
+                create_container_block(
+                    summary_text="See detailed documentation",
+                    content=class_content,
+                    icon="📑",
+                    admonition_type=config_params["class_admonition_type"],
+                    collapsible=config_params["class_collapsible"],
+                    is_open=config_params["class_is_open"],
+                )
+            )
+
+            # Add documentation for class methods
+            method_docs = document_class_methods(
+                obj, obj_name, main_package_name, config_params
+            )
+            markdown.extend(method_docs)
+        else:
+            # For modules, just add the docstring directly
+            markdown.append(mdx_content)
+
+    except Exception as e:
+        # If conversion fails, use the raw docstring
+        markdown.append(f"\n{docstring}")
+        markdown.append(
+            f"\n\n*Note: Raw docstring shown due to conversion issue: {str(e)}*"
+        )
+
+    return "\n".join(markdown)
+
+
+def get_formatting_config(config: dict, obj_type: str) -> dict:
+    """
+    Extract formatting configuration from the config dictionary.
+
+    Parameters
+    ----------
+    config : dict
+        The configuration dictionary
+    obj_type : str
+        The type of object being documented
+
+    Returns
+    -------
+    dict
+        A dictionary with all formatting configuration parameters
+    """
+    result = {}
+
     # Get function admonition configuration
-    function_config = config.get("functions", {}) if config else {}
-    function_admonition_type = function_config.get("format", "function")
-    function_collapsible = function_config.get("collapsible", True)
-    function_is_open = function_config.get("open", True)
+    function_config = config.get("functions", {})
+    result["function_admonition_type"] = function_config.get("format", "function")
+    result["function_collapsible"] = function_config.get("collapsible", True)
+    result["function_is_open"] = function_config.get("open", True)
 
     # Get method admonition configuration
-    method_config = config.get("methods", {}) if config else {}
-    method_admonition_type = method_config.get("format", "method")
-    method_collapsible = method_config.get("collapsible", True)
-    method_is_open = method_config.get("open", True)
+    method_config = config.get("methods", {})
+    result["method_admonition_type"] = method_config.get("format", "method")
+    result["method_collapsible"] = method_config.get("collapsible", True)
+    result["method_is_open"] = method_config.get("open", True)
 
     # Get class admonition configuration
-    class_config = config.get("classes", {}) if config else {}
-    class_admonition_type = class_config.get("format", "class")
-    class_collapsible = class_config.get("collapsible", True)
-    class_is_open = class_config.get("open", True)
+    class_config = config.get("classes", {})
+    result["class_admonition_type"] = class_config.get("format", "class")
+    result["class_collapsible"] = class_config.get("collapsible", True)
+    result["class_is_open"] = class_config.get("open", True)
 
     # Get parameters configuration
-    parameters_config = config.get("parameters", {}) if config else {}
-    parameters_format = parameters_config.get("format", "list")
+    parameters_config = config.get("parameters", {})
+    result["parameters_format"] = parameters_config.get("format", "list")
 
     # Get returns configuration
-    returns_config = config.get("returns", {}) if config else {}
-    returns_format = returns_config.get("format", "list")
+    returns_config = config.get("returns", {})
+    result["returns_format"] = returns_config.get("format", "list")
 
     # Get attributes configuration
-    attributes_config = config.get("attributes", {}) if config else {}
-    attributes_format = attributes_config.get("format", "list")
+    attributes_config = config.get("attributes", {})
+    result["attributes_format"] = attributes_config.get("format", "list")
 
     # Get methods summary configuration
-    methods_summary_config = config.get("methods_summary", {}) if config else {}
-    methods_summary_format = methods_summary_config.get("format", "list")
+    methods_summary_config = config.get("methods_summary", {})
+    result["methods_summary_format"] = methods_summary_config.get("format", "list")
 
+    # Get built-in methods to skip
+    result["skip_builtin_methods"] = config.get(
+        "skip_builtin_methods",
+        [
+            "from_bytes",
+            "to_bytes",
+            "__format__",
+            "__reduce__",
+            "__reduce_ex__",
+            "__subclasshook__",
+            "__init_subclass__",
+            "__dir__",
+            "__sizeof__",
+        ],
+    )
+
+    return result
+
+
+def process_external_or_inherited_docstring(
+    obj, obj_name, obj_type, docstring, main_package_name
+):
+    """
+    Process docstrings from external modules or inherited from parent classes.
+
+    Parameters
+    ----------
+    obj : Any
+        The Python object being documented
+    obj_name : str
+        Name of the object
+    obj_type : str
+        Type of the object (class, function, module)
+    docstring : str
+        The current docstring
+    main_package_name : str
+        Main package name for determining if a module is external
+
+    Returns
+    -------
+    str
+        Potentially modified docstring
+    """
     # Skip docstrings from built-in or external modules
     if obj_type == "class":
         # Get the actual module of this class, check if it's from our main package
         class_module = getattr(obj, "__module__", "")
         if not class_module.startswith(main_package_name):
-            return f"# {obj_name}\n\n*Class imported from external module `{class_module}`.*"
+            return f"A {obj_type} imported from external module `{class_module}`."
 
         # Check if the docstring is inherited from any parent class
         for cls in obj.__mro__[1:]:  # Skip first (self) in MRO
@@ -111,404 +258,415 @@ def docstring_to_markdown(
                 print(f"  Replaced with: {docstring}")
                 break
 
-    if not docstring:
-        return f"# {obj_name}\n\nNo documentation available."
+    return docstring
 
-    # Build header for Markdown output
-    markdown = ["---", "sidebar_position: 2", "---", "", f"# {obj_name}", ""]
 
-    # Add import path
-    if module_path:
-        markdown.append(f"*Defined in `{module_path}.{obj_name}`*\n")
+def is_attribute_from_main_package(
+    attr_name, attr_value, obj, main_package_name, skip_builtin_methods
+):
+    """
+    Check if an attribute belongs to the current class or has been defined in the main package.
 
-    try:
-        # Get signature for functions and classes
-        if not inspect.ismodule(obj):
-            try:
-                signature = str(inspect.signature(obj))
-                markdown.append(f"```python\n{obj_name}{signature}\n```\n")
-            except (ValueError, TypeError):
-                # Some objects might not have a signature
-                pass
+    Parameters
+    ----------
+    attr_name : str
+        Name of the attribute
+    attr_value : Any
+        Value of the attribute
+    obj : Any
+        The class object being documented
+    main_package_name : str
+        Name of the main package for determining if a module is external
+    skip_builtin_methods : list
+        List of built-in methods to skip
 
-        # Convert docstring to RST, then to Markdown - pass formatting parameters
-        mdx_content = docstring_to_mdx(
-            docstring, obj_type, parameters_format, returns_format, attributes_format
+    Returns
+    -------
+    bool
+        True if attribute should be included, False otherwise
+    """
+    # Skip common built-in methods
+    if attr_name in skip_builtin_methods:
+        # Check if it's a built-in method
+        if type(attr_value).__name__ in [
+            "builtin_function_or_method",
+            "method_descriptor",
+            "wrapper_descriptor",
+        ]:
+            return False
+
+    # Check if attribute is directly defined in this class's __dict__ (not inherited)
+    if attr_name in obj.__dict__:
+        return True
+
+    # Special handling for enum members - always include them
+    if hasattr(obj, "__members__") and attr_name in getattr(obj, "__members__", {}):
+        return True
+
+    # For properties, check if the property getter is defined in this class or the main package
+    if isinstance(attr_value, property) and attr_value.fget:
+        prop_module = getattr(attr_value.fget, "__module__", "")
+        # Handle None module names (could happen with dynamically created properties)
+        return (
+            prop_module is None
+            or prop_module == ""
+            or prop_module.startswith(main_package_name)
         )
 
-        # Add function or class docstring
-        if obj_type == "function":
-            markdown.append(
-                create_container_block(
-                    summary_text="See detailed documentation",
-                    content=mdx_content,
-                    icon="📑",
-                    admonition_type=function_admonition_type,
-                    collapsible=function_collapsible,
-                    is_open=function_is_open,
+    # For other attributes, try to find where they're defined
+    # Check for descriptor objects that might have a __module__ attribute
+    if hasattr(attr_value, "__module__"):
+        attr_module = getattr(attr_value, "__module__", "")
+        # Handle None module names safely
+        return (
+            attr_module is None
+            or attr_module == ""
+            or attr_module.startswith(main_package_name)
+        )
+
+    # Check all classes in MRO to see where this attribute is defined
+    for cls in obj.__mro__:
+        if attr_name in cls.__dict__:
+            cls_module = getattr(cls, "__module__", "")
+            # Handle None module names safely
+            return (
+                cls_module is None
+                or cls_module == ""
+                or cls_module.startswith(main_package_name)
+            )
+
+    # If we can't determine, be conservative and include it
+    return True
+
+
+def get_class_attributes(obj, main_package_name, skip_builtin_methods):
+    """
+    Extract attributes from a class object.
+
+    Parameters
+    ----------
+    obj : Any
+        The class object being documented
+    main_package_name : str
+        Main package name for determining if a module is external
+    skip_builtin_methods : list
+        List of built-in methods to skip
+
+    Returns
+    -------
+    list
+        List of tuples (attr_name, attr_type, attr_value) representing class attributes
+    """
+    class_attributes = []
+
+    # Look at class annotations first (for type hints)
+    class_annotations = getattr(obj, "__annotations__", {})
+    for attr_name, attr_type in class_annotations.items():
+        # Skip private attributes
+        if attr_name.startswith("_"):
+            continue
+
+        # Try to get the default value if available
+        try:
+            attr_value = getattr(obj, attr_name, None)
+            # Don't include method objects
+            if inspect.isfunction(attr_value) or inspect.ismethod(attr_value):
+                continue
+
+            # Only include if it's from the main package
+            if is_attribute_from_main_package(
+                attr_name, attr_value, obj, main_package_name, skip_builtin_methods
+            ):
+                class_attributes.append((attr_name, attr_type, attr_value))
+        except Exception:
+            # If we can't get the value, just include the name and type if it's in __annotations__
+            # since that's defined in the class directly
+            class_attributes.append((attr_name, attr_type, None))
+
+    # Look for pydantic Field attributes which might not be in annotations
+    # This captures fields defined with pydantic's Field class
+    for attr_name, attr_value in obj.__dict__.items():
+        if attr_name.startswith("_"):
+            continue
+
+        # If already captured from annotations, skip
+        if any(a[0] == attr_name for a in class_attributes):
+            continue
+
+        # Check for pydantic Field objects
+        if (
+            hasattr(attr_value, "__class__")
+            and attr_value.__class__.__name__ == "Field"
+        ):
+            class_attributes.append(
+                (
+                    attr_name,
+                    getattr(attr_value, "annotation", "Any"),
+                    attr_value,
                 )
             )
-        elif obj_type == "class":
-            # For classes, process class attributes first before adding to the container
-            class_attributes = []
 
-            # Helper function to check if an attribute belongs to the current class or has been defined in the main package
-            def is_attribute_from_main_package(attr_name, attr_value):
-                """
-                Check if an attribute belongs to the current class or has been defined in the main package.
+    # Try to find other class variables and properties
+    for attr_name in dir(obj):
+        # Skip private attributes and already documented ones
+        if attr_name.startswith("_") or any(
+            a[0] == attr_name for a in class_attributes
+        ):
+            continue
 
-                Parameters
-                ----------
-                attr_name : str
-                    Name of the attribute
-                attr_value : Any
-                    Value of the attribute
+        # Skip methods and inherited methods
+        attr_value = getattr(obj, attr_name, None)
+        if inspect.isfunction(attr_value) or inspect.ismethod(attr_value):
+            continue
 
-                Returns
-                -------
-                bool
-                    True if attribute should be included, False otherwise
-                """
-                # Get built-in methods to skip from config, or use defaults
-                skip_builtin_methods = config.get(
-                    "skip_builtin_methods",
-                    [
-                        "from_bytes",
-                        "to_bytes",
-                        "__format__",
-                        "__reduce__",
-                        "__reduce_ex__",
-                        "__subclasshook__",
-                        "__init_subclass__",
-                        "__dir__",
-                        "__sizeof__",
-                    ],
-                )
+        # Skip common magic methods and built-ins
+        if attr_name in {
+            "__module__",
+            "__doc__",
+            "__dict__",
+            "__weakref__",
+            "__annotations__",
+        }:
+            continue
 
-                # Skip common built-in methods
-                if attr_name in skip_builtin_methods:
-                    # Check if it's a built-in method
-                    if type(attr_value).__name__ in [
-                        "builtin_function_or_method",
-                        "method_descriptor",
-                        "wrapper_descriptor",
-                    ]:
-                        return False
+        # Check if this is a property
+        is_property = isinstance(attr_value, property)
 
-                # Check if attribute is directly defined in this class's __dict__ (not inherited)
-                if attr_name in obj.__dict__:
-                    return True
-
-                # Special handling for enum members - always include them
-                if hasattr(obj, "__members__") and attr_name in getattr(
-                    obj, "__members__", {}
-                ):
-                    return True
-
-                # For properties, check if the property getter is defined in this class or the main package
-                if isinstance(attr_value, property) and attr_value.fget:
-                    prop_module = getattr(attr_value.fget, "__module__", "")
-                    # Handle None module names (could happen with dynamically created properties)
-                    return (
-                        prop_module is None
-                        or prop_module == ""
-                        or prop_module.startswith(main_package_name)
-                    )
-
-                # For other attributes, try to find where they're defined
-                # Check for descriptor objects that might have a __module__ attribute
-                if hasattr(attr_value, "__module__"):
-                    attr_module = getattr(attr_value, "__module__", "")
-                    # Handle None module names safely
-                    return (
-                        attr_module is None
-                        or attr_module == ""
-                        or attr_module.startswith(main_package_name)
-                    )
-
-                # Check all classes in MRO to see where this attribute is defined
-                for cls in obj.__mro__:
-                    if attr_name in cls.__dict__:
-                        cls_module = getattr(cls, "__module__", "")
-                        # Handle None module names safely
-                        return (
-                            cls_module is None
-                            or cls_module == ""
-                            or cls_module.startswith(main_package_name)
-                        )
-
-                # If we can't determine, be conservative and include it
-                return True
-
-            # Get all class variables and properties
-            # Look at class annotations first (for type hints)
-            class_annotations = getattr(obj, "__annotations__", {})
-            for attr_name, attr_type in class_annotations.items():
-                # Skip private attributes
-                if attr_name.startswith("_"):
-                    continue
-
-                # Try to get the default value if available
-                try:
-                    attr_value = getattr(obj, attr_name, None)
-                    # Don't include method objects
-                    if inspect.isfunction(attr_value) or inspect.ismethod(attr_value):
-                        continue
-
-                    # Only include if it's from the main package
-                    if is_attribute_from_main_package(attr_name, attr_value):
-                        class_attributes.append((attr_name, attr_type, attr_value))
-                except Exception:
-                    # If we can't get the value, just include the name and type if it's in __annotations__
-                    # since that's defined in the class directly
-                    class_attributes.append((attr_name, attr_type, None))
-
-            # Look for pydantic Field attributes which might not be in annotations
-            # This captures fields defined with pydantic's Field class
-            for attr_name, attr_value in obj.__dict__.items():
-                if attr_name.startswith("_"):
-                    continue
-
-                # If already captured from annotations, skip
-                if any(a[0] == attr_name for a in class_attributes):
-                    continue
-
-                # Check for pydantic Field objects
+        # Only add attributes that belong to our package
+        if is_attribute_from_main_package(
+            attr_name, attr_value, obj, main_package_name, skip_builtin_methods
+        ):
+            # Add to our list if it's a property or a class attribute
+            if is_property:
+                # For properties, use the return type annotation if available
                 if (
-                    hasattr(attr_value, "__class__")
-                    and attr_value.__class__.__name__ == "Field"
+                    hasattr(attr_value.fget, "__annotations__")
+                    and "return" in attr_value.fget.__annotations__
                 ):
-                    class_attributes.append(
-                        (
-                            attr_name,
-                            getattr(attr_value, "annotation", "Any"),
-                            attr_value,
-                        )
-                    )
-
-            # Try to find other class variables and properties
-            for attr_name in dir(obj):
-                # Skip private attributes and already documented ones
-                if attr_name.startswith("_") or any(
-                    a[0] == attr_name for a in class_attributes
-                ):
-                    continue
-
-                # Skip methods and inherited methods
-                attr_value = getattr(obj, attr_name, None)
-                if inspect.isfunction(attr_value) or inspect.ismethod(attr_value):
-                    continue
-
-                # Skip common magic methods and built-ins
-                if attr_name in {
-                    "__module__",
-                    "__doc__",
-                    "__dict__",
-                    "__weakref__",
-                    "__annotations__",
-                }:
-                    continue
-
-                # Check if this is a property
-                is_property = isinstance(attr_value, property)
-
-                # Only add attributes that belong to our package
-                if is_attribute_from_main_package(attr_name, attr_value):
-                    # Add to our list if it's a property or a class attribute
-                    if is_property:
-                        # For properties, use the return type annotation if available
-                        if (
-                            hasattr(attr_value.fget, "__annotations__")
-                            and "return" in attr_value.fget.__annotations__
-                        ):
-                            attr_type = attr_value.fget.__annotations__["return"]
-                            # Store the actual property docstring, not just a marker
-                            if attr_value.__doc__:
-                                class_attributes.append(
-                                    (attr_name, attr_type, attr_value)
-                                )
-                            else:
-                                class_attributes.append(
-                                    (attr_name, attr_type, "(property)")
-                                )
-                        else:
-                            # Even without return type annotation, store the property object if it has docstring
-                            if attr_value.__doc__:
-                                class_attributes.append((attr_name, "Any", attr_value))
-                            else:
-                                class_attributes.append(
-                                    (attr_name, "Any", "(property)")
-                                )
-                    elif not inspect.isfunction(attr_value) and not inspect.isclass(
-                        attr_value
-                    ):
-                        # Skip if it's a function or a nested class
-                        class_attributes.append(
-                            (attr_name, type(attr_value).__name__, attr_value)
-                        )
-
-            # Collect all available methods for the method summary section
-            all_class_methods = []
-            documented_methods_set = set()
-
-            for method_name, method in inspect.getmembers(
-                obj, predicate=inspect.isfunction
-            ):
-                # Skip private methods
-                if method_name.startswith("_"):
-                    continue
-
-                # Skip methods from external modules
-                method_module = getattr(method, "__module__", "")
-                if not method_module.startswith(main_package_name):
-                    continue
-
-                try:
-                    method_sig = str(inspect.signature(method))
-                except (ValueError, TypeError):
-                    method_sig = "(...)"
-
-                # Extract method description from docstring for the summary
-                method_doc = inspect.getdoc(method)
-                method_desc = ""
-                if method_doc:
-                    # Use the helper function to extract a description
-                    method_desc = extract_description_summary(method_doc)
-
-                # Add to list with method name, signature, and description
-                all_class_methods.append((method_name, method_sig, method_desc))
-                documented_methods_set.add(method_name)
-
-            # Sort methods alphabetically for consistent presentation
-            all_class_methods.sort(key=lambda x: x[0])
-
-            # If we found any attributes, format them and combine with class documentation
-            class_content = mdx_content
-
-            # Add class attributes section if available
-            if class_attributes:
-                class_attr_content = format_class_attributes(
-                    class_attributes, attributes_format
-                )
-                if class_attr_content:
-                    class_content = f"{mdx_content}\n\n{class_attr_content}"
-
-            # Add methods summary section if there are any methods
-            if all_class_methods:
-                methods_summary = format_methods_summary(
-                    all_class_methods,
-                    format=methods_summary_format,
-                    class_name=obj_name,
-                )
-                class_content = f"{class_content}\n\n{methods_summary}"
-
-            # Now add the combined content to the container block
-            markdown.append(
-                create_container_block(
-                    summary_text="See detailed documentation",
-                    content=class_content,
-                    icon="📑",
-                    admonition_type=class_admonition_type,
-                    collapsible=class_collapsible,
-                    is_open=class_is_open,
-                )
-            )
-        else:
-            # For modules, just add the docstring directly
-            markdown.append(mdx_content)
-
-        # If it's a class, also document its methods
-        if inspect.isclass(obj):
-            # List to store all methods we find
-            all_methods = []
-
-            # If not including inherited methods, just get the direct methods
-            for method_name, method in inspect.getmembers(
-                obj, predicate=inspect.isfunction
-            ):
-                if method_name.startswith("_"):
-                    continue
-
-                # Skip methods from external modules
-                method_module = getattr(method, "__module__", "")
-                if not method_module.startswith(main_package_name):
-                    continue
-
-                all_methods.append((method_name, method))
-
-            # Now document all the methods we found
-            for item in all_methods:
-                method_name = item[0]
-
-                # Skip methods that start with underscore (private methods)
-                if method_name.startswith("_"):
-                    continue
-
-                # Handle case where method might be a tuple with source info
-                if isinstance(item[1], tuple):
-                    method, source_class = item[1]
-                    is_inherited = True
-                    source_module = method.__module__
+                    attr_type = attr_value.fget.__annotations__["return"]
+                    # Store the actual property docstring, not just a marker
+                    if attr_value.__doc__:
+                        class_attributes.append((attr_name, attr_type, attr_value))
+                    else:
+                        class_attributes.append((attr_name, attr_type, "(property)"))
                 else:
-                    method = item[1]
-                    source_class = obj.__name__
-                    source_module = method.__module__
-                    is_inherited = False
+                    # Even without return type annotation, store the property object if it has docstring
+                    if attr_value.__doc__:
+                        class_attributes.append((attr_name, "Any", attr_value))
+                    else:
+                        class_attributes.append((attr_name, "Any", "(property)"))
+            elif not inspect.isfunction(attr_value) and not inspect.isclass(attr_value):
+                # Skip if it's a function or a nested class
+                class_attributes.append(
+                    (attr_name, type(attr_value).__name__, attr_value)
+                )
 
-                markdown.append(f"\n---\n\n## {obj_name}.{method_name}\n")
+    return class_attributes
 
-                # If the method is inherited, note where it comes from
-                if is_inherited:
-                    markdown.append(
-                        f"*Inherited from `{source_module}.{source_class}`*\n"
-                    )
 
-                # Add method signature
-                try:
-                    signature = str(inspect.signature(method))
-                    markdown.append(f"```python\n{method_name}{signature}\n```\n")
-                except (ValueError, TypeError):
-                    pass
+def get_class_methods(obj, main_package_name):
+    """
+    Extract methods from a class object.
 
-                method_doc = inspect.getdoc(method)
-                if method_doc:
-                    try:
-                        # Convert method docstring to RST, then to Markdown
-                        method_rst = docstring_to_rst(method_doc, "method")
-                        method_md = rst_to_mdx(
-                            method_rst,
-                            parameters_format=parameters_format,
-                            returns_format=returns_format,
-                            attributes_format=attributes_format,
-                        )
+    Parameters
+    ----------
+    obj : Any
+        The class object being documented
+    main_package_name : str
+        Main package name for determining if a module is external
 
-                        # Add the method documentation
-                        markdown.append(
-                            create_container_block(
-                                summary_text="See detailed method documentation",
-                                content=method_md,
-                                icon="📑",
-                                admonition_type=method_admonition_type,
-                                collapsible=method_collapsible,
-                                is_open=method_is_open,
-                            )
-                        )
+    Returns
+    -------
+    list
+        List of tuples (method_name, method_sig, method_desc) representing class methods
+    """
+    all_class_methods = []
 
-                    except Exception as e:
-                        markdown.append(
-                            f"\n{method_doc}\n\n*Note: Raw docstring shown due to parsing issue: {str(e)}*"
-                        )
-                else:
-                    markdown.append("\nNo documentation available for this method.")
+    for method_name, method in inspect.getmembers(obj, predicate=inspect.isfunction):
+        # Skip private methods
+        if method_name.startswith("_"):
+            continue
 
-    except Exception as e:
-        # If conversion fails, use the raw docstring
-        markdown.append(f"\n{docstring}")
-        markdown.append(
-            f"\n\n*Note: Raw docstring shown due to conversion issue: {str(e)}*"
+        # Skip methods from external modules
+        method_module = getattr(method, "__module__", "")
+        if not method_module.startswith(main_package_name):
+            continue
+
+        try:
+            method_sig = str(inspect.signature(method))
+        except (ValueError, TypeError):
+            method_sig = "(...)"
+
+        # Extract method description from docstring for the summary
+        method_doc = inspect.getdoc(method)
+        method_desc = ""
+        if method_doc:
+            # Use the helper function to extract a description
+            method_desc = extract_description_summary(method_doc)
+            method_desc = escape_for_mdx(method_desc)
+
+        # Add to list with method name, signature, and description
+        all_class_methods.append((method_name, method_sig, method_desc))
+
+    # Sort methods alphabetically for consistent presentation
+    all_class_methods.sort(key=lambda x: x[0])
+
+    return all_class_methods
+
+
+def get_class_attributes_and_methods_docs(
+    obj, obj_name, mdx_content, main_package_name, config_params
+):
+    """
+    Process class content by gathering attributes and methods.
+
+    Parameters
+    ----------
+    obj : Any
+        The class object being documented
+    obj_name : str
+        Name of the class
+    mdx_content : str
+        Initial MDX content from the class docstring
+    main_package_name : str
+        Main package name for determining if a module is external
+    config_params : dict
+        Configuration parameters for formatting
+
+    Returns
+    -------
+    str
+        Processed class content with attributes and methods
+    """
+    class_content = mdx_content
+
+    # Get class attributes
+    class_attributes = get_class_attributes(
+        obj, main_package_name, config_params["skip_builtin_methods"]
+    )
+
+    # Add class attributes section if available
+    if class_attributes:
+        class_attr_content = format_class_attributes(
+            class_attributes, config_params["attributes_format"]
         )
+        if class_attr_content:
+            class_content = f"{mdx_content}\n\n{class_attr_content}"
 
-    return "\n".join(markdown)
+    # Get class methods for summary
+    all_class_methods = get_class_methods(obj, main_package_name)
+
+    # Add methods summary section if there are any methods
+    if all_class_methods:
+        methods_summary = format_methods_summary(
+            all_class_methods,
+            format=config_params["methods_summary_format"],
+            class_name=obj_name,
+        )
+        class_content = f"{class_content}\n\n{methods_summary}"
+
+    return class_content
+
+
+def document_class_methods(obj, obj_name, main_package_name, config_params):
+    """
+    Generate documentation for class methods.
+
+    Parameters
+    ----------
+    obj : Any
+        The class object being documented
+    obj_name : str
+        Name of the class
+    main_package_name : str
+        Main package name for determining if a module is external
+    config_params : dict
+        Configuration parameters for formatting
+
+    Returns
+    -------
+    list
+        List of formatted markdown strings for each method
+    """
+    markdown = []
+    all_methods = []
+
+    # If not including inherited methods, just get the direct methods
+    for method_name, method in inspect.getmembers(obj, predicate=inspect.isfunction):
+        if method_name.startswith("_"):
+            continue
+
+        # Skip methods from external modules
+        method_module = getattr(method, "__module__", "")
+        if not method_module.startswith(main_package_name):
+            continue
+
+        all_methods.append((method_name, method))
+
+    # Now document all the methods we found
+    for item in all_methods:
+        method_name = item[0]
+
+        # Skip methods that start with underscore (private methods)
+        if method_name.startswith("_"):
+            continue
+
+        # Handle case where method might be a tuple with source info
+        if isinstance(item[1], tuple):
+            method, source_class = item[1]
+            is_inherited = True
+            source_module = method.__module__
+        else:
+            method = item[1]
+            source_class = obj.__name__
+            source_module = method.__module__
+            is_inherited = False
+
+        markdown.append(f"\n---\n\n## {obj_name}.{method_name}\n")
+
+        # If the method is inherited, note where it comes from
+        if is_inherited:
+            markdown.append(f"*Inherited from `{source_module}.{source_class}`*\n")
+
+        # Add method signature
+        try:
+            signature = str(inspect.signature(method))
+            markdown.append(f"```python\n{method_name}{signature}\n```\n")
+        except (ValueError, TypeError):
+            pass
+
+        method_doc = inspect.getdoc(method)
+        if method_doc:
+            try:
+                # Convert method docstring to RST, then to Markdown
+                method_rst = docstring_to_rst(method_doc, "method")
+                method_md = rst_to_mdx(
+                    method_rst,
+                    parameters_format=config_params["parameters_format"],
+                    returns_format=config_params["returns_format"],
+                    attributes_format=config_params["attributes_format"],
+                )
+
+                # Add the method documentation
+                markdown.append(
+                    create_container_block(
+                        summary_text="See detailed method documentation",
+                        content=method_md,
+                        icon="📑",
+                        admonition_type=config_params["method_admonition_type"],
+                        collapsible=config_params["method_collapsible"],
+                        is_open=config_params["method_is_open"],
+                    )
+                )
+
+            except Exception as e:
+                markdown.append(
+                    f"\n{method_doc}\n\n*Note: Raw docstring shown due to parsing issue: {str(e)}*"
+                )
+        else:
+            markdown.append("\nNo documentation available for this method.")
+
+    return markdown
 
 
 def docstring_to_mdx(
@@ -768,17 +926,18 @@ def simple_rst_to_markdown(
 
     return formatted_md_text
 
+
 def extract_description_summary(text, max_length=None):
     """
     Extract a concise summary from a docstring or text block.
-    
+
     Parameters
     ----------
     text : str
         The docstring or text to extract a summary from
     max_length : int, optional
         Maximum length of the returned summary before truncation
-        
+
     Returns
     -------
     str
@@ -789,15 +948,15 @@ def extract_description_summary(text, max_length=None):
     """
     if not text:
         return ""
-        
+
     # Clean the text
     text = text.strip()
-    
+
     # Try to find the first paragraph (text before the first blank line)
     first_paragraph_match = re.match(r"^(.*?)(?=\n\n|$)", text, re.DOTALL)
     if first_paragraph_match:
         first_paragraph = first_paragraph_match.group(1).strip()
-        
+
         # If paragraph is already short enough, use it
         if max_length:
             if len(first_paragraph) <= max_length:
@@ -809,7 +968,7 @@ def extract_description_summary(text, max_length=None):
     first_sentence_match = re.match(r"^(.*?\.)(?=\s|$)", text)
     if first_sentence_match:
         first_sentence = first_sentence_match.group(1).strip()
-        
+
         # If sentence is short enough, use it
         if max_length:
             if len(first_sentence) <= max_length:
@@ -823,9 +982,10 @@ def extract_description_summary(text, max_length=None):
         if len(text) <= max_length:
             return text
         else:
-            return text[:max_length-3] + "..."
+            return text[: max_length - 3] + "..."
     else:
         return text
+
 
 def escape_for_all_except_code_blocks(md_text):
     """ """
@@ -1133,8 +1293,10 @@ def format_methods_summary(methods_list, format="table", class_name=None):
             method_entry = f"- {method_link}\n\n"
 
             # Handle multi-line descriptions by preserving line breaks and adding indentation
-            if description:
-                method_entry += f"    {description}"
+            indented_desc = ""
+            for line in description.split("\n"):
+                indented_desc += f"    {line.strip()}\n"
+            method_entry += f"{indented_desc}\n"
 
             methods_summary += f"{method_entry}\n"
 
