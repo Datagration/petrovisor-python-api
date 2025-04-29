@@ -65,15 +65,19 @@ def docstring_to_markdown(
 
     # Get parameters configuration
     parameters_config = config.get("parameters", {}) if config else {}
-    parameters_format = parameters_config.get("format", "table")
+    parameters_format = parameters_config.get("format", "list")
 
     # Get returns configuration
     returns_config = config.get("returns", {}) if config else {}
-    returns_format = returns_config.get("format", "table")
+    returns_format = returns_config.get("format", "list")
 
     # Get attributes configuration
     attributes_config = config.get("attributes", {}) if config else {}
-    attributes_format = attributes_config.get("format", "table")
+    attributes_format = attributes_config.get("format", "list")
+
+    # Get methods summary configuration
+    methods_summary_config = config.get("methods_summary", {}) if config else {}
+    methods_summary_format = methods_summary_config.get("format", "list")
 
     # Skip docstrings from built-in or external modules
     if obj_type == "class":
@@ -347,84 +351,43 @@ def docstring_to_markdown(
             all_class_methods = []
             documented_methods_set = set()
 
-            # Determine if we should include inherited methods in the summary
-            include_inherited = config.get("include_inherited_docs", True)
+            for method_name, method in inspect.getmembers(
+                obj, predicate=inspect.isfunction
+            ):
+                # Skip private methods
+                if method_name.startswith("_"):
+                    continue
 
-            if include_inherited:
-                # Get the Method Resolution Order (MRO) - the inheritance hierarchy
-                for cls in obj.__mro__:
-                    # Skip object itself (last in MRO)
-                    if cls is object:
-                        continue
+                # Skip methods from external modules
+                method_module = getattr(method, "__module__", "")
+                if not method_module.startswith(main_package_name):
+                    continue
 
-                    # Skip classes not in our package
-                    cls_module = cls.__module__
-                    if not cls_module.startswith(main_package_name):
-                        continue
+                try:
+                    method_sig = str(inspect.signature(method))
+                except (ValueError, TypeError):
+                    method_sig = "(...)"
 
-                    # Skip classes based on patterns in skip_classes configuration
-                    skip_class = False
-                    for skip_pattern in config.get("skip_classes", []):
-                        if re.match(
-                            skip_pattern, f"{cls_module}.{cls.__name__}"
-                        ) or re.match(skip_pattern, cls.__name__):
-                            skip_class = True
-                            break
-
-                    if skip_class:
-                        continue
-
-                    # Get methods from this class that are defined in this class's module
-                    for method_name, method in inspect.getmembers(
-                        cls, predicate=inspect.isfunction
-                    ):
-                        # Skip private methods and already documented methods
-                        if (
-                            method_name.startswith("_")
-                            or method_name in documented_methods_set
-                        ):
-                            continue
-
-                        # Skip methods from external modules
-                        method_module = getattr(method, "__module__", "")
-                        if not method_module.startswith(main_package_name):
-                            continue
-
-                        # Add method to our list with source class info
-                        source_cls = cls.__name__
-                        is_inherited = cls is not obj
-
-                        try:
-                            method_sig = str(inspect.signature(method))
-                        except (ValueError, TypeError):
-                            method_sig = "(...)"
-
-                        all_class_methods.append(
-                            (method_name, method_sig, is_inherited, source_cls)
+                # Extract method description from docstring for the summary
+                method_doc = inspect.getdoc(method)
+                method_desc = ""
+                if method_doc:
+                    # Get first line/sentence of the docstring as summary
+                    first_line = method_doc.split("\n")[0].strip()
+                    # If it ends with a period and there's more text, it's likely a complete sentence
+                    if first_line.endswith(".") and len(first_line) < 100:
+                        method_desc = first_line
+                    else:
+                        # Take first 100 chars and add ellipsis if needed
+                        method_desc = (
+                            (first_line[:97] + "...")
+                            if len(first_line) > 100
+                            else first_line
                         )
-                        documented_methods_set.add(method_name)
-            else:
-                # If not including inherited methods, just get the direct methods
-                for method_name, method in inspect.getmembers(
-                    obj, predicate=inspect.isfunction
-                ):
-                    if method_name.startswith("_"):
-                        continue
 
-                    # Skip methods from external modules
-                    method_module = getattr(method, "__module__", "")
-                    if not method_module.startswith(main_package_name):
-                        continue
-
-                    try:
-                        method_sig = str(inspect.signature(method))
-                    except (ValueError, TypeError):
-                        method_sig = "(...)"
-
-                    all_class_methods.append(
-                        (method_name, method_sig, False, obj.__name__)
-                    )
-                    documented_methods_set.add(method_name)
+                # Add to list with method name, signature, and description
+                all_class_methods.append((method_name, method_sig, method_desc))
+                documented_methods_set.add(method_name)
 
             # Sort methods alphabetically for consistent presentation
             all_class_methods.sort(key=lambda x: x[0])
@@ -443,7 +406,9 @@ def docstring_to_markdown(
             # Add methods summary section if there are any methods
             if all_class_methods:
                 methods_summary = format_methods_summary(
-                    all_class_methods, format="table"
+                    all_class_methods,
+                    format=methods_summary_format,
+                    class_name=obj_name,
                 )
                 class_content = f"{class_content}\n\n{methods_summary}"
 
@@ -464,91 +429,22 @@ def docstring_to_markdown(
 
         # If it's a class, also document its methods
         if inspect.isclass(obj):
-            # Determine if we should include inherited methods
-            include_inherited = config.get("include_inherited_docs", True)
-
-            # List to store all methods we find (both direct and inherited)
+            # List to store all methods we find
             all_methods = []
-            documented_methods = set()
 
-            if include_inherited:
-                # Get the Method Resolution Order (MRO) - the inheritance hierarchy
-                for cls in obj.__mro__:
-                    # Skip object itself (last in MRO)
-                    if cls is object:
-                        continue
+            # If not including inherited methods, just get the direct methods
+            for method_name, method in inspect.getmembers(
+                obj, predicate=inspect.isfunction
+            ):
+                if method_name.startswith("_"):
+                    continue
 
-                    # Skip classes not in our package
-                    cls_module = cls.__module__
-                    if not cls_module.startswith(main_package_name):
-                        # Skip methods from external packages
-                        print(
-                            f"  Skipping methods from external class: {cls.__module__}.{cls.__name__}"
-                        )
-                        continue
+                # Skip methods from external modules
+                method_module = getattr(method, "__module__", "")
+                if not method_module.startswith(main_package_name):
+                    continue
 
-                    # Skip classes based on patterns in skip_classes configuration
-                    skip_class = False
-                    for skip_pattern in config.get("skip_classes", []):
-                        if re.match(
-                            skip_pattern, f"{cls_module}.{cls.__name__}"
-                        ) or re.match(skip_pattern, cls.__name__):
-                            skip_class = True
-                            print(
-                                f"  Skipping methods from class: {cls.__module__}.{cls.__name__} (matched pattern: {skip_pattern})"
-                            )
-                            break
-
-                    if skip_class:
-                        continue
-
-                    # Get methods from this class that are defined in this class's module
-                    class_methods = []
-                    for method_name, method in inspect.getmembers(
-                        cls, predicate=inspect.isfunction
-                    ):
-                        # Skip private methods
-                        if method_name.startswith("_"):
-                            continue
-
-                        # Skip already documented methods
-                        if method_name in documented_methods:
-                            continue
-
-                        # Skip methods from external modules
-                        method_module = getattr(method, "__module__", "")
-                        if not method_module.startswith(main_package_name):
-                            continue
-
-                        # Add method to our list with source class info
-                        source_cls = cls.__name__
-                        is_inherited = cls is not obj
-
-                        # For inherited methods, create a tuple with source info
-                        if is_inherited:
-                            class_methods.append((method_name, (method, source_cls)))
-                        else:
-                            class_methods.append((method_name, method))
-
-                        documented_methods.add(method_name)
-
-                    # Add methods from this class to the overall list
-                    all_methods.extend(class_methods)
-            else:
-                # If not including inherited methods, just get the direct methods
-                for method_name, method in inspect.getmembers(
-                    obj, predicate=inspect.isfunction
-                ):
-                    if method_name.startswith("_"):
-                        continue
-
-                    # Skip methods from external modules
-                    method_module = getattr(method, "__module__", "")
-                    if not method_module.startswith(main_package_name):
-                        continue
-
-                    if method.__module__ == obj.__module__:
-                        all_methods.append((method_name, method))
+                all_methods.append((method_name, method))
 
             # Now document all the methods we found
             for item in all_methods:
@@ -976,9 +872,12 @@ def format_parameters_section(params_content, format="table"):
     if not param_blocks:
         return ""
 
+    header = "**Parameters:**\n\n"
+
     if format == "table":
         # Table format
-        param_table = "**Parameters:**\n\n| Name | Type | Description | Default |\n|------|------|-------------|--------|\n"
+        param_table = header
+        param_table += "| Name | Type | Description | Default |\n|------|------|-------------|--------|\n"
 
         for name, desc in param_blocks:
             # Find matching type
@@ -1026,8 +925,8 @@ def format_parameters_section(params_content, format="table"):
 
         return param_table
     else:
-        # List format - NumPy style with bullet points
-        param_list = "**Parameters:**\n\n"
+        # List format
+        param_list = header
 
         for name, desc in param_blocks:
             # Find matching type
@@ -1050,10 +949,8 @@ def format_parameters_section(params_content, format="table"):
             desc = re.sub(r"(?i)\(?optional\)?[,:\s]*$", "", desc)
 
             # Format as bullet point with indented description on new lines
-            param_list += f"- **{name}** : {type_str}{type_suffix}\n"
-            param_list += "\n"
+            param_list += f"- **{name}** : {type_str}{type_suffix}\n\n"
 
-            # Indent the description with 4 spaces for readability
             # Handle multi-line descriptions by preserving line breaks and adding indentation
             indented_desc = ""
             for line in desc.split("\n"):
@@ -1092,6 +989,8 @@ def format_returns_section(returns_content, format="table"):
     returns_desc = returns_match.group(1).strip()
     rtype = rtype_match.group(1).strip() if rtype_match else ""
 
+    header = "**Returns:**\n\n"
+
     if format == "table":
         # Table format
         formatted_desc = []
@@ -1106,20 +1005,17 @@ def format_returns_section(returns_content, format="table"):
         # Join lines with space or <br/> for proper table formatting
         returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
 
-        returns_table = (
-            "**Returns:**\n\n| Type | Description |\n|------|-------------|\n"
-        )
+        returns_table = header
+        returns_table += "| Type | Description |\n|------|-------------|\n"
         returns_table += f"| `{rtype}` | {returns_desc} |\n"
 
         return returns_table
     else:
-        # List format - NumPy style with bullet points
-        returns_list = "**Returns:**\n\n"
-        returns_list += f"- **{rtype}**\n"
-        returns_list += "\n"
+        # List format
+        returns_list = header
+        returns_list += f"- **{rtype}**\n\n"
 
-        # Indent the description with 4 spaces for readability
-        # Handle multi-line descriptions
+        # Handle multi-line descriptions by preserving line breaks and adding indentation
         indented_desc = ""
         for line in returns_desc.split("\n"):
             indented_desc += f"    {line.strip()}\n"
@@ -1129,16 +1025,18 @@ def format_returns_section(returns_content, format="table"):
         return returns_list
 
 
-def format_methods_summary(methods_list, format="table"):
+def format_methods_summary(methods_list, format="table", class_name=None):
     """
     Format class methods as a Markdown table or list.
 
     Parameters
     ----------
     methods_list : list of tuples
-        List of (method_name, method_signature, is_inherited, source_class) tuples representing class methods
+        List of (method_name, method_signature, description) tuples representing class methods
     format : str, default="table"
         Format to use: "table" or "list"
+    class_name : str, optional
+        Class name to use in anchor links for consistent linking
 
     Returns
     -------
@@ -1151,32 +1049,46 @@ def format_methods_summary(methods_list, format="table"):
     # Sort methods alphabetically for consistent presentation
     methods_list.sort(key=lambda x: x[0])
 
+    header = "## Class Methods\n\n"
+
     if format == "table":
         # Table format
-        methods_summary = "## Class Methods\n\n"
+        methods_summary = header
         methods_summary += "| Method | Description |\n"
         methods_summary += "|--------|-------------|\n"
 
-        for method_name, method_sig, is_inherited, source_cls in methods_list:
+        for method_info in methods_list:
+            method_name, method_sig, description = method_info
+
             # Create a link to the method documentation further down the page
-            method_link = f"[{method_name}{method_sig}](#{method_name.lower()})"
-            inheritance_note = (
-                f" *(inherited from {source_cls})*" if is_inherited else ""
-            )
-            methods_summary += f"| {method_link} | {inheritance_note} |\n"
+            anchor = f"{class_name}{method_name}" if class_name else method_name
+            method_link = f"[{method_name}{method_sig}](#{anchor.lower()})"
+
+            # Format description: use provided description
+            display_description = description if description else ""
+
+            methods_summary += f"| {method_link} | {display_description} |\n"
 
         return methods_summary
     else:
         # List format
-        methods_summary = "## Class Methods\n\n"
+        methods_summary = header
 
-        for method_name, method_sig, is_inherited, source_cls in methods_list:
+        for method_info in methods_list:
+            method_name, method_sig, description = method_info
+
             # Create a link to the method documentation further down the page
-            method_link = f"[{method_name}{method_sig}](#{method_name.lower()})"
-            inheritance_note = (
-                f" *(inherited from {source_cls})*" if is_inherited else ""
-            )
-            methods_summary += f"- {method_link}{inheritance_note}\n"
+            anchor = f"{class_name}{method_name}" if class_name else method_name
+            method_link = f"[{method_name}{method_sig}](#{anchor.lower()})"
+
+            # Start with method link
+            method_entry = f"- {method_link}\n\n"
+
+            # Handle multi-line descriptions by preserving line breaks and adding indentation
+            if description:
+                method_entry += f"    {description}"
+
+            methods_summary += f"{method_entry}\n"
 
         return methods_summary
 
@@ -1200,9 +1112,11 @@ def format_class_attributes(class_attributes, format="table"):
     if not class_attributes:
         return ""
 
+    header = "## Class Attributes\n\n"
+
     if format == "table":
         # Table format
-        attr_table = "## Class Attributes\n\n"
+        attr_table = header
         attr_table += "| Name | Type | Description |\n"
         attr_table += "|------|------|-------------|\n"
 
@@ -1251,8 +1165,8 @@ def format_class_attributes(class_attributes, format="table"):
 
         return attr_table
     else:
-        # List format - NumPy style with bullet points
-        attr_list = "## Class Attributes\n\n"
+        # List format
+        attr_list = header
 
         for attr_name, attr_type, attr_value in sorted(
             class_attributes, key=lambda x: x[0]
@@ -1292,10 +1206,8 @@ def format_class_attributes(class_attributes, format="table"):
                         pass
 
             # Format as bullet point with indented description on new lines
-            attr_list += f"- **{attr_name}** : {type_str}\n"
-            attr_list += "\n"
+            attr_list += f"- **{attr_name}** : {type_str}\n\n"
 
-            # If we have a description, add it indented with 4 spaces
             # Handle multi-line descriptions by preserving line breaks and adding indentation
             indented_desc = ""
             for line in attr_desc.split("\n"):

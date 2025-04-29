@@ -31,9 +31,6 @@ def main():
 
     # Load configuration
     config = {
-        "inherit_docs": True,
-        "include_only_modules": [],
-        "from_init": True,
         "sidebar": {
             "position": 4,
             "label": "API Reference",
@@ -52,7 +49,7 @@ def main():
     init_modules = []
     allowed_classes = []
     class_modules = {}
-    if config.get("from_init", True) and args.package:
+    if args.package:
         init_modules, allowed_classes, class_modules = extract_modules_from_init(
             args.package
         )
@@ -461,13 +458,8 @@ def process_module(
 
         # Document classes - only those in __all__ if using --from-init
         for class_name, cls in documentable_classes:
-            # Generate documentation for the class with inherited docs from base classes
-            class_config = {
-                **config,
-                "include_inherited_docs": config.get("inherit_docs", True),
-            }
             markdown = docstring_to_markdown(
-                class_name, cls, module_name, config=class_config
+                class_name, cls, module_name, config=config
             )
 
             # Update the position in the frontmatter

@@ -1,6 +1,4 @@
 {
-  "inherit_docs": true,
-  "from_init": true,
   "format_titles": false,
   "sidebar": {
     "position": 5,
@@ -45,6 +43,9 @@
     "format": "list"
   },
   "attributes": {
+    "format": "list"
+  },
+  "methods_summary": {
     "format": "list"
   }
 }
