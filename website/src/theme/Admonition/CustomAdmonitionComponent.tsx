@@ -4,8 +4,9 @@ import { FunctionIcon, ClassIcon } from '../Icons';
 
 // Map of admonition types to their respective SVG icon components
 const ICON_COMPONENTS = {
-  function: FunctionIcon,
   class: ClassIcon,
+  function: FunctionIcon,
+  method: FunctionIcon,
 };
 
 export interface CustomAdmonitionProps {
@@ -31,7 +32,7 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
   // Use provided icon, component icon, or null
   const admonitionIcon = icon || (IconComponent ? <IconComponent /> : null);
   const admonitionTitle = title || type.charAt(0).toUpperCase() + type.slice(1);
-  
+
   const isCollapsible = !!collapsible;
   const isOpen = !(open == false);
 
@@ -82,7 +83,7 @@ function CustomAdmonitionComponent(props: CustomAdmonitionProps): JSX.Element {
 }
 
 // Register all custom admonitions
-const admonitionTypes = ['function', 'class'];
+const admonitionTypes = ['class', 'function', 'method'];
 const CustomAdmonitions: Record<
   string,
   React.ComponentType<CustomAdmonitionProps>

@@ -17,8 +17,9 @@ const CUSTOM_ADMONITION_TYPES = [
   'danger',
   // custom admonitions
   'details',
-  'function',
   'class',
+  'method',
+  'function',
 ];
 
 const config: Config = {

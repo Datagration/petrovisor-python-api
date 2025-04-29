@@ -8,15 +8,14 @@
     "title": "API Documentation",
     "collapsed": true
   },
-  "functions": {
-    "format": "function",
+  "modules": {
+    "format": "details",
     "collapsible": true,
-    "open": false
-  },
-  "methods": {
-    "format": "function",
-    "collapsible": true,
-    "open": false
+    "open": false,
+    "skip": [
+      "petrovisor.api.protocols.*",
+      "petrovisor.api.utils.*"
+    ]
   },
   "classes": {
     "format": "details",
@@ -27,13 +26,14 @@
       ".*Base$"
     ]
   },
-  "modules": {
-    "format": "details",
+  "methods": {
+    "format": "method",
     "collapsible": true,
-    "open": false,
-    "skip": [
-      "petrovisor.api.protocols.*",
-      "petrovisor.api.utils.*"
-    ]
+    "open": false
+  },
+  "functions": {
+    "format": "function",
+    "collapsible": true,
+    "open": false
   }
 }

@@ -115,7 +115,7 @@ def docstring_to_markdown(
 
         # Get method admonition configuration
         method_config = config.get("methods", {}) if config else {}
-        method_admonition_type = method_config.get("format", "function")
+        method_admonition_type = method_config.get("format", "method")
         method_collapsible = method_config.get("collapsible", True)
         method_is_open = method_config.get("open", True)
 
@@ -1255,8 +1255,9 @@ def create_admonition(
         "danger": "danger",
         # Custom admonition types for specific use cases
         "details": "details",
-        "function": "function",
         "class": "class",
+        "method": "method",
+        "function": "function",
         # Map alternate types to the standard ones
         "caution": "danger",
         "failure": "danger",
@@ -1285,8 +1286,9 @@ def create_admonition(
         "danger": "Danger",
         # Custom admonition types for specific use cases
         "details": "Details",
-        "function": "Function",
         "class": "Class",
+        "method": "Method",
+        "function": "Function",
         # Alternate admonition types
         "caution": "Caution",
         "important": "Important",
@@ -1398,7 +1400,9 @@ def create_container_block(
         # Try to infer the appropriate type
         admonition_type = "note"  # default
         # Check for common keywords in the title to determine type
-        if "detailed documentation" in title_lower:
+        if any(
+            word in title_lower for word in ["detail", "class", "method", "function"]
+        ):
             admonition_type = "info"
         elif any(word in title_lower for word in ["example", "usage", "how to"]):
             admonition_type = "tip"
