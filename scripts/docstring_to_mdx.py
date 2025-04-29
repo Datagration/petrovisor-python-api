@@ -372,18 +372,8 @@ def docstring_to_markdown(
                 method_doc = inspect.getdoc(method)
                 method_desc = ""
                 if method_doc:
-                    # Get first line/sentence of the docstring as summary
-                    first_line = method_doc.split("\n")[0].strip()
-                    # If it ends with a period and there's more text, it's likely a complete sentence
-                    if first_line.endswith(".") and len(first_line) < 100:
-                        method_desc = first_line
-                    else:
-                        # Take first 100 chars and add ellipsis if needed
-                        method_desc = (
-                            (first_line[:97] + "...")
-                            if len(first_line) > 100
-                            else first_line
-                        )
+                    # Use the helper function to extract a description
+                    method_desc = extract_description_summary(method_doc)
 
                 # Add to list with method name, signature, and description
                 all_class_methods.append((method_name, method_sig, method_desc))
@@ -778,6 +768,64 @@ def simple_rst_to_markdown(
 
     return formatted_md_text
 
+def extract_description_summary(text, max_length=None):
+    """
+    Extract a concise summary from a docstring or text block.
+    
+    Parameters
+    ----------
+    text : str
+        The docstring or text to extract a summary from
+    max_length : int, optional
+        Maximum length of the returned summary before truncation
+        
+    Returns
+    -------
+    str
+        A summary extracted from the text:
+        - If there's a first paragraph (text before first blank line), use that
+        - Otherwise, use the first sentence ending with a period
+        - If neither is found or text is too long, truncate with ellipsis
+    """
+    if not text:
+        return ""
+        
+    # Clean the text
+    text = text.strip()
+    
+    # Try to find the first paragraph (text before the first blank line)
+    first_paragraph_match = re.match(r"^(.*?)(?=\n\n|$)", text, re.DOTALL)
+    if first_paragraph_match:
+        first_paragraph = first_paragraph_match.group(1).strip()
+        
+        # If paragraph is already short enough, use it
+        if max_length:
+            if len(first_paragraph) <= max_length:
+                return first_paragraph
+        else:
+            return first_paragraph
+
+    # Try to find the first sentence (ending with a period)
+    first_sentence_match = re.match(r"^(.*?\.)(?=\s|$)", text)
+    if first_sentence_match:
+        first_sentence = first_sentence_match.group(1).strip()
+        
+        # If sentence is short enough, use it
+        if max_length:
+            if len(first_sentence) <= max_length:
+                return first_sentence
+        else:
+            return first_sentence
+
+    # If we get here, either no clear paragraph/sentence was found,
+    # or they were too long - truncate the beginning of the text
+    if max_length:
+        if len(text) <= max_length:
+            return text
+        else:
+            return text[:max_length-3] + "..."
+    else:
+        return text
 
 def escape_for_all_except_code_blocks(md_text):
     """ """
