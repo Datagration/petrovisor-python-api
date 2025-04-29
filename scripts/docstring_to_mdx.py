@@ -172,19 +172,19 @@ def get_formatting_config(config: dict, obj_type: str) -> dict:
 
     # Get parameters configuration
     parameters_config = config.get("parameters", {})
-    result["parameters_format"] = parameters_config.get("format", "list")
+    result["parameters_format"] = parameters_config.get("format", "table")
 
     # Get returns configuration
     returns_config = config.get("returns", {})
-    result["returns_format"] = returns_config.get("format", "list")
+    result["returns_format"] = returns_config.get("format", "table")
 
     # Get attributes configuration
     attributes_config = config.get("attributes", {})
-    result["attributes_format"] = attributes_config.get("format", "list")
+    result["attributes_format"] = attributes_config.get("format", "table")
 
     # Get methods summary configuration
     methods_summary_config = config.get("methods_summary", {})
-    result["methods_summary_format"] = methods_summary_config.get("format", "list")
+    result["methods_summary_format"] = methods_summary_config.get("format", "table")
 
     # Get built-in methods to skip
     result["skip_builtin_methods"] = config.get(
@@ -1383,6 +1383,63 @@ def format_methods_summary(methods_list, format="table", class_name=None):
         return methods_summary
 
 
+def process_attr_description(attr_name, attr_type, attr_value):
+    """
+    Process attribute type and description for consistent formatting.
+
+    Parameters
+    ----------
+    attr_name : str
+        Name of the attribute
+    attr_type : Any
+        Type of the attribute (could be string or actual type object)
+    attr_value : Any
+        Value of the attribute
+
+    Returns
+    -------
+    tuple
+        Tuple containing (type_str, attr_desc)
+    """
+    # Format the type nicely
+    if isinstance(attr_type, str):
+        type_str = attr_type
+    else:
+        try:
+            # Get the name of the type
+            type_str = attr_type.__name__
+        except AttributeError:
+            try:
+                # Try using str representation instead
+                type_str = str(attr_type)
+            except Exception:
+                type_str = "Unknown"
+
+    # Process the description
+    if attr_value == "(property)":
+        attr_desc = "Property"
+    elif attr_value is None:
+        attr_desc = ""
+    else:
+        try:
+            # Try to represent the value, but limit its size
+            if isinstance(attr_value, property):
+                attr_desc = "Property"
+                # Handle property docstring
+                if attr_value.__doc__:
+                    # Use the actual property docstring
+                    attr_desc = attr_value.__doc__.strip()
+            else:
+                value_repr = (
+                    attr_value if isinstance(attr_value, int) else repr(attr_value)
+                )
+                attr_desc = f"Default: `{value_repr}`"
+        except Exception:
+            attr_desc = ""
+
+    return (type_str, attr_desc)
+
+
 def format_class_attributes(class_attributes, format="table"):
     """
     Format class attributes as a Markdown table or list.
@@ -1413,53 +1470,20 @@ def format_class_attributes(class_attributes, format="table"):
         for attr_name, attr_type, attr_value in sorted(
             class_attributes, key=lambda x: x[0]
         ):
-            # Format the type nicely
-            if isinstance(attr_type, str):
-                type_str = f"`{attr_type}`"
-            else:
-                try:
-                    # Get the name of the type
-                    type_str = f"`{attr_type.__name__}`"
-                except AttributeError:
-                    try:
-                        # Try using str representation instead
-                        type_str = f"`{str(attr_type)}`"
-                    except Exception:
-                        type_str = "`Unknown`"
+            # Use the helper function to process type and description
+            type_str, attr_desc = process_attr_description(
+                attr_name, attr_type, attr_value
+            )
 
-            # Get the value (for enums and constants, otherwise empty)
-            if attr_value == "(property)":
-                value_str = "Property"
-            elif attr_value is None:
-                value_str = ""
-            else:
-                try:
-                    # Try to represent the value, but limit its size
-                    if isinstance(attr_value, property):
-                        value_str = "Property"
-                    else:
-                        value_repr = (
-                            attr_value
-                            if isinstance(attr_value, int)
-                            else repr(attr_value)
-                        )
-                        value_str = f"Default: `{value_repr}`"
-
-                except Exception:
-                    value_str = ""
-
-            # Extract property docstring
-            desc = value_str
-
-            # Handle property docstring
-            if isinstance(attr_value, property) and attr_value.__doc__:
-                # We have the actual property object with a docstring
-                desc = attr_value.__doc__.strip()
+            # Format type for table display
+            type_str_formatted = f"`{type_str}`"
 
             # Format description for table cell using the reusable function
-            formatted_desc = format_description_for_table_cell(desc)
+            formatted_desc = format_description_for_table_cell(attr_desc)
 
-            attr_table += f"| **{attr_name}** | {type_str} | {formatted_desc} |\n"
+            attr_table += (
+                f"| **{attr_name}** | {type_str_formatted} | {formatted_desc} |\n"
+            )
 
         return attr_table
     else:
@@ -1469,48 +1493,18 @@ def format_class_attributes(class_attributes, format="table"):
         for attr_name, attr_type, attr_value in sorted(
             class_attributes, key=lambda x: x[0]
         ):
-            # Format the type nicely
-            if isinstance(attr_type, str):
-                type_str = attr_type
-            else:
-                try:
-                    # Get the name of the type
-                    type_str = attr_type.__name__
-                except AttributeError:
-                    try:
-                        # Try using str representation instead
-                        type_str = str(attr_type)
-                    except Exception:
-                        type_str = "Unknown"
-
-            # Get the description
-            if attr_value == "(property)":
-                attr_desc = "*Property*"
-            elif attr_value is None:
-                attr_desc = ""
-            else:
-                if isinstance(attr_value, property) and attr_value.__doc__:
-                    # Use the property docstring
-                    attr_desc = attr_value.__doc__.strip()
-                else:
-                    # For non-properties, create a description based on the value
-                    attr_desc = ""
-                    try:
-                        if not isinstance(attr_value, property):
-                            value_repr = repr(attr_value)
-                            if len(value_repr) < 50:  # Only show short default values
-                                attr_desc = f"Default: `{value_repr}`"
-                    except Exception:
-                        pass
-
-            # Format as bullet point with indented description on new lines
-            attr_list += f"- **{attr_name}** : {type_str}\n\n"
+            # Use the helper function to process type and description
+            type_str, attr_desc = process_attr_description(
+                attr_name, attr_type, attr_value
+            )
 
             # Handle multi-line descriptions by preserving line breaks and adding indentation
             indented_desc = ""
             for line in attr_desc.split("\n"):
                 indented_desc += f"    {line.strip()}\n"
 
+            # Format as bullet point with indented description on new lines
+            attr_list += f"- **{attr_name}** : {type_str}\n\n"
             attr_list += f"{indented_desc}\n"
 
         return attr_list

@@ -31,16 +31,14 @@
   },
   "functions": {
     "format": "function",
-    "parameters_format": "list",
-    "returns_format": "list",
     "collapsible": true,
     "open": false
   },
   "parameters": {
-    "format": "list"
+    "format": "table"
   },
   "returns": {
-    "format": "list"
+    "format": "table"
   },
   "attributes": {
     "format": "table"
