@@ -22,6 +22,7 @@ class LogsMixin(SupportsRequests):
             'script','entity','signal','unit','tag',
             'numberofitems','valuebefore','valueafter',
             'messagedetails','directory'
+
         Parameters
         ----------
         message : str

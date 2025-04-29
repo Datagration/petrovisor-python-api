@@ -13,7 +13,6 @@ from petrovisor.api.enums.internal_dtypes import (
 from petrovisor.api.enums.increments import TimeIncrement, DepthIncrement
 from petrovisor.api.enums.ml import MLModelType, MLNormalizationType
 from petrovisor.api.enums.data_grids import DataGridType, PointSetType
-from petrovisor.api.enums.arguments import ArgumentType
 from petrovisor.models.contexts_manager import ContextsManager
 from petrovisor.api.models.context import Context
 from petrovisor.api.models.scope import Scope
@@ -36,7 +35,6 @@ __all__ = [
     "DataGridType",
     "PointSetType",
     "RefTableColumnType",
-    "ArgumentType",
     "ContextsManager",
     "Context",
     "Scope",
