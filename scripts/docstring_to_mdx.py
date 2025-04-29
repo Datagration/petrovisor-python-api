@@ -2,6 +2,7 @@
 import re
 import inspect
 from typing import Any
+from enum import Enum, IntEnum
 from sphinx.ext.napoleon import Config, NumpyDocstring
 
 
@@ -798,8 +799,6 @@ def simple_rst_to_markdown(
     --------
     - https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html
     - https://squidfunk.github.io/mkdocs-material/reference/admonitions/
-    - https://docusaurus.io/docs/markdown-features/admonitions
-    - https://github.com/refinedev/refine/blob/9d1e67d2fdde7c3dcddb9416afc8eb0bdce7a197/documentation/src/refine-theme/common-admonition.tsx#L141
     """
     if not rst_text:
         return ""
@@ -1368,17 +1367,22 @@ def format_class_attributes(class_attributes, format="table"):
 
             # Get the value (for enums and constants, otherwise empty)
             if attr_value == "(property)":
-                value_str = "*Property*"
+                value_str = "Property"
             elif attr_value is None:
                 value_str = ""
             else:
                 try:
                     # Try to represent the value, but limit its size
-                    value_repr = repr(attr_value)
                     if isinstance(attr_value, property):
-                        value_str = "*Property*"
+                        value_str = "Property"
                     else:
-                        value_str = f"*Default:* `{value_repr}`"
+                        value_repr = (
+                            attr_value
+                            if isinstance(attr_value, int)
+                            else repr(attr_value)
+                        )
+                        value_str = f"Default: `{value_repr}`"
+
                 except Exception:
                     value_str = ""
 
