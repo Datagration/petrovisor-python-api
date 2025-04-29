@@ -146,23 +146,7 @@ def docstring_to_markdown(
                 )
             )
         elif obj_type == "class":
-            markdown.append(
-                create_container_block(
-                    summary_text="See detailed documentation",
-                    content=mdx_content,
-                    icon="📑",
-                    admonition_type=class_admonition_type,
-                    collapsible=class_collapsible,
-                    is_open=class_is_open,
-                )
-            )
-        else:
-            # For modules, just add the docstring directly
-            markdown.append(mdx_content)
-
-        # If it's a class, also document its class attributes, properties, and methods
-        if inspect.isclass(obj):
-            # Document class attributes first (if any)
+            # For classes, process class attributes first before adding to the container
             class_attributes = []
 
             # Helper function to check if an attribute belongs to the current class or has been defined in the main package
@@ -360,13 +344,30 @@ def docstring_to_markdown(
                             (attr_name, type(attr_value).__name__, attr_value)
                         )
 
-            # If we found any attributes, document them using the format_class_attributes function
+            # If we found any attributes, format them and combine with class documentation
+            combined_content = mdx_content
             if class_attributes:
-                markdown.append("\n")
-                markdown.append(
-                    format_class_attributes(class_attributes, attributes_format)
-                )
+                class_attr_content = format_class_attributes(class_attributes, attributes_format)
+                if class_attr_content:
+                    combined_content = f"{mdx_content}\n\n{class_attr_content}"
 
+            # Now add the combined content to the container block
+            markdown.append(
+                create_container_block(
+                    summary_text="See detailed documentation",
+                    content=combined_content,
+                    icon="📑",
+                    admonition_type=class_admonition_type,
+                    collapsible=class_collapsible,
+                    is_open=class_is_open,
+                )
+            )
+        else:
+            # For modules, just add the docstring directly
+            markdown.append(mdx_content)
+
+        # If it's a class, also document its methods
+        if inspect.isclass(obj):
             # Determine if we should include inherited methods
             include_inherited = config.get("include_inherited_docs", True)
 
