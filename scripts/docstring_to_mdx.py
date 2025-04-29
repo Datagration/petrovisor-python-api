@@ -45,7 +45,6 @@ def docstring_to_markdown(
     else:
         obj_type = "function"
 
-
     # Get function admonition configuration
     function_config = config.get("functions", {}) if config else {}
     function_admonition_type = function_config.get("format", "function")
@@ -75,7 +74,7 @@ def docstring_to_markdown(
     # Get attributes configuration
     attributes_config = config.get("attributes", {}) if config else {}
     attributes_format = attributes_config.get("format", "table")
-    
+
     # Skip docstrings from built-in or external modules
     if obj_type == "class":
         # Get the actual module of this class, check if it's from our main package
@@ -344,18 +343,115 @@ def docstring_to_markdown(
                             (attr_name, type(attr_value).__name__, attr_value)
                         )
 
+            # Collect all available methods for the method summary section
+            all_class_methods = []
+            documented_methods_set = set()
+
+            # Determine if we should include inherited methods in the summary
+            include_inherited = config.get("include_inherited_docs", True)
+
+            if include_inherited:
+                # Get the Method Resolution Order (MRO) - the inheritance hierarchy
+                for cls in obj.__mro__:
+                    # Skip object itself (last in MRO)
+                    if cls is object:
+                        continue
+
+                    # Skip classes not in our package
+                    cls_module = cls.__module__
+                    if not cls_module.startswith(main_package_name):
+                        continue
+
+                    # Skip classes based on patterns in skip_classes configuration
+                    skip_class = False
+                    for skip_pattern in config.get("skip_classes", []):
+                        if re.match(
+                            skip_pattern, f"{cls_module}.{cls.__name__}"
+                        ) or re.match(skip_pattern, cls.__name__):
+                            skip_class = True
+                            break
+
+                    if skip_class:
+                        continue
+
+                    # Get methods from this class that are defined in this class's module
+                    for method_name, method in inspect.getmembers(
+                        cls, predicate=inspect.isfunction
+                    ):
+                        # Skip private methods and already documented methods
+                        if (
+                            method_name.startswith("_")
+                            or method_name in documented_methods_set
+                        ):
+                            continue
+
+                        # Skip methods from external modules
+                        method_module = getattr(method, "__module__", "")
+                        if not method_module.startswith(main_package_name):
+                            continue
+
+                        # Add method to our list with source class info
+                        source_cls = cls.__name__
+                        is_inherited = cls is not obj
+
+                        try:
+                            method_sig = str(inspect.signature(method))
+                        except (ValueError, TypeError):
+                            method_sig = "(...)"
+
+                        all_class_methods.append(
+                            (method_name, method_sig, is_inherited, source_cls)
+                        )
+                        documented_methods_set.add(method_name)
+            else:
+                # If not including inherited methods, just get the direct methods
+                for method_name, method in inspect.getmembers(
+                    obj, predicate=inspect.isfunction
+                ):
+                    if method_name.startswith("_"):
+                        continue
+
+                    # Skip methods from external modules
+                    method_module = getattr(method, "__module__", "")
+                    if not method_module.startswith(main_package_name):
+                        continue
+
+                    try:
+                        method_sig = str(inspect.signature(method))
+                    except (ValueError, TypeError):
+                        method_sig = "(...)"
+
+                    all_class_methods.append(
+                        (method_name, method_sig, False, obj.__name__)
+                    )
+                    documented_methods_set.add(method_name)
+
+            # Sort methods alphabetically for consistent presentation
+            all_class_methods.sort(key=lambda x: x[0])
+
             # If we found any attributes, format them and combine with class documentation
-            combined_content = mdx_content
+            class_content = mdx_content
+
+            # Add class attributes section if available
             if class_attributes:
-                class_attr_content = format_class_attributes(class_attributes, attributes_format)
+                class_attr_content = format_class_attributes(
+                    class_attributes, attributes_format
+                )
                 if class_attr_content:
-                    combined_content = f"{mdx_content}\n\n{class_attr_content}"
+                    class_content = f"{mdx_content}\n\n{class_attr_content}"
+
+            # Add methods summary section if there are any methods
+            if all_class_methods:
+                methods_summary = format_methods_summary(
+                    all_class_methods, format="table"
+                )
+                class_content = f"{class_content}\n\n{methods_summary}"
 
             # Now add the combined content to the container block
             markdown.append(
                 create_container_block(
                     summary_text="See detailed documentation",
-                    content=combined_content,
+                    content=class_content,
                     icon="📑",
                     admonition_type=class_admonition_type,
                     collapsible=class_collapsible,
@@ -493,8 +589,13 @@ def docstring_to_markdown(
                     try:
                         # Convert method docstring to RST, then to Markdown
                         method_rst = docstring_to_rst(method_doc, "method")
-                        method_md = rst_to_mdx(method_rst, parameters_format=parameters_format, returns_format=returns_format, attributes_format=attributes_format)
-                        
+                        method_md = rst_to_mdx(
+                            method_rst,
+                            parameters_format=parameters_format,
+                            returns_format=returns_format,
+                            attributes_format=attributes_format,
+                        )
+
                         # Add the method documentation
                         markdown.append(
                             create_container_block(
@@ -927,7 +1028,7 @@ def format_parameters_section(params_content, format="table"):
     else:
         # List format - NumPy style with bullet points
         param_list = "**Parameters:**\n\n"
-        
+
         for name, desc in param_blocks:
             # Find matching type
             type_match = re.search(
@@ -936,31 +1037,148 @@ def format_parameters_section(params_content, format="table"):
                 re.DOTALL,
             )
             type_str = type_match.group(1).strip() if type_match else ""
-            
+
             # Check for optional parameters
             is_optional = "optional" in type_str.lower() or "optional" in desc.lower()
-            
+
             # Build the formatted parameter entry - NumPy style with bullet points
             type_suffix = ", optional" if is_optional else ""
-            
+
             # Clean description - remove "optional" mentions since we handle them in the type
             desc = desc.strip()
-            desc = re.sub(r'(?i)^\s*\(?optional\)?[,:\s]*', '', desc)
-            desc = re.sub(r'(?i)\(?optional\)?[,:\s]*$', '', desc)
-            
+            desc = re.sub(r"(?i)^\s*\(?optional\)?[,:\s]*", "", desc)
+            desc = re.sub(r"(?i)\(?optional\)?[,:\s]*$", "", desc)
+
             # Format as bullet point with indented description on new lines
             param_list += f"- **{name}** : {type_str}{type_suffix}\n"
             param_list += "\n"
-            
+
             # Indent the description with 4 spaces for readability
             # Handle multi-line descriptions by preserving line breaks and adding indentation
             indented_desc = ""
             for line in desc.split("\n"):
                 indented_desc += f"    {line.strip()}\n"
-            
+
             param_list += f"{indented_desc}\n"
-        
+
         return param_list
+
+
+def format_returns_section(returns_content, format="table"):
+    """
+    Format returns section as a Markdown table or list.
+
+    Parameters
+    ----------
+    returns_content : str
+        Raw returns content from docstring
+    format : str, default="table"
+        Format to use: "table" or "list"
+
+    Returns
+    -------
+    str
+        Formatted returns in Markdown
+    """
+    # Extract returns description and type
+    returns_match = re.search(
+        r":returns?: (.*?)(?=:rtype:|$)", returns_content, re.DOTALL
+    )
+    rtype_match = re.search(r":rtype: (.*?)(?=\n\n|$)", returns_content, re.DOTALL)
+
+    if not returns_match:
+        return ""
+
+    returns_desc = returns_match.group(1).strip()
+    rtype = rtype_match.group(1).strip() if rtype_match else ""
+
+    if format == "table":
+        # Table format
+        formatted_desc = []
+        for line in returns_desc.split("\n"):
+            line = line.strip()
+            if line.startswith("-") or line.startswith("*"):
+                # Format list items with HTML (using self-closing tags)
+                formatted_desc.append(f"<br/>• {line[1:].strip()}")
+            else:
+                formatted_desc.append(line)
+
+        # Join lines with space or <br/> for proper table formatting
+        returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
+
+        returns_table = (
+            "**Returns:**\n\n| Type | Description |\n|------|-------------|\n"
+        )
+        returns_table += f"| `{rtype}` | {returns_desc} |\n"
+
+        return returns_table
+    else:
+        # List format - NumPy style with bullet points
+        returns_list = "**Returns:**\n\n"
+        returns_list += f"- **{rtype}**\n"
+        returns_list += "\n"
+
+        # Indent the description with 4 spaces for readability
+        # Handle multi-line descriptions
+        indented_desc = ""
+        for line in returns_desc.split("\n"):
+            indented_desc += f"    {line.strip()}\n"
+
+        returns_list += f"{indented_desc}\n"
+
+        return returns_list
+
+
+def format_methods_summary(methods_list, format="table"):
+    """
+    Format class methods as a Markdown table or list.
+
+    Parameters
+    ----------
+    methods_list : list of tuples
+        List of (method_name, method_signature, is_inherited, source_class) tuples representing class methods
+    format : str, default="table"
+        Format to use: "table" or "list"
+
+    Returns
+    -------
+    str
+        Formatted Markdown representation of class methods summary
+    """
+    if not methods_list:
+        return ""
+
+    # Sort methods alphabetically for consistent presentation
+    methods_list.sort(key=lambda x: x[0])
+
+    if format == "table":
+        # Table format
+        methods_summary = "## Class Methods\n\n"
+        methods_summary += "| Method | Description |\n"
+        methods_summary += "|--------|-------------|\n"
+
+        for method_name, method_sig, is_inherited, source_cls in methods_list:
+            # Create a link to the method documentation further down the page
+            method_link = f"[{method_name}{method_sig}](#{method_name.lower()})"
+            inheritance_note = (
+                f" *(inherited from {source_cls})*" if is_inherited else ""
+            )
+            methods_summary += f"| {method_link} | {inheritance_note} |\n"
+
+        return methods_summary
+    else:
+        # List format
+        methods_summary = "## Class Methods\n\n"
+
+        for method_name, method_sig, is_inherited, source_cls in methods_list:
+            # Create a link to the method documentation further down the page
+            method_link = f"[{method_name}{method_sig}](#{method_name.lower()})"
+            inheritance_note = (
+                f" *(inherited from {source_cls})*" if is_inherited else ""
+            )
+            methods_summary += f"- {method_link}{inheritance_note}\n"
+
+        return methods_summary
 
 
 def format_class_attributes(class_attributes, format="table"):
@@ -984,7 +1202,7 @@ def format_class_attributes(class_attributes, format="table"):
 
     if format == "table":
         # Table format
-        attr_table = "**Class Attributes:**\n\n"
+        attr_table = "## Class Attributes\n\n"
         attr_table += "| Name | Type | Description |\n"
         attr_table += "|------|------|-------------|\n"
 
@@ -1034,8 +1252,8 @@ def format_class_attributes(class_attributes, format="table"):
         return attr_table
     else:
         # List format - NumPy style with bullet points
-        attr_list = "**Class Attributes:**\n\n"
-        
+        attr_list = "## Class Attributes\n\n"
+
         for attr_name, attr_type, attr_value in sorted(
             class_attributes, key=lambda x: x[0]
         ):
@@ -1052,7 +1270,7 @@ def format_class_attributes(class_attributes, format="table"):
                         type_str = str(attr_type)
                     except Exception:
                         type_str = "Unknown"
-            
+
             # Get the description
             if attr_value == "(property)":
                 attr_desc = "*Property*"
@@ -1072,83 +1290,20 @@ def format_class_attributes(class_attributes, format="table"):
                                 attr_desc = f"Default: `{value_repr}`"
                     except Exception:
                         pass
-            
+
             # Format as bullet point with indented description on new lines
             attr_list += f"- **{attr_name}** : {type_str}\n"
             attr_list += "\n"
-            
+
             # If we have a description, add it indented with 4 spaces
             # Handle multi-line descriptions by preserving line breaks and adding indentation
             indented_desc = ""
             for line in attr_desc.split("\n"):
                 indented_desc += f"    {line.strip()}\n"
-            
+
             attr_list += f"{indented_desc}\n"
-            
+
         return attr_list
-
-
-def format_returns_section(returns_content, format="table"):
-    """
-    Format returns section as a Markdown table or list.
-
-    Parameters
-    ----------
-    returns_content : str
-        Raw returns content from docstring
-    format : str, default="table"
-        Format to use: "table" or "list"
-
-    Returns
-    -------
-    str
-        Formatted returns in Markdown
-    """
-    # Extract returns description and type
-    returns_match = re.search(
-        r":returns?: (.*?)(?=:rtype:|$)", returns_content, re.DOTALL
-    )
-    rtype_match = re.search(r":rtype: (.*?)(?=\n\n|$)", returns_content, re.DOTALL)
-
-    if not returns_match:
-        return ""
-
-    returns_desc = returns_match.group(1).strip()
-    rtype = rtype_match.group(1).strip() if rtype_match else ""
-
-    if format == "table":
-        # Table format
-        formatted_desc = []
-        for line in returns_desc.split("\n"):
-            line = line.strip()
-            if line.startswith("-") or line.startswith("*"):
-                # Format list items with HTML (using self-closing tags)
-                formatted_desc.append(f"<br/>• {line[1:].strip()}")
-            else:
-                formatted_desc.append(line)
-
-        # Join lines with space or <br/> for proper table formatting
-        returns_desc = " ".join(formatted_desc).replace("<br/> ", "<br/>")
-
-        returns_table = "**Returns:**\n\n| Type | Description |\n|------|-------------|\n"
-        returns_table += f"| `{rtype}` | {returns_desc} |\n"
-
-        return returns_table
-    else:
-        # List format - NumPy style with bullet points
-        returns_list = "**Returns:**\n\n"
-        returns_list += f"- **{rtype}**\n"
-        returns_list += "\n"
-        
-        # Indent the description with 4 spaces for readability
-        # Handle multi-line descriptions
-        indented_desc = ""
-        for line in returns_desc.split("\n"):
-            indented_desc += f"    {line.strip()}\n"
-        
-        returns_list += f"{indented_desc}\n"
-        
-        return returns_list
 
 
 def format_examples_section(examples_content):
