@@ -851,13 +851,11 @@ def escape_for_mdx(text):
     ----------
     text : str
         Text to escape
-    escape_quotes : bool, default False
-        Whether to escape single quotes
 
     Returns
     -------
     str
-        MDX-safe
+        MDX-safe text
     """
     if not text:
         return ""
