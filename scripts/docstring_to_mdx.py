@@ -1157,6 +1157,144 @@ def format_description_for_table_cell(desc):
     return " ".join(formatted_desc).replace("<br/> ", "<br/>")
 
 
+def indent_description(desc):
+    """
+    Indent the description text for Markdown formatting.
+    This function handles multi-line descriptions by preserving line breaks and adding indentation.
+
+    Parameters
+    ----------
+    desc : str
+        The description text to indent
+
+    Returns
+    -------
+    str
+        Indented description text
+    """
+    # Handle multi-line descriptions by preserving line breaks and adding indentation
+    indented_desc = ""
+    for line in desc.strip().split("\n"):
+        indented_desc += f"    {line.strip()}\n"
+    return indented_desc
+
+
+def process_parameter_description(desc, type_str="", extract_default=True):
+    """
+    Process a parameter description to extract default values and format the description consistently.
+
+    Parameters
+    ----------
+    desc : str
+        Raw parameter description from docstring
+    type_str : str, default=""
+        Parameter type as a string
+    extract_default : bool, default=True
+        Whether to extract default value from description
+
+    Returns
+    -------
+    tuple
+        (formatted_desc, default_value, is_optional, cleaned_type_str) where:
+        - formatted_desc is the cleaned description without default value info if extracted
+        - default_value is the extracted default value or indicator like "Optional"/"Required"
+        - cleaned_type_str is the type string with default value information removed
+        - is_optional is a boolean indicating if the parameter is optional
+    """
+    if not desc:
+        return "", "*Required*", type_str, False
+
+    # Clean and standardize the description
+    desc = desc.strip()
+
+    # Make a copy of the original type_str for cleaning later
+    cleaned_type_str = type_str
+    default_found = False
+
+    # Define patterns for finding default values - used for both type_str and description
+    default_patterns = [
+        # Format with explicit separators
+        r"[Dd]efault(?:s)?(?: is| are| value is)? *[=:] *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default: value, Default = value
+        r"[Dd]efault(?:s)?(?: is| are| value is)? *- *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default - value
+        r"[Dd]efault(?:s)? (?:is|are) +([^\.]+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default is value
+        r"[Dd]efault(?:s)? (?:to) *[=:]? *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Defaults to value
+        r"[Dd]efault(?:s)? +([^\.;,\(\)\[\]\{\}]+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default value
+        r"=\s*([^,\)]+)",  # = "example"
+    ]
+
+    if extract_default:
+        # First try to extract default from type_str
+        for pattern in default_patterns:
+            default_match = re.search(pattern, type_str, re.IGNORECASE)
+            if default_match:
+                extracted_value = default_match.group(1).strip()
+                if extracted_value:
+                    # Clean up quotes from the extracted value
+                    # extracted_value = extracted_value.strip('\'"')
+                    default_value = extracted_value
+                    default_found = True
+
+                    # Remove the default value info from type description
+                    cleaned_type_str = re.sub(
+                        pattern, "", cleaned_type_str, flags=re.IGNORECASE
+                    ).strip()
+                    break
+
+        # If not found in type_str, check description (skipping the direct assignment pattern)
+        if not default_found:
+            for pattern in default_patterns:
+                default_match = re.search(pattern, desc)
+                if default_match:
+                    extracted_value = default_match.group(1).strip()
+
+                    default_value = extracted_value.rstrip(".")
+                    default_found = True
+
+                    # Remove the default value info from the description
+                    desc = re.sub(pattern, "", desc, flags=re.IGNORECASE).strip()
+                    break
+
+    is_optional = default_found
+
+    # Remove optional mentions from type_str
+    if "optional" in type_str.lower():
+        # Remove "optional" from type_str - common format: "type, optional"
+        cleaned_type_str = re.sub(
+            r",\s*[Oo]ptional", "", cleaned_type_str, flags=re.IGNORECASE
+        ).strip()
+        is_optional = True
+
+    if not is_optional and "optional" in desc.lower():
+        # Remove "optional" from description - common format: "optional, default value"
+        desc = re.sub(
+            r"\(?[Oo]ptional\)?[,:\s]*", "", desc, flags=re.IGNORECASE
+        ).strip()
+        is_optional = True
+
+    if not default_found:
+        default_value = "Optional" if is_optional else "*Required*"
+
+    # Clean up any artifacts from our removals in type_str
+    cleaned_type_str = re.sub(r",\s*,", ",", cleaned_type_str)  # Fix double commas
+    cleaned_type_str = re.sub(r"\s+", " ", cleaned_type_str)  # Normalize spaces
+    cleaned_type_str = re.sub(
+        r"\(\s*\)", "", cleaned_type_str
+    )  # Remove empty parentheses
+    cleaned_type_str = cleaned_type_str.strip(", ")  # Remove trailing/leading commas
+
+    # Final cleanup for description - remove trailing punctuation and ensure proper spacing
+    desc = re.sub(r"\s+", " ", desc)  # Normalize spaces
+    desc = re.sub(r"\s+\.", ".", desc)  # Fix spaces before periods
+    desc = re.sub(r"^[,.:;]\s*", "", desc)  # Remove leading punctuation
+    desc = desc.rstrip(".,: \t").strip()
+
+    # Add back period if missing
+    if desc and desc[-1] not in ".,:;!?":
+        desc = desc + "."
+
+    return desc, default_value, cleaned_type_str, is_optional
+
+
 def format_parameters_section(params_content, format="table"):
     """
     Format parameters section as a Markdown table or list.
@@ -1183,6 +1321,15 @@ def format_parameters_section(params_content, format="table"):
 
     header = "**Parameters:**\n\n"
 
+    def params_type_match(name):
+        # Find matching type
+        type_match = re.search(
+            rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
+            params_content,
+            re.DOTALL,
+        )
+        return type_match.group(1).strip() if type_match else ""
+
     if format == "table":
         # Table format
         param_table = header
@@ -1190,35 +1337,21 @@ def format_parameters_section(params_content, format="table"):
 
         for name, desc in param_blocks:
             # Find matching type
-            type_match = re.search(
-                rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
-                params_content,
-                re.DOTALL,
-            )
-            type_str = type_match.group(1).strip() if type_match else ""
+            type_str = params_type_match(name)
 
             # Escape pipe characters in type annotations to prevent them from breaking the Markdown table
-            # Replace | with the \| in type strings
             if "|" in type_str:
                 type_str = type_str.replace("|", r"\|")
 
-            # Check for default/optional
-            is_optional = "optional" in type_str.lower()
-            default = "Optional" if is_optional else "*Required*"
-
-            # Extract explicit default value
-            default_match = re.search(
-                r"[Dd]efault(?:s)?(?: is| are| value is)? *[=:]? *(.+?)\.?$", desc
+            # Process parameter description - extract default value
+            formatted_desc, default_value, cleaned_type_str, _ = (
+                process_parameter_description(desc, type_str, extract_default=True)
             )
-            if default_match:
-                default = default_match.group(1).strip()
 
             # Format description for table cell
-            formatted_desc = format_description_for_table_cell(desc)
+            formatted_desc = format_description_for_table_cell(formatted_desc)
 
-            param_table += (
-                f"| **{name}** | `{type_str}` | {formatted_desc} | {default} |\n"
-            )
+            param_table += f"| **{name}** | `{cleaned_type_str}` | {formatted_desc} | {default_value} |\n"
 
         return param_table
     else:
@@ -1227,31 +1360,13 @@ def format_parameters_section(params_content, format="table"):
 
         for name, desc in param_blocks:
             # Find matching type
-            type_match = re.search(
-                rf":type {name}: (.*?)(?=:param|:type|:returns|:rtype|$)",
-                params_content,
-                re.DOTALL,
-            )
-            type_str = type_match.group(1).strip() if type_match else ""
-
-            # Check for optional parameters
-            is_optional = "optional" in type_str.lower() or "optional" in desc.lower()
-
-            # Build the formatted parameter entry - NumPy style with bullet points
-            type_suffix = ", optional" if is_optional else ""
-
-            # Clean description - remove "optional" mentions since we handle them in the type
-            desc = desc.strip()
-            desc = re.sub(r"(?i)^\s*\(?optional\)?[,:\s]*", "", desc)
-            desc = re.sub(r"(?i)\(?optional\)?[,:\s]*$", "", desc)
+            type_str = params_type_match(name)
 
             # Format as bullet point with indented description on new lines
-            param_list += f"- **{name}** : {type_str}{type_suffix}\n\n"
+            param_list += f"- **{name}** : {type_str}\n\n"
 
             # Handle multi-line descriptions by preserving line breaks and adding indentation
-            indented_desc = ""
-            for line in desc.split("\n"):
-                indented_desc += f"    {line.strip()}\n"
+            indented_desc = indent_description(desc)
 
             param_list += f"{indented_desc}\n"
 
@@ -1304,9 +1419,7 @@ def format_returns_section(returns_content, format="table"):
         returns_list += f"- **{rtype}**\n\n"
 
         # Handle multi-line descriptions by preserving line breaks and adding indentation
-        indented_desc = ""
-        for line in returns_desc.split("\n"):
-            indented_desc += f"    {line.strip()}\n"
+        indented_desc = indent_description(returns_desc)
 
         returns_list += f"{indented_desc}\n"
 
@@ -1373,9 +1486,8 @@ def format_methods_summary(methods_list, format="table", class_name=None):
             method_entry = f"- {method_link}\n\n"
 
             # Handle multi-line descriptions by preserving line breaks and adding indentation
-            indented_desc = ""
-            for line in description.split("\n"):
-                indented_desc += f"    {line.strip()}\n"
+            indented_desc = indent_description(description)
+
             method_entry += f"{indented_desc}\n"
 
             methods_summary += f"{method_entry}\n"
@@ -1499,9 +1611,7 @@ def format_class_attributes(class_attributes, format="table"):
             )
 
             # Handle multi-line descriptions by preserving line breaks and adding indentation
-            indented_desc = ""
-            for line in attr_desc.split("\n"):
-                indented_desc += f"    {line.strip()}\n"
+            indented_desc = indent_description(attr_desc)
 
             # Format as bullet point with indented description on new lines
             attr_list += f"- **{attr_name}** : {type_str}\n\n"
