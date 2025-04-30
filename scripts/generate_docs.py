@@ -39,6 +39,8 @@ def main():
         },
         "modules": {"skip": [], "include_only": []},
         "classes": {"skip": [], "include_only": []},
+        "keywords": [],  # Default empty list for keywords
+        "tags": [],  # Default empty list for tags
     }
 
     if args.config and Path(args.config).exists():
@@ -338,8 +340,7 @@ def process_module(
         class_modules = config.get("class_modules", {})
         is_main_package_module = module_name == main_package_name
 
-        # If this is the main package module, try to import and document classes that are in __all__
-        # but defined in submodules
+        # If this is the main package module, try to import and document classes that are in __all__ but defined in submodules
         if is_main_package_module and class_modules:
             for class_name, class_module_name in class_modules.items():
                 try:

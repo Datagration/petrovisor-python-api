@@ -6,6 +6,8 @@
     "title": "API Documentation",
     "collapsed": true
   },
+  "keywords": ["api", "petrovisor"],
+  "tags": ["documentation", "api", "python"],
   "modules": {
     "format": "details",
     "collapsible": true,

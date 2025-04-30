@@ -4,6 +4,7 @@ import inspect
 from typing import Any
 from enum import Enum, IntEnum
 from sphinx.ext.napoleon import Config, NumpyDocstring
+import json
 
 
 def docstring_to_markdown(
@@ -57,8 +58,28 @@ def docstring_to_markdown(
     if not docstring:
         return f"# {obj_name}\n\nNo documentation available."
 
-    # Build header for Markdown output
-    markdown = ["---", "sidebar_position: 2", "---", "", f"# {obj_name}", ""]
+    # Build header for Markdown output with frontmatter
+    markdown = ["---", "sidebar_position: 2"]
+
+    # Add keywords from config if present
+    if "keywords" in config and config["keywords"]:
+        if isinstance(config["keywords"], list):
+            # Format as YAML array
+            markdown.append(f"keywords: {json.dumps(config['keywords'])}")
+        else:
+            # Handle string case
+            markdown.append(f"keywords: {config['keywords']}")
+
+    # Add tags from config if present
+    if "tags" in config and config["tags"]:
+        if isinstance(config["tags"], list):
+            # Format as YAML array
+            markdown.append(f"tags: {json.dumps(config['tags'])}")
+        else:
+            # Handle string case
+            markdown.append(f"tags: {config['tags']}")
+
+    markdown.extend(["---", "", f"# {obj_name}", ""])
 
     # Add import path
     if module_path:
