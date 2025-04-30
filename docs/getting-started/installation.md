@@ -1,10 +1,8 @@
 ---
-id: installation
 sidebar_position: 1
 title: Installation
 keywords: [tutorial]
 tags: [tutorial]
-
 ---
 
 # Installing petrovisor
