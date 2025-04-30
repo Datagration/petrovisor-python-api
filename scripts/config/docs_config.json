@@ -1,0 +1,53 @@
+{
+  "format_titles": false,
+  "sidebar": {
+    "position": 5,
+    "label": "API Reference",
+    "title": "API Documentation",
+    "collapsed": true
+  },
+  "keywords": ["api", "petrovisor"],
+  "tags": ["documentation", "api", "python"],
+  "modules": {
+    "format": "details",
+    "collapsible": true,
+    "open": false,
+    "skip": [
+      "petrovisor.api.protocols.*",
+      "petrovisor.api.utils.*"
+    ],
+    "include_only": []
+  },
+  "classes": {
+    "format": "class",
+    "collapsible": true,
+    "open": false,
+    "skip": [
+      ".*Protocol$",
+      ".*Base$"
+    ],
+    "include_only": []
+  },
+  "methods": {
+    "format": "method",
+    "collapsible": true,
+    "open": false
+  },
+  "functions": {
+    "format": "function",
+    "collapsible": true,
+    "open": false
+  },
+  "parameters": {
+    "format": "table"
+  },
+  "returns": {
+    "format": "table"
+  },
+  "attributes": {
+    "format": "table"
+  },
+  "methods_summary": {
+    "format": "table"
+  }
+}
