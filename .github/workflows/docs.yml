@@ -36,7 +36,7 @@ jobs:
       - name: Generate documentation
         run: |
           chmod +x scripts/generate_docs.sh
-          scripts/generate_docs.sh
+          bash scripts/generate_docs.sh
 
       - name: Set up Node.js
         uses: actions/setup-node@v3

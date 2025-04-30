@@ -71,13 +71,13 @@ print(pv.__version__)
 For contributors, you can install development dependencies with:
 
 ```bash
-pip install -r requirements.txt
+pip install -e "[.dev]"
 ```
 
 or 
 
 ```bash
-uv pip install -r requirements.txt
+uv pip install -e "[.dev]"
 ```
 
 Note that package installation dependencies are defined in `pyproject.toml`, while the `requirements.txt` file includes additional packages needed for development, testing and documentation.

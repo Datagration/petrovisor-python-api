@@ -57,6 +57,21 @@ exclude = [
     ".git",
 ]
 
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest",
+    "pytest-cov",
+    
+    # Development tools
+    "pre-commit",
+    "ruff",
+    "flake8",
+    "hatchling",
+    "build",
+    "uv"
+]
+
 # Keep existing Ruff configuration
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
