@@ -1,7 +1,8 @@
 ---
-id: usage
-title: Basic Usage
 sidebar_position: 2
+title: Basic Usage
+keywords: [tutorial]
+tags: [tutorial]
 ---
 
 # Basic Usage

@@ -1,9 +1,13 @@
 ---
 sidebar_position: 2
+description: A brief description of this document
 title: MDX Tutorial
+keywords: [tutorial]
+tags: [tutorial]
+
 ---
 
-# Docusaurus MDX Features
+# MDX Features
 
 This tutorial demonstrates the special features available in Docusaurus through MDX (Markdown + JSX). You'll see both the raw code and the rendered result.
 
@@ -29,15 +33,14 @@ The rendered result:
 
 ## Meta Data with Front Matter
 
-Front matter allows you to define metadata for your page:
+Front matter is YAML content at the very beginning of your document that defines metadata. This metadata controls how your page appears in the navigation, search results, and browser tabs:
 
 ```yaml
 ---
-title: My Document Title
-description: A brief description of this document
-image: /img/my-featured-image.png
-keywords: [documentation, docusaurus, mdx]
-sidebar_position: 2
+sidebar_position: 2            # Controls order in sidebar
+title: My Document Title       # Browser tab title and main heading. It is alsp a text shown in the sidebar, unless sidebar_label is set
+keywords: [documentation, tutorial, mdx] # For search and SEO (search engine optimization)
+tags: [beginner, tutorial]     # For categorization and filtering (optional), appears at the bottom of the page
 ---
 ```
 
@@ -584,7 +587,8 @@ processor = SignalProcessor(signal_name, time_interval='1d')
 
 - [Docusaurus MDX Documentation](https://docusaurus.io/docs/markdown-features/react)
 - [MDX Official Documentation](https://mdxjs.com/)
-- [KaTeX Documentation](https://katex.org/docs/supported.html)
 - [Mermaid Diagram Syntax](https://mermaid.js.org/intro/syntax-reference.html)
-- [Docusaurus Admonitions](https://docusaurus.io/docs/markdown-features/admonitions)
+- [KaTeX Documentation](https://katex.org/docs/supported.html)
 - [Tabs Component Documentation](https://docusaurus.io/docs/markdown-features/tabs)
+- [Docusaurus Admonitions](https://docusaurus.io/docs/markdown-features/admonitions)
+- [Docusaurus Create a doc](https://docusaurus.io/docs/create-doc)
