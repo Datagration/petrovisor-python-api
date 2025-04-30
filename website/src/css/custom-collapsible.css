@@ -38,12 +38,10 @@
   padding: 0 !important;
 }
 
-/* Ensure proper spacing in content area */
+/* Ensure proper spacing in content area - removed left padding to match standard admonitions */
 .admonition-content {
   margin-top: 0.5rem;
-  padding-left: 1rem;
-  /* Remove bottom padding/margin to fix extra space */
-  padding-bottom: 0;
+  padding: 0 1rem;
   margin-bottom: 0;
 }
 
