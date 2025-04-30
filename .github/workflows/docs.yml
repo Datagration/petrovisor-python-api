@@ -2,15 +2,9 @@ name: Build and Deploy Documentation
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'petrovisor/**'               # Python package
-      - 'docs/**'                     # Documentation source
-      - 'website/**'                  # Website source
-      - 'scripts/requirements-docs.txt'  # Documentation dependencies
-      - '.github/workflows/docs.yml'  # This workflow file
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
   # Allow manual triggering
   workflow_dispatch:
 

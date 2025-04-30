@@ -93,8 +93,9 @@ else
 fi
 
 source .venv/bin/activate
-pip install -r "${REQUIREMENTS_FILE}"
-pip install -e "${ROOT_DIR}"
+uv pip install --upgrade pip
+python -m pip install -r "${REQUIREMENTS_FILE}"
+python -m pip install -e "${ROOT_DIR}"
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install dependencies"
