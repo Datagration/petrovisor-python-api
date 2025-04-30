@@ -75,7 +75,7 @@
 .admonition-details > .admonition-content {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-bottom: var(--ifm-alert-padding-vertical) !important;
+  padding-bottom: 0 !important;
 }
 
 /* Ensure proper spacing at the bottom of the admonition */
@@ -84,5 +84,5 @@
 }
 
 .admonition-collapsible {
-  margin-bottom: var(--ifm-spacing-vertical) !important;
+  margin-bottom: 1em !important;
 }
