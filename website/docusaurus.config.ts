@@ -25,7 +25,7 @@ const CUSTOM_ADMONITION_TYPES = [
 const config: Config = {
   title: 'PetroVisor Developer Hub',
   tagline: 'Build, Integrate and Automate with our SDKs',
-  favicon: 'img/favicon.png',
+  favicon: 'img/favicon-light.png',
 
   // Set the production url of your site here
   url: 'https://datagration.github.io',
@@ -130,8 +130,8 @@ const config: Config = {
       title: '',
       logo: {
         alt: 'PetroVisor Logo',
-        src: 'img/logo-dark.png',
-        srcDark: 'img/logo-light.png',
+        src: 'img/logo-dark.svg',
+        srcDark: 'img/logo-light.svg',
       },
       items: [
         {
