@@ -1179,7 +1179,9 @@ def indent_description(desc):
     return indented_desc
 
 
-def process_parameter_description(desc, type_str="", extract_default=True):
+def process_parameter_description(
+    desc, type_str="", extract_default=True, add_period=False
+):
     """
     Process a parameter description to extract default values and format the description consistently.
 
@@ -1191,11 +1193,14 @@ def process_parameter_description(desc, type_str="", extract_default=True):
         Parameter type as a string
     extract_default : bool, default=True
         Whether to extract default value from description
+    add_period : str, default=False
+        If True - add a period at the end if missing proper ending punctuation
+        If False - remove any trailing punctuation that shouldn't end a description
 
     Returns
     -------
     tuple
-        (formatted_desc, default_value, is_optional, cleaned_type_str) where:
+        (formatted_desc, default_value, cleaned_type_str, is_optional) where:
         - formatted_desc is the cleaned description without default value info if extracted
         - default_value is the extracted default value or indicator like "Optional"/"Required"
         - cleaned_type_str is the type string with default value information removed
@@ -1210,16 +1215,15 @@ def process_parameter_description(desc, type_str="", extract_default=True):
     # Make a copy of the original type_str for cleaning later
     cleaned_type_str = type_str
     default_found = False
+    default_value = "*Required*"
 
     # Define patterns for finding default values - used for both type_str and description
     default_patterns = [
-        # Format with explicit separators
-        r"[Dd]efault(?:s)?(?: is| are| value is)? *[=:] *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default: value, Default = value
-        r"[Dd]efault(?:s)?(?: is| are| value is)? *- *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default - value
-        r"[Dd]efault(?:s)? (?:is|are) +([^\.]+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default is value
-        r"[Dd]efault(?:s)? (?:to) *[=:]? *(.+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Defaults to value
-        r"[Dd]efault(?:s)? +([^\.;,\(\)\[\]\{\}]+?)(?:\.|\n|,|;|\)|\]|\}|$)",  # Default value
-        r"=\s*([^,\)]+)",  # = "example"
+        # Comprehensive pattern for "Default" keyword with various connectors
+        # Handles quoted strings specially to prevent stopping at periods inside quotes
+        r"[Dd]efault(?:s)?(?: is| are| value is|to)? *[=:\-]? *(?:(['\"])(.*?)\1|(.+?))(?:\.(?!\S)|\n|,|;|\)|\]|\}|$)",
+        # Direct value declaration (no "Default" keyword)
+        r"=\s*(?:(['\"])(.*?)\1|([^,\)]+))",  # = "example" or = example
     ]
 
     if extract_default:
@@ -1227,10 +1231,21 @@ def process_parameter_description(desc, type_str="", extract_default=True):
         for pattern in default_patterns:
             default_match = re.search(pattern, type_str, re.IGNORECASE)
             if default_match:
-                extracted_value = default_match.group(1).strip()
+                # Extract the matched value from either the quoted group or non-quoted group
+                if default_match.group(2) is not None:
+                    # This is a quoted string (group 2 contains the content between quotes)
+                    extracted_value = (
+                        default_match.group(1)
+                        + default_match.group(2)
+                        + default_match.group(1)
+                    )
+                else:
+                    # This is a non-quoted value (group 3 contains the value)
+                    extracted_value = (
+                        default_match.group(3).strip() if default_match.group(3) else ""
+                    )
+
                 if extracted_value:
-                    # Clean up quotes from the extracted value
-                    # extracted_value = extracted_value.strip('\'"')
                     default_value = extracted_value
                     default_found = True
 
@@ -1240,14 +1255,28 @@ def process_parameter_description(desc, type_str="", extract_default=True):
                     ).strip()
                     break
 
-        # If not found in type_str, check description (skipping the direct assignment pattern)
+        # If not found in type_str, check description
         if not default_found:
             for pattern in default_patterns:
-                default_match = re.search(pattern, desc)
+                default_match = re.search(pattern, desc, re.IGNORECASE)
                 if default_match:
-                    extracted_value = default_match.group(1).strip()
+                    # Extract the matched value from either the quoted group or non-quoted group
+                    if default_match.group(2) is not None:
+                        # This is a quoted string (group 2 contains the content between quotes)
+                        extracted_value = (
+                            default_match.group(1)
+                            + default_match.group(2)
+                            + default_match.group(1)
+                        )
+                    else:
+                        # This is a non-quoted value (group 3 contains the value)
+                        extracted_value = (
+                            default_match.group(3).strip()
+                            if default_match.group(3)
+                            else ""
+                        )
 
-                    default_value = extracted_value.rstrip(".")
+                    default_value = extracted_value
                     default_found = True
 
                     # Remove the default value info from the description
@@ -1271,8 +1300,8 @@ def process_parameter_description(desc, type_str="", extract_default=True):
         ).strip()
         is_optional = True
 
-    if not default_found:
-        default_value = "Optional" if is_optional else "*Required*"
+    if not default_found and is_optional:
+        default_value = "Optional"
 
     # Clean up any artifacts from our removals in type_str
     cleaned_type_str = re.sub(r",\s*,", ",", cleaned_type_str)  # Fix double commas
@@ -1282,15 +1311,20 @@ def process_parameter_description(desc, type_str="", extract_default=True):
     )  # Remove empty parentheses
     cleaned_type_str = cleaned_type_str.strip(", ")  # Remove trailing/leading commas
 
-    # Final cleanup for description - remove trailing punctuation and ensure proper spacing
+    # Basic normalization of spaces
     desc = re.sub(r"\s+", " ", desc)  # Normalize spaces
     desc = re.sub(r"\s+\.", ".", desc)  # Fix spaces before periods
-    desc = re.sub(r"^[,.:;]\s*", "", desc)  # Remove leading punctuation
-    desc = desc.rstrip(".,: \t").strip()
+    desc = re.sub(r"^[,.:;\s]+", "", desc)  # Remove leading punctuation
 
-    # Add back period if missing
-    if desc and desc[-1] not in ".,:;!?":
-        desc = desc + "."
+    # Add a period if there isn't already a proper ending punctuation
+    if add_period:
+        # Remove any trailing punctuation that shouldn't end a description
+        desc = re.sub(r"[,;:\s]+$", "", desc).strip()
+        if desc and desc[-1] not in ".!?":
+            desc = desc + "."
+    else:
+        # Remove any trailing punctuation that shouldn't end a description
+        desc = re.sub(r"[,;:.!?\s]+$", "", desc).strip()
 
     return desc, default_value, cleaned_type_str, is_optional
 
@@ -1345,13 +1379,15 @@ def format_parameters_section(params_content, format="table"):
 
             # Process parameter description - extract default value
             formatted_desc, default_value, cleaned_type_str, _ = (
-                process_parameter_description(desc, type_str, extract_default=True)
+                process_parameter_description(
+                    desc, type_str, extract_default=True, add_period=False
+                )
             )
 
             # Format description for table cell
             formatted_desc = format_description_for_table_cell(formatted_desc)
 
-            param_table += f"| **{name}** | `{cleaned_type_str}` | {formatted_desc} | {default_value} |\n"
+            param_table += f"| **{name}** | `{cleaned_type_str}` | {formatted_desc} | `{default_value}` |\n"
 
         return param_table
     else:
@@ -1871,7 +1907,6 @@ def create_admonition(
         "function": "function",
         # Map alternate types to the standard ones
         "caution": "danger",
-        "failure": "danger",
         "important": "info",
         "see_also": "info",
         "references": "info",
