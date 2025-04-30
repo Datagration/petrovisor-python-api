@@ -1,6 +1,9 @@
 ---
 sidebar_position: 1
 title: Introduction
+description: Introduction to the PetroVisor Python SDK
+keywords: [petrovisor, python, sdk, api, introduction, oil, gas, data]
+tags: [introduction, overview, getting-started]
 ---
 
 # Introduction to petrovisor

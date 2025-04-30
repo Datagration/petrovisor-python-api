@@ -116,10 +116,18 @@ def main():
 
     # Create API index file
     with open(output_path / "index.md", "w") as f:
+        # Create keywords and tags for the API index
+        api_keywords = config.get("keywords", []).copy()
+
+        api_tags = config.get("tags", []).copy()
+
         f.write(f"""---
 sidebar_position: 1
 title: {title}
 sidebar_label: Overview
+description: Complete API reference for the {args.package if args.package else ""} Python SDK
+keywords: {json.dumps(list(set(api_keywords)))}
+tags: {json.dumps(list(set(api_tags)))}
 ---
 
 # {title}
@@ -440,16 +448,42 @@ def process_module(
         module_dir = output_dir / simple_module_name
         module_dir.mkdir(parents=True, exist_ok=True)
 
+        # Get the format_titles config option
+        format_titles = config.get("format_titles", True)
+
         # Document module itself - create an index.md file
         with open(module_dir / "index.md", "w") as f:
             content = [
                 "---",
                 "sidebar_position: 1",
-                "---",
-                "",
-                f"# {simple_module_name}",
-                "",
             ]
+
+            # Add title, description, keywords, and tags to frontmatter
+            content.append(
+                f"title: {format_module_name(simple_module_name, format_titles)}"
+            )
+            content.append(
+                f"description: Documentation for the {simple_module_name} module"
+            )
+
+            # Add keywords from config and module-specific keywords
+            module_keywords = config.get("keywords", []).copy()
+            if module_keywords:
+                content.append(f"keywords: {json.dumps(list(set(module_keywords)))}")
+
+            # Add tags from config and module-specific tags
+            module_tags = config.get("tags", []).copy()
+            if module_tags:
+                content.append(f"tags: {json.dumps(list(set(module_tags)))}")
+
+            content.extend(
+                [
+                    "---",
+                    "",
+                    f"# {simple_module_name}",
+                    "",
+                ]
+            )
 
             if module_doc:
                 content.append(module_doc)
@@ -470,9 +504,6 @@ def process_module(
             content.append("<DocCardList />")
 
             f.write("\n".join(content))
-
-        # Get the format_titles config option
-        format_titles = config.get("format_titles", True)
 
         # Create category file for Docusaurus - point to the index.md file to avoid duplicate routes
         create_category_file(
