@@ -984,7 +984,7 @@ def simple_rst_to_markdown(
     # Process other inline roles
     md_text = re.sub(r":(class|func|mod|obj|ref|meth|attr):`(.*?)`", r"`\2`", md_text)
 
-    formatted_md_text = escape_for_all_except_code_blocks(md_text)
+    formatted_md_text = preserve_code_and_escape_mdx(md_text)
 
     return formatted_md_text
 
@@ -1049,31 +1049,76 @@ def extract_description_summary(text, max_length=None):
         return text
 
 
-def escape_for_all_except_code_blocks(md_text):
-    """ """
-    # Apply escape_for_mdx to all text, but preserve code blocks
-    # First, extract and save all code blocks
-    code_blocks = []
+def preserve_code_and_escape_mdx(md_text):
+    """
+    Preserve code blocks and inline code while escaping MDX-sensitive characters in regular text.
 
+    This function:
+    1. Extracts and saves both multiline code blocks (```...```) and inline code (`...`)
+    2. Applies MDX escaping to all other text
+    3. Restores the original code without modifications
+
+    Parameters
+    ----------
+    md_text : str
+        Markdown text that may contain code blocks and inline code
+
+    Returns
+    -------
+    str
+        Text with MDX-sensitive characters escaped in regular text only,
+        leaving code blocks and inline code untouched
+    """
+    if not md_text:
+        return ""
+
+    # Store all code segments (both blocks and inline)
+    code_blocks = []
+    inline_codes = []
+
+    # First, extract and save multiline code blocks (```...```)
     def save_code_block(match):
-        code_blocks.append(match.group(1))
+        code_blocks.append(
+            (match.group(1), match.group(2))
+        )  # Save language and content
         return f"CODE_BLOCK_PLACEHOLDER_{len(code_blocks) - 1}"
 
-    # Extract all code blocks (```...```)
-    md_text_with_placeholders = re.sub(
-        r"```[^\n]*\n(.*?)```", save_code_block, md_text, flags=re.DOTALL
+    # Extract code blocks with language specification (```python etc.)
+    md_text_with_block_placeholders = re.sub(
+        r"```([^\n]*)\n(.*?)```", save_code_block, md_text, flags=re.DOTALL
     )
 
-    # Apply escape_for_mdx to the text (excluding code blocks)
-    escaped_text = escape_for_mdx(md_text_with_placeholders)
+    # Next, extract and save inline code (`...`)
+    def save_inline_code(match):
+        inline_codes.append(match.group(1))
+        return f"INLINE_CODE_PLACEHOLDER_{len(inline_codes) - 1}"
 
-    # Restore code blocks
+    # Extract inline code (careful not to match already replaced code blocks)
+    text_with_all_placeholders = re.sub(
+        r"`([^`]+)`", save_inline_code, md_text_with_block_placeholders
+    )
+
+    # Apply escape_for_mdx to the non-code text
+    escaped_text = escape_for_mdx(text_with_all_placeholders)
+
+    # Restore inline code first
+    def restore_inline_code(match):
+        index = int(match.group(1))
+        return f"`{inline_codes[index]}`"
+
+    text_with_inline_restored = re.sub(
+        r"INLINE_CODE_PLACEHOLDER_(\d+)", restore_inline_code, escaped_text
+    )
+
+    # Restore code blocks last
     def restore_code_block(match):
         index = int(match.group(1))
-        return f"```\n{code_blocks[index]}```"
+        lang, content = code_blocks[index]
+        lang_spec = lang if lang else ""
+        return f"```{lang_spec}\n{content}```"
 
     final_text = re.sub(
-        r"CODE_BLOCK_PLACEHOLDER_(\d+)", restore_code_block, escaped_text
+        r"CODE_BLOCK_PLACEHOLDER_(\d+)", restore_code_block, text_with_inline_restored
     )
 
     return final_text
@@ -1207,7 +1252,7 @@ def process_parameter_description(
         - is_optional is a boolean indicating if the parameter is optional
     """
     if not desc:
-        return "", "*Required*", type_str, False
+        return "", "required", type_str, False
 
     # Clean and standardize the description
     desc = desc.strip()
@@ -1215,7 +1260,7 @@ def process_parameter_description(
     # Make a copy of the original type_str for cleaning later
     cleaned_type_str = type_str
     default_found = False
-    default_value = "*Required*"
+    default_value = "required"
 
     # Define patterns for finding default values - used for both type_str and description
     default_patterns = [
@@ -1301,7 +1346,7 @@ def process_parameter_description(
         is_optional = True
 
     if not default_found and is_optional:
-        default_value = "Optional"
+        default_value = "optional"
 
     # Clean up any artifacts from our removals in type_str
     cleaned_type_str = re.sub(r",\s*,", ",", cleaned_type_str)  # Fix double commas
@@ -1364,6 +1409,23 @@ def format_parameters_section(params_content, format="table"):
         )
         return type_match.group(1).strip() if type_match else ""
 
+    def format_default_value(value):
+        # Format default value for Markdown
+        if value:
+            if value.lower() == "required":
+                return "*Required*"
+            elif value.lower() == "optional":
+                return "*Optional*"
+            else:
+                return f"`{value}`"
+        return ""
+
+    def format_type_str(type_str):
+        # Escape pipe characters in type annotations to prevent them from breaking the Markdown table
+        if "|" in type_str:
+            type_str = type_str.replace("|", r"\|")
+        return f"`{type_str}`"
+
     if format == "table":
         # Table format
         param_table = header
@@ -1372,10 +1434,6 @@ def format_parameters_section(params_content, format="table"):
         for name, desc in param_blocks:
             # Find matching type
             type_str = params_type_match(name)
-
-            # Escape pipe characters in type annotations to prevent them from breaking the Markdown table
-            if "|" in type_str:
-                type_str = type_str.replace("|", r"\|")
 
             # Process parameter description - extract default value
             formatted_desc, default_value, cleaned_type_str, _ = (
@@ -1386,8 +1444,10 @@ def format_parameters_section(params_content, format="table"):
 
             # Format description for table cell
             formatted_desc = format_description_for_table_cell(formatted_desc)
+            formatted_type_str = format_type_str(cleaned_type_str)
+            formatted_default_value = format_default_value(default_value)
 
-            param_table += f"| **{name}** | `{cleaned_type_str}` | {formatted_desc} | `{default_value}` |\n"
+            param_table += f"| **{name}** | {formatted_type_str} | {formatted_desc} | {formatted_default_value} |\n"
 
         return param_table
     else:
