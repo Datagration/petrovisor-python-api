@@ -36,6 +36,10 @@
   --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
 }
 
+.admonition {
+  margin-bottom: 1em;
+}
+
 /* Match exact styling from original Docusaurus admonitions for icon alignment */
 .admonition-icon {
   display: inline-block;
