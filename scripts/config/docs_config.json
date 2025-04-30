@@ -13,7 +13,8 @@
     "skip": [
       "petrovisor.api.protocols.*",
       "petrovisor.api.utils.*"
-    ]
+    ],
+    "include_only": []
   },
   "classes": {
     "format": "class",
@@ -22,7 +23,8 @@
     "skip": [
       ".*Protocol$",
       ".*Base$"
-    ]
+    ],
+    "include_only": []
   },
   "methods": {
     "format": "method",

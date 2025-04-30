@@ -37,8 +37,8 @@ def main():
             "title": "API Documentation",
             "collapsed": False,
         },
-        "modules": {"skip": []},
-        "classes": {"skip": []},
+        "modules": {"skip": [], "include_only": []},
+        "classes": {"skip": [], "include_only": []},
     }
 
     if args.config and Path(args.config).exists():
@@ -58,11 +58,42 @@ def main():
             print(
                 f"Found {len(allowed_classes)} classes/functions in __all__: {allowed_classes}"
             )
-            # Override include_only_modules with modules found in __init__ if from_init is enabled
-            config["include_only_modules"] = init_modules
-            # Store the allowed class names in config
-            config["allowed_classes"] = allowed_classes
-            # Store the mapping of classes to their modules
+
+            # Handle modules include_only - calculate intersection with existing config if it exists
+            if config.get("modules", {}).get("include_only", []):
+                # Find intersection with existing include_only modules
+                config_modules = set(config["modules"]["include_only"])
+                init_module_set = set(init_modules)
+
+                # Use intersection if both have entries
+                if config_modules:
+                    intersection = config_modules.intersection(init_module_set)
+                    config["modules"]["include_only"] = list(intersection)
+                    print(
+                        f"Using intersection of modules.include_only: {config['modules']['include_only']}"
+                    )
+            else:
+                # No pre-existing include_only, so just use the init_modules
+                config["modules"]["include_only"] = init_modules
+
+            # Handle classes include_only - calculate intersection with existing config if it exists
+            if config.get("classes", {}).get("include_only", []):
+                # Find intersection with existing include_only classes
+                config_classes = set(config["classes"]["include_only"])
+                allowed_class_set = set(allowed_classes)
+
+                # Use intersection if both have entries
+                if config_classes:
+                    intersection = config_classes.intersection(allowed_class_set)
+                    config["classes"]["include_only"] = list(intersection)
+                    print(
+                        f"Using intersection of classes.include_only: {config['classes']['include_only']}"
+                    )
+            else:
+                # No pre-existing include_only, so just use the allowed_classes
+                config["classes"]["include_only"] = allowed_classes
+
+            # Store the mapping of classes to their modules for use in documentation
             config["class_modules"] = class_modules
 
     # Get sidebar properties from config
@@ -228,7 +259,7 @@ def should_process_module(module_name, config):
             return False
 
     # If there's an include_only list, only process modules in that list
-    include_only = config.get("include_only_modules", [])
+    include_only = config.get("modules", {}).get("include_only", [])
     if include_only:
         for include_pattern in include_only:
             if re.match(include_pattern, module_name):
@@ -287,11 +318,15 @@ def process_module(
             if func_name.startswith("_") or func.__module__ != module.__name__:
                 continue
 
-            allowed_classes = config.get("allowed_classes", [])
-            if allowed_classes and func_name not in allowed_classes:
+            if not is_from_main_package(func, main_package_name):
                 continue
 
-            if not is_from_main_package(func, main_package_name):
+            # Check if function is in classes.include_only list (if it exists)
+            classes_include_only = config.get("classes", {}).get("include_only", [])
+            if classes_include_only and func_name not in classes_include_only:
+                print(
+                    f"Skipping function {func_name}: not in classes.include_only list"
+                )
                 continue
 
             documentable_functions.append((func_name, func))
@@ -308,6 +343,16 @@ def process_module(
         if is_main_package_module and class_modules:
             for class_name, class_module_name in class_modules.items():
                 try:
+                    # Check if class is in include_only list (if it exists)
+                    classes_include_only = config.get("classes", {}).get(
+                        "include_only", []
+                    )
+                    if classes_include_only and class_name not in classes_include_only:
+                        print(
+                            f"Skipping class {class_name}: not in classes.include_only list"
+                        )
+                        continue
+
                     # If the class is from a different module, get it from its original module
                     if class_module_name != module_name:
                         # Import the module that contains this class
@@ -338,6 +383,7 @@ def process_module(
                 continue
 
             skip_class = False
+            # Check if class is in the skip patterns
             for skip_pattern in config.get("classes", {}).get("skip", []):
                 if re.match(skip_pattern, f"{module_name}.{class_name}") or re.match(
                     skip_pattern, class_name
@@ -345,8 +391,9 @@ def process_module(
                     skip_class = True
                     break
 
-            allowed_classes = config.get("allowed_classes", [])
-            if allowed_classes and class_name not in allowed_classes:
+            # Check if class is in include_only list (if it exists)
+            classes_include_only = config.get("classes", {}).get("include_only", [])
+            if classes_include_only and class_name not in classes_include_only:
                 skip_class = True
 
             if skip_class:
