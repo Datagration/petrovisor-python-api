@@ -46,9 +46,9 @@ const enhanceAdmonition = (
     }
 
     // For collapsible admonitions, modify with details/summary
-    const isOpen = !(open == false);
+    const isOpen = !(open === false);
 
-    // Simple approach: Render the original component inside details/summary
+    // Enhanced approach: Render the original component inside details/summary
     return (
       <OriginalAdmonition
         {...restProps}

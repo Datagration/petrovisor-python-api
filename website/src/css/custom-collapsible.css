@@ -1,5 +1,5 @@
 /**
- * Simple CSS for collapsible admonitions with arrow at far right
+ * Minimal CSS for collapsible admonitions, inheriting styles from Docusaurus
  */
 
 /* Hide default details marker */
@@ -38,13 +38,6 @@
   padding: 0 !important;
 }
 
-/* Ensure proper spacing in content area - removed left padding to match standard admonitions */
-.admonition-content {
-  margin-top: 0.5rem;
-  padding: 0 1rem;
-  margin-bottom: 0;
-}
-
 /* Style the arrow indicator */
 .admonition-arrow {
   width: 0.6rem;
@@ -78,17 +71,18 @@
   padding: 0;
 }
 
-/* Fix for extra space at the bottom */
-.admonition-collapsible p:last-child {
+/* Fix spacing issues in collapsible admonitions */
+.admonition-details > .admonition-content {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-bottom: var(--ifm-alert-padding-vertical) !important;
+}
+
+/* Ensure proper spacing at the bottom of the admonition */
+.admonition-details {
   margin-bottom: 0;
 }
 
-/* Remove extra padding from default Docusaurus admonition content */
-.admonition-content > .admonition-content-only {
-  padding-bottom: 0;
-}
-
-/* Ensure content within admonition doesn't add extra space */
-.admonition-content > .admonition-content-only > div {
-  margin-bottom: 0;
+.admonition-collapsible {
+  margin-bottom: var(--ifm-spacing-vertical) !important;
 }

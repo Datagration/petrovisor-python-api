@@ -1,45 +1,5 @@
-/* Base styles for all admonitions */
-.admonition {
-  margin-bottom: 1em;
-  border-radius: 0.4rem;
-  overflow: hidden;
-}
-
-.admonition-content {
-  padding: 0 1rem 1rem;
-}
-
-.admonition-heading {
-  padding: 0.75rem 1rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-}
-
-.admonition-heading h5 {
-  margin: 0;
-  font: var(--ifm-heading-font-weight) var(--ifm-h5-font-size) / var(--ifm-heading-line-height) var(--ifm-heading-font-family);
-  display: inline-block;
-  text-transform: uppercase;
-}
-
-.admonition-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.4em;
-}
-
-.admonition-icon svg {
-  display: inline-block;
-  height: 1.6em;
-  width: 1.6em;
-  fill: var(--ifm-alert-foreground-color);
-}
-
-/* Content styling to match standard admonitions */
-.admonition-content > :last-child {
-  margin-bottom: 0;
-}
+/* Base styles for custom admonition types */
+/* Only define what's necessary - inherit the rest from Docusaurus */
 
 /* Custom admonition types: class, method and function */
 .admonition-class {
@@ -73,6 +33,30 @@
 }
 
 [data-theme='dark'] .admonition-method {
-  
   --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
+}
+
+/* Match exact styling from original Docusaurus admonitions for icon alignment */
+.admonition-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.4em;
+}
+
+/* Make sure the icon uses the same size as default Docusaurus admonition icons */
+.admonition-icon svg {
+  display: inline-block;
+  height: 1.6em;
+  width: 1.6em;
+  fill: var(--ifm-alert-foreground-color);
+}
+
+/* Apply the same heading style as original Docusaurus admonitions */
+.admonition-heading h5 {
+  display: inline;
+  margin-top: 0;
+  margin-bottom: 0;
+  font: var(--ifm-heading-font-weight) var(--ifm-h5-font-size) / var(--ifm-heading-line-height) var(--ifm-heading-font-family);
+  text-transform: uppercase;
+  vertical-align: middle;
 }
