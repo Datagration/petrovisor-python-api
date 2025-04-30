@@ -68,8 +68,7 @@ dev = [
     "ruff",
     "flake8",
     "hatchling",
-    "build",
-    "uv"
+    "build"
 ]
 
 # Keep existing Ruff configuration
