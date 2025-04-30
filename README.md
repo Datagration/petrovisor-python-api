@@ -113,6 +113,12 @@ Other dependencies include
 
 # Documentation
 
+## Python API Documentation
+
+The full Python API documentation is available at [https://datagration.github.io/petrovisor-python-api/](https://datagration.github.io/petrovisor-python-api/)
+
+## PetroVisor REST API Documentation
+
 Details of the API endpoints and data models can be found in the Swagger links below, which are always up-to-date.
 
 [PetroVisor Web API (US1)](https://api.us1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)  

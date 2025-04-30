@@ -34,8 +34,8 @@ const config: Config = {
   baseUrl: '/petrovisor-python-api/',
 
   // GitHub pages deployment config.
-  organizationName: 'Datagration', // Usually your GitHub org/user name.
-  projectName: 'petrovisor-python-api', // Repo name
+  organizationName: 'Weatherford International plc',
+  projectName: 'petrovisor-python-api',
   deploymentBranch: 'gh-pages',
   trailingSlash: false,
 
