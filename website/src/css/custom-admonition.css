@@ -54,9 +54,18 @@
 /* Apply the same heading style as original Docusaurus admonitions */
 .admonition-heading h5 {
   display: inline;
-  margin-top: 0;
-  margin-bottom: 0;
   font: var(--ifm-heading-font-weight) var(--ifm-h5-font-size) / var(--ifm-heading-line-height) var(--ifm-heading-font-family);
   text-transform: uppercase;
-  vertical-align: middle;
+}
+
+.admonition-heading:not(:last-child) {
+  margin-bottom: 0.3rem;
+}
+
+.admonition-heading code {
+  text-transform: none;
+}
+
+.admonition-content > :last-child {
+  margin-bottom: 0;
 }
