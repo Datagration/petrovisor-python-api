@@ -59,8 +59,8 @@ class AggregationType(IntEnum):
 
 
 # Reference table column type
-class RefTableColumnType(Enum):
-    Numeric = (0,)
-    String = (1,)
-    DateTime = (2,)
-    Bool = (3,)
+class RefTableColumnType(IntEnum):
+    Numeric = 0
+    String = 1
+    DateTime = 2
+    Bool = 3

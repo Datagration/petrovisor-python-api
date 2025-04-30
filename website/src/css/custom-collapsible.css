@@ -1,0 +1,88 @@
+/**
+ * Minimal CSS for collapsible admonitions, inheriting styles from Docusaurus
+ */
+
+/* Hide default details marker */
+.admonition-details {
+  width: 100%;
+}
+
+.admonition-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.admonition-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Style the summary content */
+.admonition-summary-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* Wrapper for original admonition heading */
+.admonition-heading-wrapper {
+  flex-grow: 1;
+}
+
+/* Style the nested admonition heading content */
+.admonition-heading-content {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Style the arrow indicator */
+.admonition-arrow {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  margin-left: 0.5rem;
+  margin-right: 1rem;
+  transition: transform 0.3s ease;
+}
+
+/* Right-pointing arrow for closed state */
+.admonition-details:not([open]) .admonition-arrow {
+  transform: rotate(-45deg);
+}
+
+/* Down-pointing arrow for open state */
+.admonition-details[open] .admonition-arrow {
+  transform: rotate(45deg);
+}
+
+/* Hide the original admonition title when using our custom title */
+.admonition-collapsible > div:first-child {
+  display: none;
+}
+
+/* Prevent double borders from nested admonition */
+.admonition-collapsible .admonition {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fix spacing issues in collapsible admonitions */
+.admonition-details > .admonition-content {
+  margin-top: 0.3rem !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Ensure proper spacing at the bottom of the admonition */
+.admonition-details {
+  margin-bottom: 0;
+}
+
+.admonition-collapsible {
+  margin-bottom: 1em !important;
+}
