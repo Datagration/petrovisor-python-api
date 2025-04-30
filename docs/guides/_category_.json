@@ -1,0 +1,8 @@
+{
+  "label": "Guides",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Advanced guides and tutorials for using petrovisor Python API"
+  }
+}

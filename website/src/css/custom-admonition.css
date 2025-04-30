@@ -1,0 +1,75 @@
+/* Base styles for custom admonition types */
+/* Only define what's necessary - inherit the rest from Docusaurus */
+
+/* Custom admonition types: class, method and function */
+.admonition-class {
+  --ifm-alert-border-color: #9333ea;
+  --ifm-alert-background-color: rgba(147, 51, 234, 0.1);
+  border-left: 0.25rem solid var(--ifm-alert-border-color);
+  background-color: var(--ifm-alert-background-color);
+}
+
+.admonition-function {
+  --ifm-alert-border-color: #2563eb;
+  --ifm-alert-background-color: rgba(37, 99, 235, 0.1);
+  border-left: 0.25rem solid var(--ifm-alert-border-color);
+  background-color: var(--ifm-alert-background-color);
+}
+
+.admonition-method {
+  --ifm-alert-border-color: #2563eb;
+  --ifm-alert-background-color: rgba(37, 99, 235, 0.1);
+  border-left: 0.25rem solid var(--ifm-alert-border-color);
+  background-color: var(--ifm-alert-background-color);
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] .admonition-class {
+  --ifm-alert-background-color: rgba(147, 51, 234, 0.15);
+}
+
+[data-theme='dark'] .admonition-function {
+  --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
+}
+
+[data-theme='dark'] .admonition-method {
+  --ifm-alert-background-color: rgba(37, 99, 235, 0.15);
+}
+
+.admonition {
+  margin-bottom: 1em;
+}
+
+/* Match exact styling from original Docusaurus admonitions for icon alignment */
+.admonition-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.4em;
+}
+
+/* Make sure the icon uses the same size as default Docusaurus admonition icons */
+.admonition-icon svg {
+  display: inline-block;
+  height: 1.6em;
+  width: 1.6em;
+  fill: var(--ifm-alert-foreground-color);
+}
+
+/* Apply the same heading style as original Docusaurus admonitions */
+.admonition-heading h5 {
+  display: inline;
+  font: var(--ifm-heading-font-weight) var(--ifm-h5-font-size) / var(--ifm-heading-line-height) var(--ifm-heading-font-family);
+  text-transform: uppercase;
+}
+
+.admonition-heading:not(:last-child) {
+  margin-bottom: 0.3rem;
+}
+
+.admonition-heading code {
+  text-transform: none;
+}
+
+.admonition-content > :last-child {
+  margin-bottom: 0;
+}
