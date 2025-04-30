@@ -1,3 +1,9 @@
+"""
+PetroVisor Python API
+
+This module provides access to the PetroVisor platform API.
+"""
+
 __version__ = "0.1.10"
 
 # api
