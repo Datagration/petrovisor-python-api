@@ -65,10 +65,6 @@ const config: Config = {
           routeBasePath: 'docs',
           // Use the auto-generated sidebar
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/Datagration/petrovisor-python-api/tree/main/website',
           // Add support for custom admonition types
           admonitions: {
             keywords: CUSTOM_ADMONITION_TYPES,
