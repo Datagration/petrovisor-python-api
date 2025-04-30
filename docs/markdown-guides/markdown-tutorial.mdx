@@ -1,0 +1,348 @@
+---
+sidebar_position: 1
+title: Markdown Tutorial
+keywords: [tutorial]
+tags: [tutorial]
+---
+
+# Markdown Tutorial
+
+This guide demonstrates how to use Markdown in your documentation. You'll see both the raw markdown code and its rendered result.
+
+## Basic Markdown Syntax
+
+### Headings
+
+To create headings, use the `#` symbol followed by a space:
+
+```md
+# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+##### Heading 5
+###### Heading 6
+```
+
+The rendered result:
+
+# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+##### Heading 5
+###### Heading 6
+
+### Text Formatting
+
+```md
+**Bold text**
+*Italic text*
+***Bold and italic text***
+~~Strikethrough text~~
+`Inline code`
+```
+
+The rendered result:
+
+**Bold text**  
+*Italic text*  
+***Bold and italic text***  
+~~Strikethrough text~~  
+`Inline code`
+
+### Lists
+
+#### Unordered Lists
+
+```md
+- Item 1
+- Item 2
+  - Nested item 2.1
+  - Nested item 2.2
+- Item 3
+```
+
+The rendered result:
+
+- Item 1
+- Item 2
+  - Nested item 2.1
+  - Nested item 2.2
+- Item 3
+
+#### Ordered Lists
+
+```md
+1. First item
+2. Second item
+   1. Nested item 2.1
+   2. Nested item 2.2
+3. Third item
+```
+
+The rendered result:
+
+1. First item
+2. Second item
+   1. Nested item 2.1
+   2. Nested item 2.2
+3. Third item
+
+### Links
+
+```md
+https://pypi.org/project/petrovisor/
+[.NET SDK](https://www.nuget.org/packages/MyrConn.PetroVisor.Web.Client#readme-body-tab)
+```
+
+The rendered result:
+
+https://pypi.org/project/petrovisor/
+
+[.NET SDK](https://www.nuget.org/packages/MyrConn.PetroVisor.Web.Client#readme-body-tab)
+
+### Images
+
+```md
+![Python logo](https://www.python.org/static/community_logos/python-logo.png)
+
+<img src="https://upload.wikimedia.org/wikipedia/commons/4/48/Markdown-mark.svg" alt="Dashboard" width="500" height="600">
+```
+
+The rendered result:
+
+![Python logo](https://www.python.org/static/community_logos/python-logo.png)
+<img src="https://upload.wikimedia.org/wikipedia/commons/4/48/Markdown-mark.svg" alt="Dashboard" width="100" height="100"/>
+
+### Blockquotes
+
+```md
+> This is a blockquote.
+> 
+> This is the second paragraph in the blockquote.
+>
+> > This is a nested blockquote.
+```
+
+The rendered result:
+
+> This is a blockquote.
+> 
+> This is the second paragraph in the blockquote.
+>
+> > This is a nested blockquote.
+
+### Horizontal Rule
+
+```md
+---
+```
+
+The rendered result:
+
+---
+
+### Code Blocks
+
+````md
+```python
+def hello_world():
+    print("Hello, world!")
+```
+````
+
+The rendered result:
+
+```python
+def hello_world():
+    print("Hello, world!")
+```
+
+````md
+```javascript
+function sayHello(name) {
+  console.log(`Hello, ${name}!`);
+}
+
+sayHello('PetroVisor User');
+```
+````
+
+The rendered result:
+
+```javascript
+function sayHello(name) {
+  console.log(`Hello, ${name}!`);
+}
+
+sayHello('PetroVisor User');
+```
+
+## GitHub Flavored Markdown
+
+GitHub Flavored Markdown (GFM) extends standard markdown with additional features.
+
+### Task Lists
+
+```md
+- [x] Completed task
+- [ ] Incomplete task
+```
+
+The rendered result:
+
+- [x] Completed task
+- [ ] Incomplete task
+
+### Tables
+
+```md
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Row 1    | Data     | Data     |
+| Row 2    | Data     | Data     |
+| Row 3    | Data     | Data     |
+```
+
+The rendered result:
+
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Row 1    | Data     | Data     |
+| Row 2    | Data     | Data     |
+| Row 3    | Data     | Data     |
+
+#### Table Alignment
+
+```md
+| Left-aligned | Center-aligned | Right-aligned |
+|:-------------|:--------------:|---------------:|
+| Left         | Center         | Right         |
+| aligned      | aligned        | aligned       |
+```
+
+The rendered result:
+
+| Left-aligned | Center-aligned | Right-aligned |
+|:-------------|:--------------:|---------------:|
+| Left         | Center         | Right         |
+| aligned      | aligned        | aligned       |
+
+
+### Automatic Links
+
+```md
+Visit https://app.petrovisor.com for more information.
+```
+
+The rendered result:
+
+Visit https://app.petrovisor.com for more information.
+
+### Emoji
+
+```md
+:smile: :rocket: :chart_with_upwards_trend:
+```
+
+The rendered result (if supported by your Markdown renderer):
+
+:smile: :rocket: :chart_with_upwards_trend:
+
+### Footnotes
+
+```md
+Here's a simple footnote reference[^1].
+
+[^1]: This is the footnote content.
+```
+
+The rendered result:
+
+Here's a simple footnote reference[^1].
+
+[^1]: This is the footnote content.
+
+## Advanced Formatting 
+
+### Collapsible Content (Using Details HTML Tag)
+
+```html
+<details>
+<summary>Click to expand</summary>
+
+This content is hidden by default but can be expanded by clicking.
+
+- You can include lists
+- And other markdown content
+- Inside the details tag
+
+</details>
+```
+
+The rendered result:
+
+<details>
+<summary>Click to expand</summary>
+
+This content is hidden by default but can be expanded by clicking.
+
+- You can include lists
+- And other markdown content
+- Inside the details tag
+
+</details>
+
+### Keyboard Keys
+
+```html
+Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to copy text.
+```
+
+The rendered result:
+
+Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to copy text.
+
+### Definition Lists
+
+```html
+<dl>
+  <dt>Term</dt>
+  <dd>Definition of the term</dd>
+  
+  <dt>Another term</dt>
+  <dd>Definition of another term</dd>
+</dl>
+```
+
+The rendered result:
+
+<dl>
+  <dt>Term</dt>
+  <dd>Definition of the term</dd>
+  
+  <dt>Another term</dt>
+  <dd>Definition of another term</dd>
+</dl>
+
+### Subscript and Superscript
+
+```html
+H<sub>2</sub>O (subscript)
+
+E = mc<sup>2</sup> (superscript)
+```
+
+The rendered result:
+
+H<sub>2</sub>O (subscript)
+
+E = mc<sup>2</sup> (superscript)
+
+
+## Further Resources
+
+- [Official Markdown Guide](https://www.markdownguide.org/)
+- [GitHub Flavored Markdown Spec](https://github.github.com/gfm/)
+- [Docusaurus Markdown Features](https://docusaurus.io/docs/markdown-features)
