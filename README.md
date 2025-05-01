@@ -3,6 +3,17 @@
 
 Python interface to PetroVisor REST API.
 
+# Documentation
+
+## Python API Documentation
+For comprehensive guides, tutorials, and API reference, please visit our [official documentation site](https://datagration.github.io/petrovisor-python-api/).
+
+## REST API Reference
+The complete PetroVisor REST API specification, including all available endpoints and data models, is accessible through our Swagger documentation:
+
+- [PetroVisor Web API (US Region)](https://api.us1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)  
+- [PetroVisor Web API (EU Region)](https://api.eu1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)
+
 # Installing petrovisor
 
 `petrovisor` can be installed using `pip` or `uv` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
@@ -110,23 +121,6 @@ Other dependencies include
 - [pandas](https://github.com/pandas-dev/pandas)
 - [openpyxl](https://github.com/theorchard/openpyxl/tree/master)
 - [xlsxwriter](https://github.com/jmcnamara/XlsxWriter)
-
-# Documentation
-
-## Python API Documentation
-
-The full Python API documentation is available at [https://datagration.github.io/petrovisor-python-api/](https://datagration.github.io/petrovisor-python-api/)
-
-## PetroVisor REST API Documentation
-
-Details of the API endpoints and data models can be found in the Swagger links below, which are always up-to-date.
-
-[PetroVisor Web API (US1)](https://api.us1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)  
-[PetroVisor Web API (EU1)](https://api.eu1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)
-
-Other documentation can be found by the following link.
-
-[PetroVisor REST API](https://www.datagration.com/knowledge/how-do-i-acccess-the-petrovisor-rest-api)
 
 # How to use
 
