@@ -10,6 +10,7 @@ __version__ = "0.1.10"
 from petrovisor.petrovisor import PetroVisor
 
 # data types
+from petrovisor.models.argument import Argument
 from petrovisor.api.enums.items import ItemType
 from petrovisor.api.enums.internal_dtypes import (
     SignalType,
@@ -31,6 +32,7 @@ from petrovisor.api.models.unit import Unit
 # Use __all__ to let type checkers know what is part of the public API.
 __all__ = [
     "PetroVisor",
+    "Argument",
     "ItemType",
     "SignalType",
     "AggregationType",
