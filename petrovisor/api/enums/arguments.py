@@ -1,262 +1,156 @@
-from typing import NewType
+# Python 3.7+ compatibility for typing
+try:
+    from typing import NewType
+except ImportError:
+    # Use typing_extensions in older Python versions
+    from typing_extensions import NewType
 
-
-class ArgumentItemType:
-    @property
-    def BlobFile(self):
-        return NewType("BlobFile", str)
-
-    @property
-    def Calculation(self):
-        return NewType("Calculation", str)
-
-    @property
-    def ChartDefinition(self):
-        return NewType("ChartDefinition", str)
-
-    @property
-    def CleansingCalculation(self):
-        return NewType("CleansingCalculation", str)
-
-    @property
-    def CleansingScript(self):
-        return NewType("CleansingScript", str)
-
-    @property
-    def Context(self):
-        return NewType("Context", str)
-
-    @property
-    def CustomWorkflowActivity(self):
-        return NewType("CustomWorkflowActivity", str)
-
-    @property
-    def Dashboard(self):
-        return NewType("Dashboard", str)
-
-    @property
-    def DataConnection(self):
-        return NewType("DataConnection", str)
-
-    @property
-    def DataGrid(self):
-        return NewType("DataGrid", str)
-
-    @property
-    def DataIntegrationSession(self):
-        return NewType("DataIntegrationSession", str)
-
-    @property
-    def DataIntegrationSet(self):
-        return NewType("DataIntegrationSet", str)
-
-    @property
-    def DataSource(self):
-        return NewType("DataSource", str)
-
-    @property
-    def DCA(self):
-        return NewType("DCA", str)
-
-    @property
-    def Entity(self):
-        return NewType("Entity", str)
-
-    @property
-    def EntitySet(self):
-        return NewType("EntitySet", str)
-
-    @property
-    def EntityType(self):
-        return NewType("EntityType", str)
-
-    @property
-    def EventCalculation(self):
-        return NewType("EventCalculation", str)
-
-    @property
-    def EventSubscription(self):
-        return NewType("EventSubscription", str)
-
-    @property
-    def FilterDefinition(self):
-        return NewType("FilterDefinition", str)
-
-    @property
-    def Hierarchy(self):
-        return NewType("Hierarchy", str)
-
-    @property
-    def Label(self):
-        return NewType("Label", str)
-
-    @property
-    def Message(self):
-        return NewType("Message", str)
-
-    @property
-    def MLModel(self):
-        return NewType("MLModel", str)
-
-    @property
-    def PivotTable(self):
-        return NewType("PivotTable", str)
-
-    @property
-    def PowerBIItem(self):
-        return NewType("PowerBIItem", str)
-
-    @property
-    def ProcessTemplate(self):
-        return NewType("ProcessTemplate", str)
-
-    @property
-    def PSharpScript(self):
-        return NewType("PSharpScript", str)
-
-    @property
-    def PythonWorkflowActivity(self):
-        return NewType("PythonWorkflowActivity", str)
-
-    @property
-    def ReferenceTable(self):
-        return NewType("ReferenceTable", str)
-
-    @property
-    def RWorkflowActivity(self):
-        return NewType("RWorkflowActivity", str)
-
-    @property
-    def Scenario(self):
-        return NewType("Scenario", str)
-
-    @property
-    def Scope(self):
-        return NewType("Scope", str)
-
-    @property
-    def Signal(self):
-        return NewType("Signal", str)
-
-    @property
-    def Snapshot(self):
-        return NewType("Snapshot", str)
-
-    @property
-    def Tag(self):
-        return NewType("Tag", str)
-
-    @property
-    def TagEntry(self):
-        return NewType("TagEntry", str)
-
-    @property
-    def Ticket(self):
-        return NewType("Ticket", str)
-
-    @property
-    def TicketTimeInterval(self):
-        return NewType("TicketTimeInterval", str)
-
-    @property
-    def Unit(self):
-        return NewType("Unit", str)
-
-    @property
-    def Unknown(self):
-        return NewType("Unknown", str)
-
-    @property
-    def User(self):
-        return NewType("User", str)
-
-    @property
-    def UserGroup(self):
-        return NewType("UserGroup", str)
-
-    @property
-    def UserSetting(self):
-        return NewType("UserSetting", str)
-
-    @property
-    def WebWorkflowActivity(self):
-        return NewType("WebWorkflowActivity", str)
-
-    @property
-    def Workflow(self):
-        return NewType("Workflow", str)
-
-    @property
-    def WorkflowSchedule(self):
-        return NewType("WorkflowSchedule", str)
-
-    @property
-    def Workspace(self):
-        return NewType("Workspace", str)
-
-    @property
-    def WorkspaceValue(self):
-        return NewType("WorkspaceValue", str)
-
-    @property
-    def WorkspacePackage(self):
-        return NewType("WorkspacePackage", str)
+from typing import Optional, Any, List, Dict, Tuple, Union
+from dataclasses import dataclass
+from enum import Enum
 
 
 class ArgumentType:
-    """Registry of argument types"""
-
-    # signals
-    @property
-    def StaticNumericSignal(self):
-        return NewType("StaticNumericSignal", str)
-
-    @property
-    def StaticStringSignal(self):
-        return NewType("StaticStringSignal", str)
-
-    @property
-    def TimeNumericSignal(self):
-        return NewType("TimeNumericSignal", str)
-
-    @property
-    def TimeStringSignal(self):
-        return NewType("TimeStringSignal", str)
-
-    @property
-    def DepthNumericSignal(self):
-        return NewType("DepthNumericSignal", str)
-
-    @property
-    def DepthStringSignal(self):
-        return NewType("DepthStringSignal", str)
-
-    @property
-    def PVTSignal(self):
-        return NewType("PVTSignal", str)
-
-    # specific types
-    @property
-    def TagEntries(self):
-        return NewType("TagEntries", str)
+    """Types of arguments supported by PetroVisor"""
 
     # general types
-    @property
-    def String(self):
-        return NewType("String", str)
+    String = NewType("String", str)
+    Number = NewType("Number", Union[float, int])
+    Dictionary = NewType("Dictionary", Dict[str, Any])
+    Enumeration = NewType("Enumeration", Dict[str, int])
 
-    @property
-    def StringOptions(self):
-        return NewType("StringOptions", str)
+    # signals
+    StaticNumericSignal = NewType("StaticNumericSignal", str)
+    StaticStringSignal = NewType("StaticStringSignal", str)
+    TimeNumericSignal = NewType("TimeNumericSignal", str)
+    TimeStringSignal = NewType("TimeStringSignal", str)
+    DepthNumericSignal = NewType("DepthNumericSignal", str)
+    DepthStringSignal = NewType("DepthStringSignal", str)
+    PVTSignal = NewType("PVTSignal", str)
 
-    @property
-    def Item(self):
-        return NewType("Item", ArgumentItemType)
+    # specific types
+    TagEntries = NewType("TagEntries", str)
 
-    @property
-    def Items(self):
-        return NewType("Items", ArgumentItemType)
+    # PetroVisor Item Types
+    # BlobFile = NewType("BlobFile", str) # Not supported in UI
+    Calculation = NewType("Calculation", str)
+    ChartDefinition = NewType("ChartDefinition", str)
+    CleansingCalculation = NewType("CleansingCalculation", str)
+    CleansingScript = NewType("CleansingScript", str)
+    Context = NewType("Context", str)
+    CustomWorkflowActivity = NewType("CustomWorkflowActivity", str)
+    # Dashboard = NewType("Dashboard", str) # Not supported in UI
+    DataConnection = NewType("DataConnection", str)
+    DataGrid = NewType("DataGrid", str)
+    DataIntegrationSession = NewType("DataIntegrationSession", str)
+    DataIntegrationSet = NewType("DataIntegrationSet", str)
+    DataSource = NewType("DataSource", str)
+    DCA = NewType("DCA", str)
+    Entity = NewType("Entity", str)
+    EntitySet = NewType("EntitySet", str)
+    EntityType = NewType("EntityType", str)
+    EventCalculation = NewType("EventCalculation", str)
+    EventSubscription = NewType("EventSubscription", str)
+    FilterDefinition = NewType("FilterDefinition", str)
+    Hierarchy = NewType("Hierarchy", str)
+    # Label = NewType("Label", str) # Not supported in UI
+    # Message = NewType( "Message", str) # Not supported in UI
+    MLModel = NewType("MLModel", str)
+    PivotTable = NewType("PivotTable", str)
+    # PowerBIItem = NewType("PowerBIItem", str) # Not supported in UI
+    ProcessTemplate = NewType("ProcessTemplate", str)
+    PSharpScript = NewType("PSharpScript", str)
+    PythonWorkflowActivity = NewType("PythonWorkflowActivity", str)
+    ReferenceTable = NewType("ReferenceTable", str)
+    RWorkflowActivity = NewType("RWorkflowActivity", str)
+    Scenario = NewType("Scenario", str)
+    Scope = NewType("Scope", str)
+    Signal = NewType("Signal", str)
+    # Snapshot = "Snapshot", str)
+    Tag = NewType("Tag", str)
+    TagEntry = NewType("TagEntry", str)
+    # Ticket = NewType("Ticket", str) # Not supported in UI
+    # TicketTimeInterval = NewType("TicketTimeInterval", str) # Not supported in UI
+    Unit = NewType("Unit", str)
+    Unknown = NewType("Unknown", str)
+    User = NewType("User", str)
+    UserGroup = NewType("UserGroup", str)
+    UserSetting = NewType("UserSetting", str)
+    WebWorkflowActivity = NewType("WebWorkflowActivity", str)
+    Workflow = NewType("Workflow", str)
+    WorkflowSchedule = NewType("WorkflowSchedule", str)
+    # Workspace = NewType("Workspace", str) # Not supported in UI
+    WorkspacePackage = NewType("WorkspacePackage", str)
+    WorkspaceValue = NewType("WorkspaceValue", str)
 
-    @property
-    def ItemOptions(self):
-        return NewType("ItemOptions", ArgumentItemType)
+
+class ArgumentDirection(str, Enum):
+    """Parameter direction.
+
+    Uses string values for input/output direction indicators.
+    """
+
+    In = "in"
+    Out = "out"
+
+
+@dataclass
+class ArgumentOptions:
+    """Container for domain-specific information about an argument.
+
+    Examples
+    --------
+        ArgumentOptions("low", "medium", "high")
+        ArgumentOptions(["low", "medium", "high"])
+        ArgumentOptions(("option1", "option2"))
+        ArgumentOptions(1, 2, 3, 4)
+    """
+
+    value: Tuple[Any, ...] = ()
+
+    def __init__(self, *args):
+        """Initialize ArgumentOptions with flexible input formats.
+
+        Parameters
+        ----------
+        *args : Any
+            - Multiple individual arguments: ArgumentOptions(1, 2, 3)
+            - Single list: ArgumentOptions([1, 2, 3])
+            - Single tuple: ArgumentOptions((1, 2, 3))
+            - Empty: ArgumentOptions()
+        """
+        if len(args) == 0:
+            # Empty case: ArgumentOptions()
+            self.value = tuple()
+        elif len(args) == 1 and isinstance(args[0], (list, tuple)):
+            # Single list/tuple case: ArgumentOptions([1, 2, 3]) or ArgumentOptions((1, 2, 3))
+            self.value = tuple(args[0])
+        else:
+            # Multiple arguments case: ArgumentOptions(1, 2, 3)
+            self.value = tuple(args)
+
+
+@dataclass
+class ArgumentUnit:
+    """Container for unit information.
+
+    Parameters
+    ----------
+    value : str, optional
+        The unit of measurement (e.g., "m", "s", "kg").
+    """
+
+    value: Optional[str] = None
+
+
+@dataclass
+class ArgumentMeasurement:
+    """Container for measurement information.
+
+    Parameters
+    ----------
+    value : str, optional
+        The type of measurement (e.g., "depth", "pressure").
+    """
+
+    value: Optional[str] = None
