@@ -3,36 +3,37 @@
 
 Python interface to PetroVisor REST API.
 
+# Documentation
+
+## Python API Documentation
+For comprehensive guides, tutorials, and API reference, please visit our [official documentation site](https://datagration.github.io/petrovisor-python-api/).
+
+## REST API Reference
+The complete PetroVisor REST API specification, including all available endpoints and data models, is accessible through our Swagger documentation:
+
+- [PetroVisor Web API (US Region)](https://api.us1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)  
+- [PetroVisor Web API (EU Region)](https://api.eu1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)
+
 # Installing petrovisor
 
-`petrovisor` can be installed using `pip` or `uv` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
+`petrovisor` can be installed using [uv](https://docs.astral.sh/uv/) (recommended) or `pip` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
 
 ## Prerequisites
 
-- Python 3.7 or higher, Python 3.12 (Recommended)
-- [pip](https://pypi.org/project/pip/) (Python package installer) or [uv](https://docs.astral.sh/uv/) (extremely fast Python package and project manager, written in Rust)
+- Python 3.7+, Python 3.12+ recommended (tested on 3.7-3.14)
+- [uv](https://docs.astral.sh/uv/) - **Recommended**: An extremely fast Python package and project manager written in Rust (10-100x faster than pip)
+  - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh` (Unix) or `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"` (Windows)
+  - Or use `pip install uv` as fallback
 
 ## Installation Options
 
 ### From PyPI (Recommended)
 
 ```bash
-pip install petrovisor
-```
-
-or
-
-```bash
 uv pip install petrovisor
 ```
 
 ### From GitHub
-
-```bash
-pip install git+https://github.com/Datagration/petrovisor-python-api.git
-```
-
-or
 
 ```bash
 uv pip install git+https://github.com/Datagration/petrovisor-python-api.git
@@ -47,12 +48,6 @@ cd petrovisor-python-api
 ```
 
 2. Install the package
-```bash
-pip install .
-```
-
-or
-
 ```bash
 uv pip install .
 ```
@@ -71,16 +66,10 @@ print(pv.__version__)
 For contributors, you can install development dependencies with:
 
 ```bash
-pip install -e "[.dev]"
+uv pip install -e ".[dev]"
 ```
 
-or 
-
-```bash
-uv pip install -e "[.dev]"
-```
-
-Note that package installation dependencies are defined in `pyproject.toml`, while the `requirements.txt` file includes additional packages needed for development, testing and documentation.
+Note that package installation dependencies are defined in `pyproject.toml`, while the `requirements.txt` file includes additional packages needed for development, testing, and documentation.
 
 ## Package Build System
 
@@ -88,13 +77,7 @@ This package uses [Hatchling](https://hatch.pypa.io/) as its build system. Hatch
 
 ## Uninstalling petrovisor
 
-Uninstall `petrovisor` package
-
-```bash
-pip uninstall petrovisor
-```
-
-or
+Uninstall `petrovisor` package:
 
 ```bash
 uv pip uninstall petrovisor
@@ -110,23 +93,6 @@ Other dependencies include
 - [pandas](https://github.com/pandas-dev/pandas)
 - [openpyxl](https://github.com/theorchard/openpyxl/tree/master)
 - [xlsxwriter](https://github.com/jmcnamara/XlsxWriter)
-
-# Documentation
-
-## Python API Documentation
-
-The full Python API documentation is available at [https://datagration.github.io/petrovisor-python-api/](https://datagration.github.io/petrovisor-python-api/)
-
-## PetroVisor REST API Documentation
-
-Details of the API endpoints and data models can be found in the Swagger links below, which are always up-to-date.
-
-[PetroVisor Web API (US1)](https://api.us1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)  
-[PetroVisor Web API (EU1)](https://api.eu1.petrovisor.com/index.html?__hstc=187844791.915eb7f16db6760da47f18781132b2ac.1677840296877.1677840296877.1678450552784.2&__hssc=187844791.4.1678450552784&__hsfp=3193161031)
-
-Other documentation can be found by the following link.
-
-[PetroVisor REST API](https://www.datagration.com/knowledge/how-do-i-acccess-the-petrovisor-rest-api)
 
 # How to use
 

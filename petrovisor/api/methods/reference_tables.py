@@ -823,13 +823,13 @@ class RefTableMixinHelper:
         """
         Get reference column type
         """
-        if dtype == bool or is_bool_dtype(dtype):
+        if dtype is bool or is_bool_dtype(dtype):
             return RefTableColumnType.Bool.name
-        elif dtype == np.int64 or dtype == np.float64 or is_numeric_dtype(dtype):
+        elif dtype is np.int64 or dtype is np.float64 or is_numeric_dtype(dtype):
             return RefTableColumnType.Numeric.name
-        elif dtype == datetime.date or is_datetime64_dtype(dtype):
+        elif dtype is datetime.date or is_datetime64_dtype(dtype):
             return RefTableColumnType.DateTime.name
-        elif dtype == object or is_string_dtype(dtype):
+        elif dtype is object or is_string_dtype(dtype):
             return RefTableColumnType.String.name
         else:
             return RefTableColumnType.Numeric.name
