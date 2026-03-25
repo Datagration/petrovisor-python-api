@@ -38,7 +38,17 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
         filename : str
             File name
         format : str, default 'bytes'
-            File format
+            Response format for the file content. Standard formats:
+            - 'bytes' or 'binary': raw bytes (default)
+            - 'text': decoded text string (UTF-8)
+            - 'json': parsed JSON object
+            - 'content': same as bytes
+            - 'raw': raw response object
+
+        Returns
+        -------
+        Any
+            File content in the specified format
         """
         filename = ApiHelper.get_windows_like_path(filename)
         return self.get(f"Files/{self.encode(filename)}", format=format, **kwargs)
