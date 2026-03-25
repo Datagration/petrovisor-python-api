@@ -5,7 +5,7 @@ except ImportError:
     # Use typing_extensions in older Python versions
     from typing_extensions import NewType
 
-from typing import Optional, Any, List, Dict, Tuple, Union
+from typing import Optional, Any, Dict, Tuple, Union
 from dataclasses import dataclass
 from enum import Enum
 

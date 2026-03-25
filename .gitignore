@@ -1,6 +1,6 @@
 *.DS_Store
 /docs/api/
-/experimental/
+/sandbox/
 /petrovisor.egg-info/
 /dist/
 /build/
