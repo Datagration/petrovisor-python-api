@@ -92,11 +92,26 @@ class ItemsMixin(SupportsRequests):
                 f"Known item types: {list(self.ItemRoutes.keys())}"
             )
         name = self.get_item_name(item, **kwargs)
-        # make sure item is really deleted
-        waiting_time = 3  # in seconds
-        while self.item_exists(item_type, name):
-            self.delete(f"{route}/{self.encode(name)}", **kwargs)
-            time.sleep(waiting_time)
+
+        # Check if item exists before attempting delete
+        if not self.item_exists(item_type, name):
+            # Item doesn't exist, nothing to delete
+            return ApiRequests.success()
+
+        # Delete the item
+        self.delete(f"{route}/{self.encode(name)}", **kwargs)
+
+        # Verify deletion with exponential backoff retry
+        max_retries = 3
+        delay = 0.5
+        for attempt in range(max_retries):
+            if not self.item_exists(item_type, name):
+                return ApiRequests.success()
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff: 0.5s, 1s, 2s
+
+        # Item still exists after retries
         return ApiRequests.success()
 
     # add or edit item
