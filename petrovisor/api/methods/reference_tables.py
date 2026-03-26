@@ -63,16 +63,18 @@ class RefTableMixin(
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            waiting_time = 3  # in seconds
-            max_retries = 10
-            i = 0
+            # Use exponential backoff for retry
+            max_retries = 5
+            delay = 0.5
             item = self.get_item(ItemType.RefTable, name, **kwargs)
-            while not item and i < max_retries:
-                time.sleep(waiting_time)
-                item = self.get_item(ItemType.RefTable, name, **kwargs)
-                i += 1
-        if item:
-            return item
+            for attempt in range(max_retries):
+                if item:
+                    return item
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
+                    item = self.get_item(ItemType.RefTable, name, **kwargs)
+        # Final attempt without catching warnings
         return self.get_item(ItemType.RefTable, name, **kwargs)
 
     # add reference table
@@ -251,14 +253,16 @@ class RefTableMixin(
                 return result
         if is_empty:
             return ApiRequests.success()
-        # check that RefTable was created
-        waiting_time = 3  # in seconds
-        i = 0
-        max_retries = 10
-        while not self.item_exists(ItemType.RefTable, name) and i < max_retries:
-            time.sleep(waiting_time)
-            i += 1
-        # save data to already exists RefTable
+        # Check that RefTable was created with exponential backoff
+        max_retries = 5
+        delay = 0.5
+        for attempt in range(max_retries):
+            if self.item_exists(ItemType.RefTable, name):
+                break
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
+        # Save data to already exists RefTable
         return self.save_ref_table_data(
             name,
             df,
