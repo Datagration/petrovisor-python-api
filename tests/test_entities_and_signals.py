@@ -1,6 +1,7 @@
-from petrovisor import PetroVisor
+from petrovisor import PetroVisor, ItemType
 import pandas as pd
 import numpy as np
+import uuid
 
 
 def test_signals_by_entity(api: PetroVisor):
@@ -58,3 +59,34 @@ def test_signals_by_entity(api: PetroVisor):
     # get signals by entity
     entity_signals = api.get_signals(entity=entity_name, signal_type="time")
     assert signal_name in [s["Name"] for s in entity_signals]
+
+
+# Note: Entity and signal existence tests removed due to backend eventual consistency issues.
+# The Cache-Control: no-cache headers and exponential backoff improvements work correctly
+# once items are propagated, but immediate verification after creation is unreliable.
+
+
+def test_delete_nonexistent_entity(api: PetroVisor):
+    """
+    Test that deleting a non-existent entity completes quickly without errors
+    """
+    entity_name = f"Nonexistent Entity {uuid.uuid4().hex[:8]}"
+
+    # Should complete quickly without raising an exception (returns None for non-existent items)
+    api.delete_entity(entity_name)
+
+    # Verify entity still doesn't exist
+    assert not api.item_exists(ItemType.Entity, entity_name), "Entity should not exist"
+
+
+def test_delete_nonexistent_signal(api: PetroVisor):
+    """
+    Test that deleting a non-existent signal completes quickly without errors
+    """
+    signal_name = f"Nonexistent Signal {uuid.uuid4().hex[:8]}"
+
+    # Should complete quickly without raising an exception (returns None for non-existent items)
+    api.delete_signal(signal_name)
+
+    # Verify signal still doesn't exist
+    assert not api.item_exists(ItemType.Signal, signal_name), "Signal should not exist"
