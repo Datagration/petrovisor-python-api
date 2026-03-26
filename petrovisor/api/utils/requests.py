@@ -280,6 +280,7 @@ class ApiRequests:
         """
         request_headers = {
             "accept": "application/json",
+            "cache-control": "no-cache",  # Bypass caching to get fresh data
         }
         # add access token to headers
         if token:
