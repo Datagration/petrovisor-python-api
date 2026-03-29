@@ -48,6 +48,27 @@ uvx ty check                     # type checker; 3 warnings are known stubs issu
 - **Pydantic v2 models**: All models use `BaseConfigModel` with `populate_by_name=True`. Use **aliases** (PascalCase) in constructors: `Context(Name="foo")` not `Context(name="foo")` — ty will warn otherwise.
 - **API requests**: All HTTP calls go through `self.get/post/put/delete` from `base.py`. Route strings are plain paths e.g. `"Signals/{name}"`.
 - **Dict annotations**: Request body dicts must be annotated as `Dict[str, Any]` to avoid ty narrowing false positives.
+- **MixinHelper + Protocol pattern**: Every `api/methods/*.py` file follows a three-part structure — helper class, protocol, mixin — in this order:
+  1. `ClassNameMixinHelper` (before the mixin): holds all endpoint string constants (`ENDPOINT`, `ENDPOINT_ALL`, `ENDPOINT_*`) and optional `@staticmethod` pure-data utilities. Add new endpoints here first.
+  2. `SupportsClassNameRequests` in `api/protocols/protocols.py`: a `Protocol` class declaring every public method of the mixin. Other mixins that depend on this mixin's methods inherit from its protocol instead of the concrete class. This keeps the mixin chain loosely coupled and type-checkable.
+  3. `ClassNameMixin` (the mixin itself): inherits from the protocols of all mixins it depends on.
+
+  Every mixin has a corresponding protocol and every protocol is kept in sync with the mixin's public interface. Example:
+  ```python
+  # api/protocols/protocols.py
+  class SupportsSignalsRequests(Protocol):
+      def get_signal(self, name: str, **kwargs) -> Optional[Dict]: ...
+      def get_signal_unit(self, signal: Union[str, Dict], **kwargs) -> Any: ...
+      ...
+
+  # api/methods/signals.py
+  class SignalsMixinHelper:
+      ENDPOINT_SIGNALS = "Signals"
+      ENDPOINT_RETRIEVE = "Data/Retrieve"
+
+  class SignalsMixin(SupportsContextRequests, SupportsUnitsRequests, SupportsRequests, ...):
+      def get_signal(self, name: str, **kwargs) -> Optional[Dict]: ...
+  ```
 
 ## Running Tests
 

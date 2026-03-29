@@ -108,7 +108,7 @@ CMD=(
 )
 
 echo "Running: ${CMD[@]}"
-uv run "${CMD[@]}"
+python "${CMD[@]}"
 
 if [ $? -eq 0 ]; then
     echo "Documentation generated successfully!"
