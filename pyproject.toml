@@ -36,6 +36,22 @@ classifiers = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "python-dotenv",
+    "ruff",
+    "ty",
+    "ipykernel",
+]
+docs = [
+    "numpydoc>=1.1.0",
+    "sphinx>=4.0.0",
+    "docstring-parser>=0.15",
+    "docutils>=0.17.0",
+    "pydantic>=1.8.0",
+]
+
 [project.urls]
 repository = "https://github.com/Datagration/petrovisor-python-api"
 
@@ -58,24 +74,30 @@ exclude = [
     ".git",
 ]
 
-[project.optional-dependencies]
-dev = [
-    # Testing
-    "pytest",
-    "pytest-cov",
-
-    # Development tools
-    "pre-commit",
-    "ruff",
-    "flake8",
-    "hatchling",
-    "build",
-
-    # Jupyter
-    "ipykernel",
-    "jupyter",
-    "notebook"
+[tool.ty.src]
+# Exclude non-library directories from type checking
+exclude = [
+    "tests/**",
+    "examples/**",
+    "experimental/**",
+    "website/**",
+    "docs/**",
+    "scripts/**",
 ]
+
+[tool.ty.rules]
+# Downgrade noisy rules to warnings — these are mostly annotation-style issues
+# or false positives from incomplete third-party stubs (requests, pandas, numpy).
+# Real logic bugs (not-iterable, not-subscriptable, invalid-return-type) remain errors.
+invalid-parameter-default = "warn"
+invalid-assignment = "warn"
+invalid-argument-type = "warn"
+unknown-argument = "warn"
+no-matching-overload = "warn"
+invalid-method-override = "warn"
+invalid-type-form = "warn"
+unsupported-operator = "warn"
+unresolved-attribute = "warn"
 
 # Keep existing Ruff configuration
 [tool.ruff]

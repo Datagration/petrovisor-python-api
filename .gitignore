@@ -1,4 +1,8 @@
 *.DS_Store
+.env
+/.claude/
+!/.claude/CLAUDE.md
+!/.claude/commands/
 /docs/api/
 /sandbox/
 /petrovisor.egg-info/
