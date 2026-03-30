@@ -15,6 +15,17 @@ from petrovisor.api.models.unit import Unit
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
+# Units mixin helper
+class UnitsMixinHelper:
+    """
+    Units mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "Units"
+    ENDPOINT_ADD = "Units/Add"
+    ENDPOINT_MEASUREMENTS = "UnitMeasurements"
+
+
 # Units API calls
 class UnitsMixin(SupportsRequests):
     # get unit
@@ -27,7 +38,7 @@ class UnitsMixin(SupportsRequests):
         name : str
             Signal name
         """
-        route = "Units"
+        route = UnitsMixinHelper.ENDPOINT
         return self.get(f"{route}/{self.encode(name)}", **kwargs)
 
     # get measurement 'Units'
@@ -40,7 +51,7 @@ class UnitsMixin(SupportsRequests):
         measurement : str
             Measurement name
         """
-        route = "Units"
+        route = UnitsMixinHelper.ENDPOINT
         return self.get(f"{route}/{self.encode(measurement)}/Units", **kwargs)
 
     # get measurement 'Unit' names
@@ -61,7 +72,7 @@ class UnitsMixin(SupportsRequests):
         """
         Get unit measurements
         """
-        route = "UnitMeasurements"
+        route = UnitsMixinHelper.ENDPOINT_MEASUREMENTS
         return self.get(f"{route}", **kwargs)
 
     # add unit
@@ -74,7 +85,7 @@ class UnitsMixin(SupportsRequests):
         unit : Unit | dict
             Unit
         """
-        route = "Units"
+        route = UnitsMixinHelper.ENDPOINT
         if isinstance(unit, Unit):
             validated_unit = unit.model_dump(by_alias=True)
         elif isinstance(unit, dict):
@@ -96,24 +107,23 @@ class UnitsMixin(SupportsRequests):
         units : list[Unit | dict]
             List of units
         """
-        route = "Units"
         validated_units = [
             e.model_dump(by_alias=True) if isinstance(e, Unit) else e
             for e in units
             if isinstance(e, dict) or isinstance(e, Unit)
         ]
         for validated_unit in validated_units:
-            self.post(f"{route}/Add", data=validated_unit, **kwargs)
+            self.post(UnitsMixinHelper.ENDPOINT_ADD, data=validated_unit, **kwargs)
         return ApiRequests.success()
 
     # convert values from one unit to another
     def convert_units(
         self,
         values: Union[float, List[float], np.ndarray, pd.Series, None] = None,
-        source: str = None,
-        target: str = None,
+        source: Optional[str] = None,
+        target: Optional[str] = None,
         **kwargs,
-    ) -> Union[float, List[float], None]:
+    ) -> Union[float, List[float], np.ndarray, pd.Series, None]:
         """
         Convert values from one unit to another.
         Use '_' to get unit ' ' (dimensionless).
@@ -128,7 +138,7 @@ class UnitsMixin(SupportsRequests):
         target: str
             Target unit
         """
-        route = "Units"
+        route = UnitsMixinHelper.ENDPOINT
         if values is None or not source or not target or source == target:
             return values
 

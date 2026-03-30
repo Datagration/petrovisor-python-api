@@ -32,7 +32,7 @@ class ApiLogin:
         discovery_url: str = "",
         token_endpoint: str = "",
         **kwargs,
-    ) -> Dict:
+    ) -> Optional[Dict]:
         """
         Get access token response
 
@@ -325,9 +325,9 @@ class ApiLogin:
     def decode_base64(
         base64_message: Union[bytes, str],
         fmt: str = "ascii",
-        altchars: Optional[str] = None,
+        altchars: Optional[bytes] = None,
         **kwargs,
-    ) -> str:
+    ) -> Union[str, bytes]:
         """
         Decode base64 string
 

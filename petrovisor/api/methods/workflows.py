@@ -10,6 +10,16 @@ from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
+# Workflows mixin helper
+class WorkflowsMixinHelper:
+    """
+    Workflows mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "WorkflowExecution"
+    ENDPOINT_REQUEST = "WorkflowExecution/AddRequest"
+
+
 # Workflows API calls
 class WorkflowsMixin(SupportsRequests):
     """
@@ -21,8 +31,8 @@ class WorkflowsMixin(SupportsRequests):
         self,
         workflow: str,
         contexts: Optional[List[str]] = None,
-        scope: str = None,
-        entity_set: str = None,
+        scope: Optional[str] = None,
+        entity_set: Optional[str] = None,
         schedule_name: str = "Now",
         source: str = "by Activity service",
         **kwargs,
@@ -56,7 +66,7 @@ class WorkflowsMixin(SupportsRequests):
             data["ProcessingScopeName"] = scope
         if entity_set:
             data["ProcessingEntitySet"] = entity_set
-        return self.post("WorkflowExecution/AddRequest", data=data, **kwargs)
+        return self.post(WorkflowsMixinHelper.ENDPOINT_REQUEST, data=data, **kwargs)
 
     # get 'Workflow' execution state
     def get_workflow_execution_state(self, uid: UUID, **kwargs):
@@ -69,4 +79,6 @@ class WorkflowsMixin(SupportsRequests):
             Workflow id
         """
         uuid = ApiHelper.get_uuid(uid)
-        return self.get(f"WorkflowExecution/{self.encode(str(uuid))}", **kwargs)
+        return self.get(
+            f"{WorkflowsMixinHelper.ENDPOINT}/{self.encode(str(uuid))}", **kwargs
+        )

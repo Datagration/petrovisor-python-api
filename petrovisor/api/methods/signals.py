@@ -6,6 +6,7 @@ from typing import (
     Set,
     Dict,
     Tuple,
+    cast,
 )
 
 from datetime import datetime
@@ -36,6 +37,47 @@ from petrovisor.api.protocols.protocols import (
     SupportsEntitiesRequests,
     SupportsUnitsRequests,
 )
+
+
+# Signals mixin helper
+class SignalsMixinHelper:
+    """
+    Signals mixin helper — endpoint constants and pure data-conversion utilities.
+    """
+
+    # Endpoint routes — signals CRUD
+    ENDPOINT_SIGNALS = "Signals"
+    ENDPOINT_SIGNALS_ALL = "Signals/All"
+    ENDPOINT_SIGNALS_ADD = "Signals/Add"
+    ENDPOINT_ENTITIES = "Entities"
+
+    # Endpoint routes — data operations
+    ENDPOINT_TIME_RANGE = "Data/TimeRange"
+    ENDPOINT_DEPTH_RANGE = "Data/DepthRange"
+    ENDPOINT_RETRIEVE = "Data/Retrieve"
+    ENDPOINT_TOP = "Data/Top"
+    ENDPOINT_SAVE = "Data/Save"
+    ENDPOINT_DELETE = "Data/Delete"
+    ENDPOINT_ACQUIRE = "Data/Acquire"
+    ENDPOINT_FILTERS_DATA = "Filters/Data"
+
+    @staticmethod
+    def to_data_list(
+        data: Union[List[Dict], "pd.DataFrame", "pd.Series"],
+    ) -> List[Dict]:
+        """
+        Convert data input to a list of dicts.
+
+        Parameters
+        ----------
+        data : list[dict], DataFrame, Series
+            Input data
+        """
+        if isinstance(data, pd.DataFrame):
+            return cast(List[Dict], data.to_dict("records"))
+        elif isinstance(data, pd.Series):
+            return [data.to_dict()]
+        return list(data)
 
 
 # Signals API calls
@@ -141,7 +183,7 @@ class SignalsMixin(
         short_name : str
             Signal short name
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         if short_name:
             signal = self.get(f"{route}/{self.encode(short_name)}/Signal", **kwargs)
         else:
@@ -167,14 +209,14 @@ class SignalsMixin(
         entity : str
             Entity object or Entity name
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         # get signals by signal type
         if signal_type:
             signal_type = self.get_signal_type_enum(signal_type, **kwargs).name
             signals = self.get(f"{route}/{signal_type}/Signals", **kwargs)
         # get all signals
         else:
-            signals = self.get(f"{route}/All", **kwargs)
+            signals = self.get(SignalsMixinHelper.ENDPOINT_SIGNALS_ALL, **kwargs)
         # get signals by 'Entity' name
         if entity:
             signal_names = self.get_signal_names(
@@ -202,10 +244,10 @@ class SignalsMixin(
         entity : str
             Entity object or Entity name
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         # get signals by 'Entity' name
         if entity:
-            entities_route = "Entities"
+            entities_route = SignalsMixinHelper.ENDPOINT_ENTITIES
             entity_name = ApiHelper.get_object_name(entity)
             signal_names = self.get(
                 f"{entities_route}/{self.encode(entity_name)}/Signals", **kwargs
@@ -235,7 +277,7 @@ class SignalsMixin(
         signal : Signal | dict
             Signal
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         if isinstance(signal, Signal):
             validated_signal = signal.model_dump(by_alias=True)
         elif isinstance(signal, dict):
@@ -259,13 +301,14 @@ class SignalsMixin(
         signals : list[Signal | dict]
             List of signals
         """
-        route = "Signals"
         validated_signals = [
             e.model_dump(by_alias=True) if isinstance(e, Signal) else e
             for e in signals
             if isinstance(e, dict) or isinstance(e, Signal)
         ]
-        return self.post(f"{route}/Add", data=validated_signals, **kwargs)
+        return self.post(
+            SignalsMixinHelper.ENDPOINT_SIGNALS_ADD, data=validated_signals, **kwargs
+        )
 
     # delete signal
     def delete_signal(
@@ -279,7 +322,7 @@ class SignalsMixin(
         signal : Signal | dict | str
             Signal
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         if isinstance(signal, Signal):
             name = signal.name
         else:
@@ -300,7 +343,7 @@ class SignalsMixin(
         signals : list[Signal | dict | str]
             List of signals
         """
-        route = "Signals"
+        route = SignalsMixinHelper.ENDPOINT_SIGNALS
         names = [
             s.name if isinstance(s, Signal) else ApiHelper.get_object_name(s)
             for s in signals
@@ -331,21 +374,28 @@ class SignalsMixin(
         entity : str | list[str], default None
             Entity name or Entities
         """
-        signal_type = self.get_signal_type_enum(signal_type, **kwargs)
-        if signal_type in {SignalType.Static, SignalType.String}:
+        signal_type_enum = self.get_signal_type_enum(signal_type, **kwargs)
+        if signal_type_enum in {SignalType.Static, SignalType.String}:
             return {"Start": None, "End": None}
 
-        route = self.get_signal_type_route(signal_type=signal_type, **kwargs)
-        if signal_type in {
+        # Determine if numeric or string signal
+        is_numeric = signal_type_enum in {
+            SignalType.TimeDependent,
+            SignalType.DepthDependent,
+        }
+
+        if signal_type_enum in {
             SignalType.TimeDependent,
             SignalType.StringTimeDependent,
         }:
+            # Use a unified Data/TimeRange endpoint with IsNumeric query parameter (GET)
             if signal and entity:
                 signal_name = ApiHelper.get_object_name(signal)
                 if not isinstance(entity, (list, tuple, set)):
                     entity_name = ApiHelper.get_object_name(entity)
                     return self.get(
-                        f"{route}/Range/{self.encode(signal_name)}/{self.encode(entity_name)}",
+                        f"{SignalsMixinHelper.ENDPOINT_TIME_RANGE}/{self.encode(signal_name)}/{self.encode(entity_name)}",
+                        query={"IsNumeric": is_numeric},
                         **kwargs,
                     )
                 else:
@@ -353,7 +403,8 @@ class SignalsMixin(
                     minmax = [
                         (
                             self.get(
-                                f"{route}/Range/{self.encode(signal_name)}/{self.encode(ApiHelper.get_object_name(e))}",
+                                f"{SignalsMixinHelper.ENDPOINT_TIME_RANGE}/{self.encode(signal_name)}/{self.encode(ApiHelper.get_object_name(e))}",
+                                query={"IsNumeric": is_numeric},
                                 **kwargs,
                             )
                             or {}
@@ -373,152 +424,91 @@ class SignalsMixin(
                     }
             elif signal:
                 signal_name = ApiHelper.get_object_name(signal)
-                return self.get(f"{route}/Range/{signal_name}", **kwargs)
-            return self.get(f"{route}/Range", **kwargs)
-        elif signal_type in {
+                return self.get(
+                    f"{SignalsMixinHelper.ENDPOINT_TIME_RANGE}/{signal_name}",
+                    query={"IsNumeric": is_numeric},
+                    **kwargs,
+                )
+            return self.get(
+                SignalsMixinHelper.ENDPOINT_TIME_RANGE,
+                query={"IsNumeric": is_numeric},
+                **kwargs,
+            )
+        elif signal_type_enum in {
             SignalType.DepthDependent,
             SignalType.StringDepthDependent,
         }:
-            if signal and entity and not isinstance(entity, (list, tuple, set)):
+            # Use unified Data/DepthRange endpoint with IsNumeric query parameter (GET)
+            # This is symmetric with Data/TimeRange
+            if signal and entity:
                 signal_name = ApiHelper.get_object_name(signal)
-                entity_name = ApiHelper.get_object_name(entity)
-                min_value = self.post(
-                    f"{route}/DepthStepExtremum",
-                    query={"IsMinimum": True},
-                    data=[{"Entity": entity_name, "Signal": signal_name}],
-                    **kwargs,
-                )[0]
-                max_value = self.post(
-                    f"{route}/DepthStepExtremum",
-                    query={"IsMinimum": False},
-                    data=[{"Entity": entity_name, "Signal": signal_name}],
-                    **kwargs,
-                )[0]
-                return {"Start": min_value, "End": max_value}
-            else:
-                if signal:
-                    signal_name = ApiHelper.get_object_name(signal)
-                    if entity and isinstance(entity, (list, tuple, set)):
-                        entities = entity
-                    else:
-                        entities = self.get_entities(signal=signal_name)
-                    data = [
-                        {"Entity": ApiHelper.get_object_name(e), "Signal": signal_name}
-                        for e in entities
-                    ]
+                if not isinstance(entity, (list, tuple, set)):
+                    entity_name = ApiHelper.get_object_name(entity)
+                    return self.get(
+                        f"{SignalsMixinHelper.ENDPOINT_DEPTH_RANGE}/{self.encode(signal_name)}/{self.encode(entity_name)}",
+                        query={"IsNumeric": is_numeric},
+                        **kwargs,
+                    )
                 else:
-                    entities = self.get_entities()
-                    signals = self.get_signals(signal_type=signal_type)
-                    data = [
-                        {
-                            "Entity": ApiHelper.get_object_name(e),
-                            "Signal": ApiHelper.get_object_name(s),
-                        }
-                        for e in entities
-                        for s in signals
+                    signal_name = ApiHelper.get_object_name(signal)
+                    minmax = [
+                        (
+                            self.get(
+                                f"{SignalsMixinHelper.ENDPOINT_DEPTH_RANGE}/{self.encode(signal_name)}/{self.encode(ApiHelper.get_object_name(e))}",
+                                query={"IsNumeric": is_numeric},
+                                **kwargs,
+                            )
+                            or {}
+                        )
+                        for e in entity
                     ]
-                if not data:
-                    return {"Start": None, "End": None}
-                min_values = self.post(
-                    f"{route}/DepthStepExtremum",
-                    query={"IsMinimum": True},
-                    data=data,
+                    minmax = [v for v in minmax if isinstance(v, dict)]
+                    if not minmax:
+                        return {"Start": None, "End": None}
+                    return {
+                        "Start": np.min([v for v in minmax if v is not None]),
+                        "End": np.max([v for v in minmax if v is not None]),
+                    }
+            elif signal:
+                signal_name = ApiHelper.get_object_name(signal)
+                return self.get(
+                    f"{SignalsMixinHelper.ENDPOINT_DEPTH_RANGE}/{signal_name}",
+                    query={"IsNumeric": is_numeric},
                     **kwargs,
                 )
-                max_values = self.post(
-                    f"{route}/DepthStepExtremum",
-                    query={"IsMinimum": False},
-                    data=data,
-                    **kwargs,
-                )
-                return {
-                    "Start": np.min([v for v in min_values if v is not None] or None),
-                    "End": np.max([v for v in max_values if v is not None] or None),
-                }
+            return self.get(
+                SignalsMixinHelper.ENDPOINT_DEPTH_RANGE,
+                query={"IsNumeric": is_numeric},
+                **kwargs,
+            )
         return {"Start": None, "End": None}
-
-    # cleanse data
-    def cleanse_data(
-        self,
-        data_type: Union[str, SignalType],
-        value: float,
-        timestamp: Optional[Union[datetime, str]],
-        signal: Union[Dict, str],
-        unit: Union[Dict, str],
-        entity: Union[Dict, str],
-        cleansing_script: str,
-        **kwargs,
-    ) -> Any:
-        """
-        Cleanse data
-
-        Parameters
-        ----------
-        data_type : str, SignalType
-            Data type: 'static', 'time', 'depth', 'string', 'timestring', 'pvt'
-        value : float
-            Value
-        timestamp : datetime,str
-            Date
-        signal : str, dict
-            Signal object or Signal name
-        unit : str, dict
-            Unit object or Unit name
-        entity : str, dict
-            Entity object or Entity name
-        cleansing_script : str
-            Cleansing script
-        """
-        data_type = self.get_signal_type_enum(data_type, **kwargs)
-        route = self.get_signal_type_route(signal_type=data_type, **kwargs)
-        if data_type != SignalType.TimeDependent and data_type != SignalType.Static:
-            raise Warning(
-                "PetroVisor::cleanse_data(): "
-                "cleansing is only supported for 'Static' and 'TimeNumeric' data."
-            )
-        options = {
-            "UseDefaultCleansingScripts": True,
-            "CleansingScript": cleansing_script,
-            "TreatCleansingScriptAsCleansingScriptName": True,
-            "IsPreview": True,
-        }
-        options = ApiHelper.update_dict(options, **kwargs)
-        entity_name = ApiHelper.get_object_name(entity, **kwargs)
-        signal_name = ApiHelper.get_object_name(signal, **kwargs)
-        unit_name = ApiHelper.get_object_name(unit, **kwargs)
-        data_with_options = {
-            "Entity": entity_name,
-            "Signal": signal_name,
-            "Unit": unit_name,
-            "Value": value,
-            "Options": options,
-        }
-        if data_type == SignalType.TimeDependent:
-            data_with_options["Timestamp"] = self.get_json_valid_value(
-                timestamp, "time", **kwargs
-            )
-        return self.post(f"{route}/Cleanse", data=data_with_options, **kwargs)
 
     # load signals data
     def load_signals_data(
         self,
         signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
-        scenario: str = None,
-        context: Union[str, Dict[str, Any], Context] = None,
-        scope: Union[str, Dict[str, Any], Scope] = None,
-        entity_set: Union[str, Dict[str, Any], EntitySet] = None,
-        hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
-        entities: Union[
-            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        scenario: Optional[str] = None,
+        context: Optional[Union[str, Dict[str, Any], Context]] = None,
+        scope: Optional[Union[str, Dict[str, Any], Scope]] = None,
+        entity_set: Optional[Union[str, Dict[str, Any], EntitySet]] = None,
+        hierarchy: Optional[Union[str, Dict[str, Any], Hierarchy]] = None,
+        entities: Optional[
+            Union[
+                Union[str, Dict[str, Any], Entity],
+                List[Union[str, Dict[str, Any], Entity]],
+            ]
         ] = None,
-        entity_type: Union[str, List[str]] = None,
-        time_start: Union[str, datetime] = None,
-        time_end: Union[str, datetime] = None,
-        time_step: Union[str, TimeIncrement] = None,
-        depth_start: float = None,
-        depth_end: float = None,
-        depth_step: Union[str, DepthIncrement] = None,
-        depth_unit: float = None,
+        entity_type: Optional[Union[str, List[str]]] = None,
+        time_start: Optional[Union[str, datetime]] = None,
+        time_end: Optional[Union[str, datetime]] = None,
+        time_step: Optional[Union[str, TimeIncrement]] = None,
+        depth_start: Optional[float] = None,
+        depth_end: Optional[float] = None,
+        depth_step: Optional[Union[str, DepthIncrement]] = None,
+        depth_unit: Optional[float] = None,
+        pressure_unit: str = "Pa",
+        temperature_unit: str = "K",
+        method: Optional[str] = None,
         **kwargs,
     ) -> Optional[pd.DataFrame]:
         """
@@ -542,7 +532,7 @@ class SignalsMixin(
             Entity or list of Entities
         entity_type : str | list[str], default None
             Entity type. Used when entity_set, entities or context is not provided.
-            If not None, will filter out entities defined in entity_set.
+            If not None, it will filter out entities defined in entity_set.
         time_start : datetime, str, default None
             Start of time range
         time_end : datetime, str, default None
@@ -557,6 +547,14 @@ class SignalsMixin(
             Step of depth range, e.g. 'Meter', 'Foot'
         depth_unit : str, default None
             Depth unit, e.g. 'm', 'ft'. Only when retrieving depth signals
+        pressure_unit : str, default 'Pa'
+            Pressure unit (PVT data)
+        temperature_unit : str, default 'K'
+            Temperature unit (PVT data)
+        method : str, optional, default None
+            Data retrieval method (case-insensitive):
+            - None (default): Uses Data/Retrieve endpoint with IsNumeric parameter
+            - "dataview": Uses Filters/Data endpoint (frontend DataView compatibility)
         """
         # get signals
         if isinstance(signals, (list, set, tuple)):
@@ -571,13 +569,37 @@ class SignalsMixin(
             else:
                 signal_name, unit_name = self.get_column_name_and_unit(signal)
             signal_name = ApiHelper.get_object_name(signal_name)
-            s = self.get_signal(signal_name)
+
+            # Retry logic to handle eventual consistency issues
+            # Backend may temporarily return 404 even for existing signals
+            import time
+
+            max_retries = 3
+            retry_delay = 1.0
+            s = None
+
+            for attempt in range(max_retries):
+                s = self.get_signal(signal_name)
+                if s is not None:
+                    break
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+
+            if s is None:
+                raise ValueError(
+                    f"PetroVisor::load_signals_data(): "
+                    f"Signal '{signal_name}' not found after {max_retries} attempts. "
+                    f"This may be due to: (1) signal does not exist, (2) backend eventual consistency issues. "
+                    f"Please verify the signal exists using api.item_exists(ItemType.Signal, '{signal_name}') "
+                    f"or api.get_signal('{signal_name}') before loading data."
+                )
+
             s["UnitName"] = (
                 ApiHelper.get_object_name(unit_name or "") or s["StorageUnitName"]
             )
             return s
 
-        signals = [get_signal_and_unit(s) for s in signal_names]
+        signals: List[Dict] = [get_signal_and_unit(s) for s in signal_names]
         signal_names = [s["Name"] for s in signals]
         if not signals:
             if not signal_names:
@@ -727,9 +749,13 @@ class SignalsMixin(
                     ).get("Start", None)
                     for s in depth_signals
                 ]
-                depth_start = np.min([v for v in depth_starts if v is not None] or None)
-                depth_start = (
-                    depth_start if depth_start is not None else np.finfo(np.float64).min
+                _depth_start_np = np.min(
+                    [v for v in depth_starts if v is not None] or None
+                )
+                depth_start = float(
+                    _depth_start_np
+                    if _depth_start_np is not None
+                    else np.finfo(np.float64).min
                 )
             if depth_end is None or pd.isnull(depth_end):
                 depth_ends = [
@@ -741,9 +767,11 @@ class SignalsMixin(
                     ).get("End", None)
                     for s in depth_signals
                 ]
-                depth_end = np.max([v for v in depth_ends if v is not None] or None)
-                depth_end = (
-                    depth_end if depth_end is not None else np.finfo(np.float64).max
+                _depth_end_np = np.max([v for v in depth_ends if v is not None] or None)
+                depth_end = float(
+                    _depth_end_np
+                    if _depth_end_np is not None
+                    else np.finfo(np.float64).max
                 )
 
             # convert to float
@@ -753,23 +781,29 @@ class SignalsMixin(
         df_time = None
         df_depth = None
         df_static = None
-        # use_filters = True  # use when is more reliable
-        use_filters = False  # use when is more reliable
-        if use_filters:
-            unit_names = [s["UnitName"] for s in signals]
-            signals_with_units_map = {
-                s["Name"]: f"{s['Name']} [{s['UnitName']}]" for s in signals
-            }
-            data_rqst = {
+
+        # Prepare common data needed for both methods
+        unit_names = [s["UnitName"] for s in signals]
+        signals_with_units_map = {
+            s["Name"]: f"{s['Name']} [{s['UnitName']}]" for s in signals
+        }
+
+        # Normalize method parameter (case-insensitive)
+        if method is not None:
+            method = method.lower()
+
+        if method == "dataview":
+            # Use Filters/Data endpoint (for frontend DataView compatibility)
+            data_rqst: Dict[str, Any] = {
                 "CheckedEntities": entity_names,
                 "CheckedSignals": signal_names,
                 "CheckedUnits": unit_names,
             }
             if scenario:
                 if not isinstance(scenario, (list, tuple, set)):
-                    scenarios = list(scenario)
-                else:
                     scenarios = [scenario]
+                else:
+                    scenarios = list(scenario)
                 data_rqst["ScenarioNames"] = scenarios
             if hierarchy:
                 data_rqst["HierarchyName"] = hierarchy
@@ -785,8 +819,17 @@ class SignalsMixin(
                 data_rqst["DepthEnd"] = depth_end
             if depth_step is not None:
                 data_rqst["DepthStep"] = depth_step
+            if depth_unit is not None:
+                data_rqst["DepthUnit"] = depth_unit
+            if pressure_unit:
+                data_rqst["PressureUnit"] = pressure_unit
+            if temperature_unit:
+                data_rqst["TemperatureUnit"] = temperature_unit
 
-            table_data = self.post("Filters/Data", data=data_rqst) or {}
+            table_data = (
+                self.post(SignalsMixinHelper.ENDPOINT_FILTERS_DATA, data=data_rqst)
+                or {}
+            )
             data_time_num = table_data.get("DataNumeric", [])
             data_time_str = table_data.get("DataString", [])
             data_depth_num = table_data.get("DataDepth", [])
@@ -811,7 +854,7 @@ class SignalsMixin(
                 data_depth = []
 
             if data_time:
-                # create DataFrame by normalizing json
+                # create DataFrame by normalizing JSON
                 df_normalized = pd.json_normalize(
                     data_time,
                     meta=["EntityName", "ResultName", "UnitName"],
@@ -841,7 +884,7 @@ class SignalsMixin(
                         df_static = df.drop(columns=["Date"])
 
             if data_depth:
-                # create DataFrame by normalizing json
+                # create DataFrame by normalizing JSON
                 df_normalized = pd.json_normalize(
                     data_depth,
                     meta=["EntityName", "ResultName", "UnitName"],
@@ -866,209 +909,215 @@ class SignalsMixin(
                     df = df.rename(columns={"EntityName": "Entity"})
                     df_depth = df
         else:
-            for data_type, data_type_signals in signal_types.items():
-                if data_type == "static":
-                    num_signal_type = "Static"
-                    str_signal_type = "String"
-                elif data_type == "time":
-                    num_signal_type = "TimeDependent"
-                    str_signal_type = "StringTimeDependent"
-                elif data_type == "depth":
-                    num_signal_type = "DepthDependent"
-                    str_signal_type = "StringDepthDependent"
-                else:
-                    continue
+            # Use Data/Retrieve endpoint (default, unified API)
+            # Separate signals by type for proper request construction
+            signals_with_units_num = [
+                {"Signal": s["Name"], "Unit": s["UnitName"]}
+                for s in signals
+                if s["SignalType"]
+                in {"TimeDependent", "DepthDependent", "Static", "PVT"}
+            ]
+            signals_with_units_str = [
+                {"Signal": s["Name"], "Unit": s["UnitName"]}
+                for s in signals
+                if s["SignalType"]
+                in {"StringTimeDependent", "StringDepthDependent", "String"}
+            ]
 
-                # collect signal names with unit names for dats retrieval
-                signals_with_units_num = [
-                    {"Signal": s["Name"], "Unit": s["UnitName"]}
-                    for s in data_type_signals
-                    if s["SignalType"] == num_signal_type
-                ]
-                signals_with_units_str = [
-                    {"Signal": s["Name"], "Unit": s["UnitName"]}
-                    for s in data_type_signals
-                    if s["SignalType"] == str_signal_type
-                ]
-                signals_with_units_map = {
-                    s["Name"]: f"{s['Name']} [{s['UnitName']}]"
-                    for s in data_type_signals
+            # Determine if we have time, depth, or static signals
+            has_time_signals = any(
+                s["SignalType"] in {"TimeDependent", "StringTimeDependent"}
+                for s in signals
+            )
+            has_depth_signals = any(
+                s["SignalType"] in {"DepthDependent", "StringDepthDependent"}
+                for s in signals
+            )
+            # has_static_signals = any(
+            #     s["SignalType"] in {"Static", "String"} for s in signals
+            # )
+            has_pvt_signals = any(s["SignalType"] == "PVT" for s in signals)
+
+            # Retrieve numeric data
+            if signals_with_units_num:
+                data_rqst: Dict[str, Any] = {
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_num,
+                    }
                 }
 
-                # retrieve numeric data
-                if signals_with_units_num:
-                    if data_type == "time":
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_num,
-                            },
-                            "TimeIncrement": time_step,
-                            "Start": time_start,
-                            "End": time_end,
-                        }
-                        if hierarchy:
-                            data_rqst["Hierarchy"] = hierarchy
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        # if num_gap_value is not None:
-                        #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": num_gap_value}
-                        data_num = self.post("Data/Time/Retrieve", data=data_rqst)
-                    elif data_type == "depth":
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_num,
-                            },
-                            "DepthIncrement": depth_step,
-                            "StartDepth": depth_start,
-                            "EndDepth": depth_end,
-                        }
-                        if depth_unit:
-                            data_rqst["DepthUnit"] = depth_unit
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        # if num_gap_value is not None:
-                        #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": num_gap_value}
-                        data_num = self.post("Data/Depth/Retrieve", data=data_rqst)
+                # Add time/depth range parameters
+                if has_time_signals and time_start is not None:
+                    data_rqst["TimeStart"] = time_start
+                if has_time_signals and time_end is not None:
+                    data_rqst["TimeEnd"] = time_end
+                if has_time_signals and time_step is not None:
+                    data_rqst["TimeIncrement"] = time_step
+                if has_depth_signals and depth_start is not None:
+                    data_rqst["DepthStart"] = depth_start
+                if has_depth_signals and depth_end is not None:
+                    data_rqst["DepthEnd"] = depth_end
+                if has_depth_signals and depth_step is not None:
+                    data_rqst["DepthIncrement"] = depth_step
+                if depth_unit:
+                    data_rqst["DepthUnit"] = depth_unit
+
+                # Add hierarchy and scenario
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    if not isinstance(scenario, (list, tuple, set)):
+                        data_rqst["Scenarios"] = [scenario]
                     else:
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_num,
-                            },
-                        }
-                        if hierarchy:
-                            data_rqst["Hierarchy"] = hierarchy
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        data_num = self.post("Data/Static/Retrieve", data=data_rqst)
-                else:
-                    data_num = []
+                        data_rqst["Scenarios"] = list(scenario)
 
-                # retrieve string data
-                if signals_with_units_str:
-                    if data_type == "time":
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_str,
-                            },
-                            "TimeIncrement": time_step,
-                            "Start": time_start,
-                            "End": time_end,
-                        }
-                        if hierarchy:
-                            data_rqst["Hierarchy"] = hierarchy
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        # if num_gap_value is not None:
-                        #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
-                        data_str = self.post("Data/StringTime/Retrieve", data=data_rqst)
-                    elif data_type == "depth":
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_str,
-                            },
-                            "DepthIncrement": depth_step,
-                            "StartDepth": depth_start,
-                            "EndDepth": depth_end,
-                        }
-                        if depth_unit:
-                            data_rqst["DepthUnit"] = depth_unit
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        # if num_gap_value is not None:
-                        #     data_rqst["Options"] = {"WithGaps": True, "GapStringValue": str_gap_value}
-                        data_str = self.post(
-                            "Data/StringDepth/Retrieve", data=data_rqst
-                        )
+                # Add PVT parameters
+                if has_pvt_signals:
+                    if pressure_unit:
+                        data_rqst["PressureUnit"] = pressure_unit
+                    if temperature_unit:
+                        data_rqst["TemperatureUnit"] = temperature_unit
+
+                # Call Data/Retrieve (backend determines numeric/string from signal name)
+                response = (
+                    self.post(SignalsMixinHelper.ENDPOINT_RETRIEVE, data=data_rqst)
+                    or {}
+                )
+
+                # Extract data by type
+                data_time_num = response.get("TimeNumericData", [])
+                data_depth_num = response.get("DepthNumericData", [])
+                data_static_num = response.get("StaticNumericData", [])
+                data_pvt_num = response.get("PVTNumericData", [])
+            else:
+                data_time_num = []
+                data_depth_num = []
+                data_static_num = []
+                data_pvt_num = []
+
+            # Retrieve string data
+            if signals_with_units_str:
+                data_rqst: Dict[str, Any] = {
+                    "Combinations": {
+                        "Entities": entity_names,
+                        "Signals": signals_with_units_str,
+                    }
+                }
+
+                # Add time/depth range parameters
+                if has_time_signals and time_start is not None:
+                    data_rqst["TimeStart"] = time_start
+                if has_time_signals and time_end is not None:
+                    data_rqst["TimeEnd"] = time_end
+                if has_time_signals and time_step is not None:
+                    data_rqst["TimeIncrement"] = time_step
+                if has_depth_signals and depth_start is not None:
+                    data_rqst["DepthStart"] = depth_start
+                if has_depth_signals and depth_end is not None:
+                    data_rqst["DepthEnd"] = depth_end
+                if has_depth_signals and depth_step is not None:
+                    data_rqst["DepthIncrement"] = depth_step
+                if depth_unit:
+                    data_rqst["DepthUnit"] = depth_unit
+
+                # Add hierarchy and scenario
+                if hierarchy:
+                    data_rqst["Hierarchy"] = hierarchy
+                if scenario:
+                    if not isinstance(scenario, (list, tuple, set)):
+                        data_rqst["Scenarios"] = [scenario]
                     else:
-                        data_rqst = {
-                            "Combinations": {
-                                "Entities": entity_names,
-                                "Signals": signals_with_units_str,
-                            },
-                        }
-                        if hierarchy:
-                            data_rqst["Hierarchy"] = hierarchy
-                        if scenario:
-                            data_rqst["Scenario"] = scenario
-                        data_str = self.post("Data/String/Retrieve", data=data_rqst)
-                else:
-                    data_str = []
+                        data_rqst["Scenarios"] = list(scenario)
 
-                # merge numeric and string data
-                if data_num and data_str:
-                    data = [*data_num, *data_str]
-                elif data_num:
-                    data = data_num
-                elif data_str:
-                    data = data_str
-                else:
-                    data = []
+                # Call Data/Retrieve (backend determines numeric/string from signal name)
+                response = (
+                    self.post(SignalsMixinHelper.ENDPOINT_RETRIEVE, data=data_rqst)
+                    or {}
+                )
 
-                if not data:
-                    warnings.warn(
-                        f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
-                        RuntimeWarning,
-                    )
-                    continue
+                # Extract data by type
+                data_time_str = response.get("TimeStringData", [])
+                data_depth_str = response.get("DepthStringData", [])
+                data_static_str = response.get("StaticStringData", [])
+            else:
+                data_time_str = []
+                data_depth_str = []
+                data_static_str = []
 
-                if data_type == "time":
-                    # create DataFrame by normalizing json
-                    df_normalized = pd.json_normalize(
-                        data, meta=["Entity", "Signal", "Unit"], record_path=["Data"]
-                    )
+            # Merge numeric and string data by type
+            if data_time_num or data_time_str:
+                data_time = [*(data_time_num or []), *(data_time_str or [])]
 
-                    # generate PivotTable
-                    if "Date" not in df_normalized.columns:
-                        warnings.warn(
-                            f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
-                            RuntimeWarning,
-                        )
-                        continue
+                # Create DataFrame by normalizing JSON
+                df_normalized = pd.json_normalize(
+                    data_time,
+                    meta=["Entity", "Signal", "Unit", "Scenario"],
+                    record_path=["Data"],
+                )
+
+                if "Date" in df_normalized.columns:
                     df = df_normalized.pivot(
-                        index=["Entity", "Date"], columns="Signal", values="Value"
+                        index=["Entity", "Date"],
+                        columns="Signal",
+                        values="Value",
                     )
                     df.columns.name = None
                     df = df.rename(columns=signals_with_units_map)
                     df = df.reset_index()
                     df["Date"] = pd.to_datetime(df["Date"])
-                    df_time = df
-                elif data_type == "depth":
-                    # create DataFrame by normalizing json
-                    df_normalized = pd.json_normalize(
-                        data, meta=["Entity", "Signal", "Unit"], record_path=["Data"]
-                    )
+                    if has_time_signals:
+                        df_time = df
+                    else:
+                        df_static = df.drop(columns=["Date"])
 
-                    # generate PivotTable
-                    if "Depth" not in df_normalized.columns:
-                        warnings.warn(
-                            f"PetroVisor::load_signals_data():: Couldn't retrieve any '{data_type}' data.",
-                            RuntimeWarning,
-                        )
-                        continue
+            if data_depth_num or data_depth_str:
+                data_depth = [*(data_depth_num or []), *(data_depth_str or [])]
+
+                # Create DataFrame by normalizing JSON
+                df_normalized = pd.json_normalize(
+                    data_depth,
+                    meta=["Entity", "Signal", "Unit", "Scenario"],
+                    record_path=["Data"],
+                )
+
+                if "Depth" in df_normalized.columns:
                     df = df_normalized.pivot(
-                        index=["Entity", "Depth"], columns="Signal", values="Value"
+                        index=["Entity", "Depth"],
+                        columns="Signal",
+                        values="Value",
                     )
                     df.columns.name = None
                     df = df.rename(columns=signals_with_units_map)
                     df = df.reset_index()
                     df_depth = df
-                else:
-                    # create DataFrame by normalizing json
-                    df_normalized = pd.json_normalize(data)
 
-                    # generate PivotTable
+            if data_static_num or data_static_str:
+                data_static = [*(data_static_num or []), *(data_static_str or [])]
+
+                # Create DataFrame by normalizing JSON
+                df_normalized = pd.json_normalize(data_static)
+
+                if (
+                    "Entity" in df_normalized.columns
+                    and "Signal" in df_normalized.columns
+                ):
                     df = df_normalized.pivot(
-                        index="Entity", columns="Signal", values="Data"
+                        index="Entity",
+                        columns="Signal",
+                        values="Data",
                     )
                     df.columns.name = None
                     df = df.rename(columns=signals_with_units_map)
                     df = df.reset_index()
                     df_static = df
+
+            # Handle PVT data if present
+            if data_pvt_num:
+                # PVT data has structure: Entity, Signal, Unit, Data[{Pressure, Temperature, Value}], Scenario
+                # For now, we'll add this to the processing but it needs special handling
+                # TODO: Implement PVT-specific DataFrame construction
+                pass
 
         def reorder_columns(df, signal_names):
             non_signal_columns = [
@@ -1114,8 +1163,7 @@ class SignalsMixin(
     # load data
     def load_data(
         self,
-        data_type: Union[str, SignalType],
-        data: List,
+        data: Union[List[Dict], "pd.DataFrame", "pd.Series"],
         start: Optional[Union[datetime, float]] = None,
         end: Optional[Union[datetime, float]] = None,
         step: Optional[Union[str, TimeIncrement, DepthIncrement]] = None,
@@ -1133,10 +1181,10 @@ class SignalsMixin(
 
         Parameters
         ----------
-        data_type : str, SignalType
-            Data type: 'static', 'time', 'depth', 'string', 'timestring', 'pvt'
-        data : list
-            Data
+        data : list[dict] | DataFrame | Series
+            Request specs as a list of dicts (Entity, Signal, Unit) or a
+            DataFrame/Series with those columns. Unit is optional and
+            defaults to the signal's storage unit when omitted.
         start : datetime, float, None, default None
             Start of time/depth range
         end : datetime, float, default None
@@ -1146,7 +1194,7 @@ class SignalsMixin(
         hierarchy : str, None, default None
             Hierarchy name
         num_values : int, None, default None
-            Number of values ot load
+            Number of values to load
         gap_value : float, None, default None
             Gap filling value to use
         interpolated : bool, default False
@@ -1158,8 +1206,15 @@ class SignalsMixin(
         temperature_unit : str, default 'K'
             Temperature unit (PVT data)
         """
-        data_type = self.get_signal_type_enum(data_type, **kwargs)
-        route = self.get_signal_type_route(signal_type=data_type, **kwargs)
+        data = self._as_data_list(data, fill_unit=True, **kwargs)
+        data_type = None
+        if "data_type" in kwargs:
+            warnings.warn(
+                "PetroVisor::load_data():: "
+                "'data_type' is deprecated and will be removed in a future version.",
+                DeprecationWarning,
+            )
+            data_type = self.get_signal_type_enum(kwargs.pop("data_type"), **kwargs)
         # load 'Time' or 'Depth' data
         if data_type in {
             SignalType.TimeDependent,
@@ -1169,22 +1224,23 @@ class SignalsMixin(
         }:
             # first/last values only
             if num_values is not None:
-                # first values only
-                if num_values > 0:
-                    return self.post(
-                        f"{route}/First",
-                        data=data,
-                        query={"NumberOfValues": num_values},
-                        **kwargs,
-                    )
-                # last  values only
-                elif num_values < 0:
-                    return self.post(
-                        f"{route}/Last",
-                        data=data,
-                        query={"NumberOfValues": abs(num_values)},
-                        **kwargs,
-                    )
+                # Determine if numeric or string signal
+                # is_numeric = data_type in {
+                #     SignalType.TimeDependent,
+                #     SignalType.DepthDependent,
+                # }
+                # Build request body with Requests field
+                # Backend determines numeric/string from signal name
+                request_body: Dict[str, Any] = {
+                    "Requests": data,
+                    "TopRecords": abs(num_values),
+                    "IsLastValues": num_values < 0,
+                }
+                return self.post(
+                    SignalsMixinHelper.ENDPOINT_TOP,
+                    data=request_body,
+                    **kwargs,
+                )
             # get data defined on range
             if start is not None and end is not None:
                 if step is not None or (
@@ -1194,7 +1250,9 @@ class SignalsMixin(
                         range_step = self.get_increment_enum(step, data_type)
                     else:
                         range_step = TimeIncrement.EverySecond
-                    if not ApiHelper.has_field(range_step, "name"):
+                    if range_step is None or not ApiHelper.has_field(
+                        range_step, "name"
+                    ):
                         raise ValueError(
                             f"PetroVisor::load_data(): "
                             f"invalid increment value: '{step}'"
@@ -1205,7 +1263,7 @@ class SignalsMixin(
                         SignalType.StringTimeDependent,
                     }
                     range_type = "time" if is_time_dependent else "numeric"
-                    data_range = {
+                    data_range: Dict[str, Any] = {
                         "Start": self.get_json_valid_value(start, range_type, **kwargs),
                         "End": self.get_json_valid_value(end, range_type, **kwargs),
                         "Increment": range_step,
@@ -1217,160 +1275,249 @@ class SignalsMixin(
                         in {SignalType.TimeDependent, SignalType.StringTimeDependent}
                     ):
                         data_range["Hierarchy"] = hierarchy
+                    # Determine if a numeric or string signal
+                    # is_numeric = data_type in {
+                    #     SignalType.TimeDependent,
+                    #     SignalType.DepthDependent,
+                    # }
+
+                    # Build request body with the Requests field
+                    # Backend determines numeric/string from signal name
+                    request_body: Dict[str, Any] = {
+                        "Requests": data,
+                    }
+
+                    # Add time/depth range parameters to the body
+                    if is_time_dependent:
+                        request_body["TimeStart"] = data_range["Start"]
+                        request_body["TimeEnd"] = data_range["End"]
+                        request_body["TimeIncrement"] = data_range["Increment"]
+                        if "Hierarchy" in data_range:
+                            request_body["Hierarchy"] = data_range["Hierarchy"]
+                    else:
+                        request_body["DepthStart"] = data_range["Start"]
+                        request_body["DepthEnd"] = data_range["End"]
+                        request_body["DepthIncrement"] = data_range["Increment"]
+
                     # load with filling gaps
                     if gap_value is not None:
                         gap_value = self.get_json_valid_value(
                             gap_value, data_type, **kwargs
                         )
-                        return self.post(
-                            f"{route}/Load/{gap_value}",
-                            data=data,
-                            query=data_range,
-                            **kwargs,
-                        )
-                    # load data in specified range
+                        if not request_body.get("Options"):
+                            request_body["Options"] = {}
+                        request_body["Options"]["GapValue"] = gap_value
+                        request_body["Options"]["WithGaps"] = True
+
+                    # load data with logs
                     if with_logs and ApiHelper.has_field(data, "Data"):
-                        return self.post(
-                            f"{route}/AquireWithLogs",
-                            data=data,
-                            query=data_range,
-                            **kwargs,
-                        )
-                    elif ApiHelper.has_field(data, "Requests"):
-                        return self.post(
-                            f"{route}/Retrieve", data=data, query=data_range, **kwargs
-                        )
+                        if not request_body.get("Options"):
+                            request_body["Options"] = {}
+                        request_body["Options"]["WithLogs"] = True
+
+                    # load data in specified range using unified endpoint
                     return self.post(
-                        f"{route}/Load", data=data, query=data_range, **kwargs
+                        SignalsMixinHelper.ENDPOINT_RETRIEVE,
+                        data=request_body,
+                        **kwargs,
                     )
                 elif start == end:
                     load_point = self.get_json_valid_value(start, data_type, **kwargs)
-                    # get data at single point
-                    if data_type == SignalType.TimeDependent:
-                        return self.post(
-                            f"{route}/Saved",
-                            data=data,
-                            query={"Date": load_point},
-                            **kwargs,
-                        )
-                    elif data_type == SignalType.DepthDependent:
-                        # load interpolated data
-                        if interpolated and data_type == SignalType.DepthDependent:
-                            return self.post(
-                                f"{route}/Interpolated",
-                                data=data,
-                                query={"Depth": load_point},
-                                **kwargs,
-                            )
-                        return self.post(
-                            f"{route}/Saved",
-                            data=data,
-                            query={"Depth": load_point},
-                            **kwargs,
-                        )
+                    # Determine if a numeric or string signal
+                    # is_numeric = data_type in {
+                    #     SignalType.TimeDependent,
+                    #     SignalType.DepthDependent,
+                    # }
+
+                    # Build request body with the Requests field
+                    # Backend determines numeric/string from signal name
+                    request_body: Dict[str, Any] = {
+                        "Requests": data,
+                    }
+
+                    # get data at a single point using a unified endpoint
+                    if data_type in {
+                        SignalType.TimeDependent,
+                        SignalType.StringTimeDependent,
+                    }:
+                        request_body["TimeStart"] = load_point
+                        request_body["TimeEnd"] = load_point
+                    elif data_type in {
+                        SignalType.DepthDependent,
+                        SignalType.StringDepthDependent,
+                    }:
+                        request_body["DepthStart"] = load_point
+                        request_body["DepthEnd"] = load_point
+                        if interpolated:
+                            if not request_body.get("Options"):
+                                request_body["Options"] = {}
+                            request_body["Options"]["Interpolated"] = True
+
+                    return self.post(
+                        SignalsMixinHelper.ENDPOINT_RETRIEVE,
+                        data=request_body,
+                        **kwargs,
+                    )
             else:
                 raise ValueError(
                     "PetroVisor::load_data(): "
                     "'start', 'end' and 'step' should be provided! "
                     "'step' can be avoided if 'start' == 'end'."
                 )
-        # load 'Static' and 'PVT' data
+        # load 'Static', 'String', and 'PVT' data using unified endpoint
+        # Backend determines numeric/string from signal name
+        request_body: Dict[str, Any] = {
+            "Requests": data,
+        }
+
+        # Add with_logs for Static
         if (
             with_logs
             and ApiHelper.has_field(data, "Data")
             and data_type == SignalType.Static
         ):
-            return self.post(f"{route}/AquireWithLogs", data=data, **kwargs)
-        elif ApiHelper.has_field(data, "Requests"):
-            return self.post(f"{route}/Retrieve", data=data, **kwargs)
+            if not request_body.get("Options"):
+                request_body["Options"] = {}
+            request_body["Options"]["WithLogs"] = True
+
+        # Add PVT unit parameters
         if data_type == SignalType.PVT:
-            return self.post(
-                f"{route}/Load",
-                data=data,
-                query={
-                    "PressureUnit": pressure_unit,
-                    "TemperatureUnit": temperature_unit,
-                },
-                **kwargs,
-            )
-        return self.post(f"{route}/Load", data=data, **kwargs)
+            request_body["PressureUnit"] = pressure_unit
+            request_body["TemperatureUnit"] = temperature_unit
+
+        return self.post(
+            SignalsMixinHelper.ENDPOINT_RETRIEVE, data=request_body, **kwargs
+        )
 
     # save data
     def save_data(
         self,
-        data_type: Union[str, SignalType],
-        data: List,
+        data: Union[List[Dict], "pd.DataFrame", "pd.Series"],
         with_logs: bool = False,
+        logs_source: Optional[str] = None,
+        no_range_delete: bool = False,
+        values_time_increment: Optional[str] = None,
+        values_depth_increment: Optional[str] = None,
         pressure_unit: str = "Pa",
         temperature_unit: str = "K",
         **kwargs,
     ) -> Any:
         """
-        Save data
+        Save Signals data
 
         Parameters
         ----------
-        data_type : str, SignalType
-            Data type: 'static', 'time', 'depth', 'string', 'timestring', 'pvt'
-        data : list
-            Data
+        data : list[dict] | DataFrame | Series
+            Data records with Entity, Signal, Unit (optional) and Data fields.
+            DataFrame/Series are converted to a list of dicts automatically.
+            Unit defaults to the signal's storage unit when omitted.
         with_logs : bool, default False
-            Load data and return logs
+            Generate logs (uses GenerateLogs field in request body)
+        logs_source : str, optional
+            Source for logs
+        no_range_delete : bool, default False
+            Don't delete existing data in range
+        values_time_increment : str, optional
+            Time increment for aggregation (e.g., 'EverySecond', 'Daily')
+        values_depth_increment : str, optional
+            Depth increment for aggregation (e.g., 'TenthMeter', 'Meter')
         pressure_unit : str, default 'Pa'
             Pressure unit (PVT data)
         temperature_unit : str, default 'K'
             Temperature unit (PVT data)
         """
-        route = self.get_signal_type_route(signal_type=data_type, **kwargs)
-        if data_type == SignalType.PVT:
-            if with_logs:
-                return self.post(
-                    f"{route}/SaveWithLogs",
-                    data=data,
-                    query={
-                        "PressureUnit": pressure_unit,
-                        "TemperatureUnit": temperature_unit,
-                    },
-                    **kwargs,
-                )
-            return self.post(
-                f"{route}/Save",
-                data=data,
-                query={
-                    "PressureUnit": pressure_unit,
-                    "TemperatureUnit": temperature_unit,
-                },
-                **kwargs,
+        data = self._as_data_list(data, fill_unit=True, **kwargs)
+        data_type = None
+        if "data_type" in kwargs:
+            warnings.warn(
+                "PetroVisor::save_data():: "
+                "'data_type' is deprecated and will be removed in a future version.",
+                DeprecationWarning,
             )
-        if with_logs:
-            return self.post(f"{route}/SaveWithLogs", data=data, **kwargs)
-        return self.post(f"{route}/Save", data=data, **kwargs)
+            data_type = self.get_signal_type_enum(kwargs.pop("data_type"), **kwargs)
+
+        # Build the request body with the appropriate data field based on signal type
+        request_body: Dict[str, Any] = {
+            "TimeNumericData": [],
+            "StaticNumericData": [],
+            "TimeStringData": [],
+            "StaticStringData": [],
+            "DepthNumericData": [],
+            "DepthStringData": [],
+            "PVTNumericData": [],
+            "GenerateLogs": with_logs,
+            "NoRangeDelete": no_range_delete,
+        }
+
+        # Populate the appropriate field based on data_type
+        if data_type == SignalType.TimeDependent:
+            request_body["TimeNumericData"] = data
+        elif data_type == SignalType.Static:
+            request_body["StaticNumericData"] = data
+        elif data_type == SignalType.StringTimeDependent:
+            request_body["TimeStringData"] = data
+        elif data_type == SignalType.String:
+            request_body["StaticStringData"] = data
+        elif data_type == SignalType.DepthDependent:
+            request_body["DepthNumericData"] = data
+        elif data_type == SignalType.StringDepthDependent:
+            request_body["DepthStringData"] = data
+        elif data_type == SignalType.PVT:
+            request_body["PVTNumericData"] = data
+
+        # Add optional fields
+        if logs_source:
+            request_body["LogsSource"] = logs_source
+        if values_time_increment:
+            request_body["ValuesTimeIncrement"] = values_time_increment
+        if values_depth_increment:
+            request_body["ValuesDepthIncrement"] = values_depth_increment
+
+        # Add PVT unit parameters
+        if data_type == SignalType.PVT:
+            request_body["PressureUnit"] = pressure_unit
+            request_body["TemperatureUnit"] = temperature_unit
+
+        # Always use Data/Save endpoint (GenerateLogs flag controls log generation)
+        return self.post(SignalsMixinHelper.ENDPOINT_SAVE, data=request_body, **kwargs)
 
     # delete data
     def delete_data(
         self,
-        data_type: Union[str, SignalType],
-        data: List,
+        data: Union[List[Dict], "pd.DataFrame", "pd.Series"],
         start: Optional[Union[datetime, float]] = None,
         end: Optional[Union[datetime, float]] = None,
         **kwargs,
     ) -> Any:
         """
-        Delete data
+        Delete data using Data/Delete endpoint
 
         Parameters
         ----------
-        data_type : str, SignalType
-            Data type: 'static', 'time', 'depth', 'string', 'timestring', 'pvt'
-        data : list
-            Data
+        data : list[dict] | DataFrame | Series
+            Request specs as a list of dicts (Entity, Signal) or a
+            DataFrame/Series with those columns.
         start : datetime, float, None, default None
             Start of time/depth range
         end : datetime, float, default None
             End of time/depth range
         """
-        data_type = self.get_signal_type_enum(data_type, **kwargs)
-        route = self.get_signal_type_route(signal_type=data_type, **kwargs)
+        data = self._as_data_list(data, fill_unit=False, **kwargs)
+        data_type = None
+        if "data_type" in kwargs:
+            warnings.warn(
+                "PetroVisor::delete_data():: "
+                "'data_type' is deprecated and will be removed in a future version.",
+                DeprecationWarning,
+            )
+            data_type = self.get_signal_type_enum(kwargs.pop("data_type"), **kwargs)
+
+        # Build the request body with the Requests field
+        request_body = {
+            "Requests": data,
+        }
+
+        # Add time/depth range for time/depth dependent signals
         if data_type in {
             SignalType.TimeDependent,
             SignalType.StringTimeDependent,
@@ -1381,56 +1528,164 @@ class SignalsMixin(
                 SignalType.TimeDependent,
                 SignalType.StringTimeDependent,
             }
-            range_type = "time" if is_time_dependent else "numeric"
-            data_range = {
-                "Start": self.get_json_valid_value(start, range_type, **kwargs),
-                "End": self.get_json_valid_value(end, range_type, **kwargs),
-            }
-            return self.post(f"{route}/Delete", data=data, query=data_range, **kwargs)
-        return self.post(f"{route}/Delete", data=data, **kwargs)
 
-    # get signal type route
-    def get_signal_type_route(
-        self, signal_type: Union[str, SignalType], **kwargs
-    ) -> str:
+            if start is not None and end is not None:
+                range_type = "time" if is_time_dependent else "numeric"
+                start_value = self.get_json_valid_value(start, range_type, **kwargs)
+                end_value = self.get_json_valid_value(end, range_type, **kwargs)
+
+                if is_time_dependent:
+                    request_body["TimeStart"] = start_value
+                    request_body["TimeEnd"] = end_value
+                else:
+                    request_body["DepthStart"] = start_value
+                    request_body["DepthEnd"] = end_value
+
+        return self.post(
+            SignalsMixinHelper.ENDPOINT_DELETE, data=request_body, **kwargs
+        )
+
+    # cleanse data
+    def cleanse_data(
+        self,
+        value: float,
+        timestamp: Optional[Union[datetime, str]],
+        signal: Union[Dict, str],
+        entity: Union[Dict, str],
+        cleansing_script: str,
+        unit: Optional[Union[Dict, str]] = None,
+        **kwargs,
+    ) -> Any:
         """
-        Get route of corresponding signal type
+        Cleanse data
 
         Parameters
         ----------
-        signal_type : str, SignalType
-            Signal type
+        value : float
+            Value
+        timestamp : datetime,str
+            Date
+        signal : str, dict
+            Signal object or Signal name
+        entity : str, dict
+            Entity object or Entity name
+        cleansing_script : str
+            Cleansing script
+        unit : str, dict, optional
+            Unit object or Unit name. Defaults to the signal's storage unit.
         """
-        if isinstance(signal_type, str):
-            signal_type = self.get_signal_type_enum(signal_type, **kwargs)
-        elif not isinstance(signal_type, SignalType):
-            raise ValueError(
-                f"PetroVisor::get_data_type_route(): "
-                f"unknown SignalType! "
-                f"Should be either one of {[t.name for t in SignalType]} or {SignalType.__name__} enum."
+        data_type = None
+        if "data_type" in kwargs:
+            warnings.warn(
+                "PetroVisor::cleanse_data():: "
+                "'data_type' is deprecated and will be removed in a future version.",
+                DeprecationWarning,
             )
-        if signal_type == SignalType.Static:
-            return "Data/Static"
-        elif signal_type == SignalType.DepthDependent:
-            return "Data/Depth"
-        elif signal_type == SignalType.TimeDependent:
-            return "Data/Time"
-        elif signal_type == SignalType.String:
-            return "Data/String"
-        elif signal_type == SignalType.StringTimeDependent:
-            return "Data/StringTime"
-        elif signal_type == SignalType.StringDepthDependent:
-            return "Data/StringDepth"
-        elif signal_type == SignalType.PVT:
-            return "Data/PVT"
-        raise ValueError(
-            f"PetroVisor::get_signal_type_route(): "
-            f"'{signal_type}' is not supported yet."
+            data_type = self.get_signal_type_enum(kwargs.pop("data_type"), **kwargs)
+        if (
+            data_type is not None
+            and data_type != SignalType.TimeDependent
+            and data_type != SignalType.Static
+        ):
+            raise Warning(
+                "PetroVisor::cleanse_data(): "
+                "cleansing is only supported for 'Static' and 'TimeNumeric' data."
+            )
+
+        entity_name = ApiHelper.get_object_name(entity, **kwargs)
+        signal_name = ApiHelper.get_object_name(signal, **kwargs)
+        unit_name = ApiHelper.get_object_name(unit, **kwargs)
+        if not unit_name:
+            unit_name = self.get_signal_unit(signal_name, **kwargs) or ""
+
+        # Build cleansing options
+        cleansing_options = {
+            "UseDefaultCleansingScripts": True,
+            "CleansingScript": cleansing_script,
+            "TreatCleansingScriptAsCleansingScriptName": True,
+        }
+
+        # Build request body based on signal type
+        request_body: Dict[str, Any] = {
+            "IsPreview": True,
+            "CleansingOptions": cleansing_options,
+        }
+
+        if data_type == SignalType.Static:
+            # Static numeric data
+            request_body["StaticNumericData"] = [
+                {
+                    "Entity": entity_name,
+                    "Signal": signal_name,
+                    "Unit": unit_name,
+                    "Data": value,
+                }
+            ]
+        elif data_type == SignalType.TimeDependent:
+            # Time numeric data
+            timestamp_str = self.get_json_valid_value(timestamp, "time", **kwargs)
+            request_body["TimeNumericData"] = [
+                {
+                    "Entity": entity_name,
+                    "Signal": signal_name,
+                    "Unit": unit_name,
+                    "Data": [
+                        {
+                            "Date": timestamp_str,
+                            "Value": value,
+                        }
+                    ],
+                }
+            ]
+
+        # Use Data/Acquire endpoint
+        return self.post(
+            SignalsMixinHelper.ENDPOINT_ACQUIRE,
+            data=request_body,
+            **kwargs,
         )
 
-    # get valid signal type name
+    # normalize data input to list of dicts
+    def _as_data_list(
+        self,
+        data: Union[List[Dict], "pd.DataFrame", "pd.Series"],
+        fill_unit: bool = True,
+        **kwargs,
+    ) -> List[Dict]:
+        """
+        Normalize data input to a list of dicts.
+
+        Converts DataFrame or Series to a list of dicts. When fill_unit=True,
+        any record missing a 'Unit' field has it filled from the signal's
+        default storage unit (cached per unique signal name).
+
+        Parameters
+        ----------
+        data : list[dict], DataFrame, Series
+            Input data
+        fill_unit : bool, default True
+            Fill missing Unit from signal definition
+        """
+        items: List[Dict] = SignalsMixinHelper.to_data_list(data)
+
+        if fill_unit:
+            unit_cache: Dict[str, str] = {}
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if not item.get("Unit") and item.get("Signal"):
+                    signal_name = ApiHelper.get_object_name(item["Signal"])
+                    if signal_name not in unit_cache:
+                        unit_cache[signal_name] = (
+                            self.get_signal_unit(signal_name, **kwargs) or ""
+                        )
+                    item["Unit"] = unit_cache[signal_name]
+
+        return items
+
+    # get a valid signal type name
     def get_signal_type_enum(
-        self, signal_type: Union[str, SignalType], **kwargs
+        self, signal_type: Optional[Union[str, SignalType]], **kwargs
     ) -> SignalType:
         """
         Get SignalType enum
@@ -1440,9 +1695,9 @@ class SignalsMixin(
         signal_type : str, SignalType
             Signal type
         """
-        return Validator.get_signal_type_enum(signal_type, **kwargs)
+        return Validator.get_signal_type_enum(signal_type or "", **kwargs)
 
-    # get time or depth increment name
+    # get a time or depth increment name
     def get_increment_enum(
         self,
         increment: Union[str, TimeIncrement, DepthIncrement],
@@ -1461,12 +1716,16 @@ class SignalsMixin(
         """
         signal_type = self.get_signal_type_enum(signal_type, **kwargs)
         if signal_type in {SignalType.TimeDependent, SignalType.StringTimeDependent}:
-            return self.get_time_increment_enum(increment, **kwargs)
+            return self.get_time_increment_enum(
+                cast(Union[str, TimeIncrement], increment), **kwargs
+            )
         elif signal_type in {
             SignalType.DepthDependent,
             SignalType.StringDepthDependent,
         }:
-            return self.get_depth_increment_enum(increment, **kwargs)
+            return self.get_depth_increment_enum(
+                cast(Union[str, DepthIncrement], increment), **kwargs
+            )
         return None
 
     # get time increment name
@@ -1524,7 +1783,7 @@ class SignalsMixin(
             return increments[::-1]
         return increments
 
-    # get smallest time increment
+    # get the smallest time increment
     def get_time_increments_min(
         self,
         increment_types: Union[
@@ -1548,7 +1807,7 @@ class SignalsMixin(
                 return increment
         return None
 
-    # get largest time increment
+    # get the largest time increment
     def get_time_increments_max(
         self,
         increment_types: Union[

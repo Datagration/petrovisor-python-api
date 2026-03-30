@@ -1,4 +1,5 @@
 from typing import (
+    Any,
     Optional,
     Union,
     List,
@@ -15,6 +16,19 @@ from petrovisor.api.protocols.protocols import (
     SupportsPsharpRequests,
     SupportsItemRequests,
 )
+
+
+# P# mixin helper
+class PsharpMixinHelper:
+    """
+    P# mixin helper — endpoint constants.
+    """
+
+    ENDPOINT_SCRIPTS = "PSharpScripts"
+    ENDPOINT_PARSING = "Parsing/Parsed"
+    ENDPOINT_EXECUTE_SCRIPT = "PSharpScripts/ExecuteScript"
+    ENDPOINT_EXECUTE = "PSharpScripts/Execute"
+    ENDPOINT_DATA_SAVE = "Data/Save"
 
 
 # P# API class
@@ -46,7 +60,9 @@ class PsharpMixin(
         name : str
             P# script name
         """
-        return self.get(f"PSharpScripts/{self.encode(name)}", **kwargs)
+        return self.get(
+            f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(name)}", **kwargs
+        )
 
     # get P# script content
     def get_psharp_script_content(self, script: Union[str, Dict], **kwargs) -> str:
@@ -59,21 +75,23 @@ class PsharpMixin(
             P# script object or P# script name
         """
         # get P# script content
+        script_obj: Optional[Dict] = None
         if isinstance(script, str):
             script_content = script
             # check is script is the name of P# script
             script_names = self.get_psharp_script_names(**kwargs)
-            script = (
+            script_obj = (
                 self.get_psharp_script(script, **kwargs)
                 if script in script_names
                 else None
             )
         else:
             script_content = None
-        if script is None and script_content:
+            script_obj = script
+        if script_obj is None and script_content:
             pass
-        elif "Content" in script:
-            script_content = script["Content"]
+        elif isinstance(script_obj, dict) and "Content" in script_obj:
+            script_content = script_obj["Content"]
         else:
             raise ValueError(
                 f"PetroVisor::get_psharp_script_content(): "
@@ -102,7 +120,7 @@ class PsharpMixin(
             options = {"TreatScriptContentAsScriptName": False, "NoMissedObjects": True}
             options = ApiHelper.update_dict(options, **kwargs)
         return self.post(
-            "Parsing/Parsed",
+            PsharpMixinHelper.ENDPOINT_PARSING,
             data={"ScriptContent": script_content, "Options": options},
             **kwargs,
         )
@@ -186,7 +204,7 @@ class PsharpMixin(
         groupby_entity: bool = False,
         load_full_table_info: bool = False,
         **kwargs,
-    ) -> Optional[Union[pd.DataFrame, List[pd.DataFrame], Dict[str, pd.DataFrame]]]:
+    ) -> Optional[Union[pd.DataFrame, Dict[str, Any]]]:
         """
         Load P# table and return DataFrame
 
@@ -242,13 +260,13 @@ class PsharpMixin(
         if table_name and dropna:
             if with_entity_column:
                 psharp_table = self.get(
-                    f"PSharpScripts/{self.encode(script_name)}/ExecuteAsBITable",
+                    f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(script_name)}/ExecuteAsBITable",
                     query={"Table": table_name},
                     **kwargs,
                 )
             else:
                 psharp_table = self.get(
-                    f"PSharpScripts/{self.encode(script_name)}/ExecuteAsTable",
+                    f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(script_name)}/ExecuteAsTable",
                     query={"Table": table_name},
                     **kwargs,
                 )
@@ -275,13 +293,13 @@ class PsharpMixin(
         script_content = self.get_psharp_script_content(script_name, **kwargs)
         if load_full_table_info:
             psharp_tables = self.post(
-                "PSharpScripts/ExecuteScript",
+                PsharpMixinHelper.ENDPOINT_EXECUTE_SCRIPT,
                 data={"ScriptContent": script_content},
                 **kwargs,
             )
         else:
             psharp_tables = self.post(
-                "PSharpScripts/Execute",
+                PsharpMixinHelper.ENDPOINT_EXECUTE,
                 data={"ScriptContent": script_content},
                 **kwargs,
             )
@@ -371,12 +389,10 @@ class PsharpMixin(
                 entities=entities,
                 **kwargs,
             )
-            # save data
-            for data_type, data in data_to_save.items():
-                if data:
-                    self.post(
-                        f"{self.get_signal_type_route(data_type)}/Save",
-                        data=data,
-                        **kwargs,
-                    )
+            # save all signal types in a single Data/Save request
+            if any(data_to_save.values()):
+                data_to_save["GenerateLogs"] = False
+                self.post(
+                    PsharpMixinHelper.ENDPOINT_DATA_SAVE, data=data_to_save, **kwargs
+                )
         return None

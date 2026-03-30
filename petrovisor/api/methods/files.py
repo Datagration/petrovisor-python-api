@@ -3,6 +3,7 @@ from typing import (
     Optional,
     List,
     Callable,
+    cast,
 )
 
 import os
@@ -13,6 +14,16 @@ import pandas as pd
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import SupportsRequests, SupportsDataFrames
+
+
+# Files mixin helper
+class FilesMixinHelper:
+    """
+    Files mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "Files"
+    ENDPOINT_UPLOAD = "Files/Upload"
 
 
 # Files API calls
@@ -26,7 +37,7 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
         """
         Get file names
         """
-        return self.get("Files", **kwargs)
+        return self.get(FilesMixinHelper.ENDPOINT, **kwargs)
 
     # get file by name
     def get_file(self, filename: str, format: str = "bytes", **kwargs) -> Any:
@@ -51,7 +62,11 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
             File content in the specified format
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.get(f"Files/{self.encode(filename)}", format=format, **kwargs)
+        return self.get(
+            f"{FilesMixinHelper.ENDPOINT}/{self.encode(filename)}",
+            format=format,
+            **kwargs,
+        )
 
     # delete file by given name
     def delete_file(self, filename: str, **kwargs) -> Any:
@@ -64,7 +79,9 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
             File name
         """
         filename = ApiHelper.get_windows_like_path(filename)
-        return self.delete(f"Files/{self.encode(filename)}", **kwargs)
+        return self.delete(
+            f"{FilesMixinHelper.ENDPOINT}/{self.encode(filename)}", **kwargs
+        )
 
     # upload file
     def upload_file(self, file: Any, name: str = "", **kwargs) -> Any:
@@ -82,7 +99,7 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
         if name:
             name = ApiHelper.get_unix_like_path(name)
             return self.post(
-                "Files/Upload",
+                FilesMixinHelper.ENDPOINT_UPLOAD,
                 files={
                     "file": (name, open(file, "rb") if isinstance(file, str) else file)
                 },
@@ -228,10 +245,10 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
         else:
             # binary stream
             if binary:
-                file_obj = io.BytesIO(file)
+                file_obj = io.BytesIO(cast(bytes, file))
             # text stream
             else:
-                file_obj = io.StringIO(file)
+                file_obj = io.StringIO(cast(str, file))
         # define file name
         file_obj.name = name
         return self.upload_file(file=file_obj, name=name, **kwargs)

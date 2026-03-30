@@ -17,6 +17,15 @@ from petrovisor.api.protocols.protocols import (
 )
 
 
+# Pivot tables mixin helper
+class PivotTablesMixinHelper:
+    """
+    Pivot tables mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "PivotTables"
+
+
 # Pivot Table API calls
 class PivotTableMixin(
     SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequests, SupportsRequests
@@ -73,7 +82,7 @@ class PivotTableMixin(
         groupby_entity : bool, default False
             Return dictionary of DataFrames grouped by entity name
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         if generate or entity_set or scope:
             options = {}
             if entity_set:
@@ -138,7 +147,7 @@ class PivotTableMixin(
         scope : str, dict, default None
             Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         options = {}
         if entity_set:
             entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
@@ -166,7 +175,7 @@ class PivotTableMixin(
         name : str
             Reference table name
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.PivotTable, name):
             return ApiRequests.success()
         return self.get(f"{route}/{self.encode(name)}/Delete", **kwargs)
@@ -181,7 +190,7 @@ class PivotTableMixin(
         name : str
             Pivot table name
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.PivotTable, name):
             return ApiRequests.success()
         # delete data

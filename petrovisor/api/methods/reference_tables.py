@@ -4,6 +4,7 @@ from typing import (
     Union,
     List,
     Dict,
+    cast,
 )
 
 import warnings
@@ -30,6 +31,51 @@ from petrovisor.api.protocols.protocols import (
     SupportsUnitsRequests,
     SupportsDataFrames,
 )
+
+
+# Reference table mixin helper
+class RefTableMixinHelper:
+    ENDPOINT = "RefTables"
+
+    # create DataFrame in case if it is passed as dictionary
+    @staticmethod
+    def create_dataframe(d: Dict):
+        df = pd.DataFrame()
+        for c, d in d.items():
+            if isinstance(d, (str, type)):
+                df[c] = pd.Series(dtype=d)
+            else:
+                df[c] = d
+        return df
+
+    # get list given a value and default
+    @staticmethod
+    def get_list(col, default=None):
+        """
+        Get list given a value and default
+        """
+        if isinstance(col, (set, tuple, list)):
+            return list(col)
+        return (
+            [col] if col else RefTableMixinHelper.get_list(default) if default else []
+        )
+
+    # get reference column type
+    @staticmethod
+    def get_ref_table_column_type(dtype):
+        """
+        Get reference column type
+        """
+        if dtype is bool or is_bool_dtype(dtype):
+            return RefTableColumnType.Bool.name
+        elif dtype is np.int64 or dtype is np.float64 or is_numeric_dtype(dtype):
+            return RefTableColumnType.Numeric.name
+        elif dtype is datetime.date or is_datetime64_dtype(dtype):
+            return RefTableColumnType.DateTime.name
+        elif dtype is object or is_string_dtype(dtype):
+            return RefTableColumnType.String.name
+        else:
+            return RefTableColumnType.Numeric.name
 
 
 # Reference Table API calls
@@ -318,7 +364,7 @@ class RefTableMixin(
         entity_col : str, default 'Entity'
             Entity column name
         """
-        route = "RefTables"
+        route = RefTableMixinHelper.ENDPOINT
 
         # get table columns specs
         ref_table_info = self.get_ref_table_data_info(name)
@@ -366,9 +412,9 @@ class RefTableMixin(
                 filter_options["Entity"] = ApiHelper.get_object_name(entities)
         # filter dates
         if date_start:
-            date_start = self.get_json_valid_value(date_start, "time", **kwargs) or ""
+            date_start = self.get_json_valid_value(date_start, "time", **kwargs)
         if date_end:
-            date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
+            date_end = self.get_json_valid_value(date_end, "time", **kwargs)
         if date_start and date_end:
             if date_start == date_end:
                 filter_options["Timestamp"] = date_start
@@ -384,9 +430,7 @@ class RefTableMixin(
             filter_options["TopRows"] = top
         # filter using columns
         if columns:
-            if isinstance(columns, dict):
-                pass
-            else:
+            if not isinstance(columns, dict):
                 if not isinstance(columns, (list, tuple, set)):
                     columns = [columns]
 
@@ -398,11 +442,15 @@ class RefTableMixin(
                         cname, cunit = self.get_column_name_and_unit(col)
                     return (cname, cunit)
 
-                columns = dict([(get_column_and_unit(col)) for col in columns])
-            if key_col in columns:
-                filter_options["KeyUnitName"] = columns[key_col]
+                columns_dict: Dict[str, str] = dict(
+                    get_column_and_unit(col) for col in columns
+                )
+            else:
+                columns_dict = columns
+            if key_col in columns_dict:
+                filter_options["KeyUnitName"] = columns_dict[key_col]
             filter_options["ValuesUnitNames"] = {
-                k: v for k, v in columns.items() if k != key_col
+                k: v for k, v in columns_dict.items() if k != key_col
             }
         if all_cols is not None:
             filter_options["ReturnOnlySpecifiedValuesUnitNames"] = not all_cols
@@ -458,7 +506,7 @@ class RefTableMixin(
                 *column_units,
             ]
             # assign data and column names
-            df = pd.DataFrame(data=data, columns=columns)
+            df = pd.DataFrame(data=data, columns=cast(Any, columns))
         return df
 
     # save data to reference table
@@ -494,7 +542,7 @@ class RefTableMixin(
         entity_col : str, default 'Entity'
             Entity column name
         """
-        route = "RefTables"
+        route = RefTableMixinHelper.ENDPOINT
 
         # get table columns specs
         ref_table_info = self.get_ref_table_data_info(name)
@@ -620,7 +668,7 @@ class RefTableMixin(
         options : dict, None, default None
             Options to retrieve data
         """
-        route = "RefTables"
+        route = RefTableMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
 
@@ -642,9 +690,9 @@ class RefTableMixin(
             ]
         # filter dates
         if date_start:
-            date_start = self.get_json_valid_value(date_start, "time", **kwargs) or ""
+            date_start = self.get_json_valid_value(date_start, "time", **kwargs)
         if date_end:
-            date_end = self.get_json_valid_value(date_end, "time", **kwargs) or ""
+            date_end = self.get_json_valid_value(date_end, "time", **kwargs)
         if date_start and date_end:
             filter_options["StartTimestamp"] = date_start
             filter_options["EndTimestamp"] = date_end
@@ -704,7 +752,7 @@ class RefTableMixin(
                             if entity is not None
                             else f"[{entity_col}] IS NULL"
                         )
-                        for entity in entities
+                        for entity in filter_options["Entities"]
                     ]
                 )
                 where_expressions.append(f"({data})")
@@ -741,6 +789,7 @@ class RefTableMixin(
                         pd.DataFrame(filter_options["Keys"])
                         .astype("string")
                         .to_json(orient="values")
+                        or "[]"
                     )
                     for t in keys_data:
                         key_expressions.append(
@@ -786,7 +835,7 @@ class RefTableMixin(
         name : str
             Reference table name
         """
-        route = "RefTables"
+        route = RefTableMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
         # delete data
@@ -794,46 +843,3 @@ class RefTableMixin(
         # delete item
         self.delete(f"{route}/{self.encode(name)}", **kwargs)
         return ApiRequests.success()
-
-
-# Reference table mixin helper
-class RefTableMixinHelper:
-    # create DataFrame in case if it is passed as dictionary
-    @staticmethod
-    def create_dataframe(d: Dict):
-        df = pd.DataFrame()
-        for c, d in d.items():
-            if isinstance(d, (str, type)):
-                df[c] = pd.Series(dtype=d)
-            else:
-                df[c] = d
-        return df
-
-    # get list given a value and default
-    @staticmethod
-    def get_list(col, default=None):
-        """
-        Get list given a value and default
-        """
-        if isinstance(col, (set, tuple, list)):
-            return list(col)
-        return (
-            [col] if col else RefTableMixinHelper.get_list(default) if default else []
-        )
-
-    # get reference column type
-    @staticmethod
-    def get_ref_table_column_type(dtype):
-        """
-        Get reference column type
-        """
-        if dtype is bool or is_bool_dtype(dtype):
-            return RefTableColumnType.Bool.name
-        elif dtype is np.int64 or dtype is np.float64 or is_numeric_dtype(dtype):
-            return RefTableColumnType.Numeric.name
-        elif dtype is datetime.date or is_datetime64_dtype(dtype):
-            return RefTableColumnType.DateTime.name
-        elif dtype is object or is_string_dtype(dtype):
-            return RefTableColumnType.String.name
-        else:
-            return RefTableColumnType.Numeric.name

@@ -22,6 +22,24 @@ from petrovisor.api.protocols.protocols import (
 )
 
 
+# ML mixin helper
+class MLMixinHelper:
+    """
+    ML mixin helper — endpoint constants.
+    """
+
+    ENDPOINT_TRAINERS_AND_METRICS = "MLModels/TrainersAndMetrics"
+    ENDPOINT_PRE_TRAINING_STATS = "MLModels/PreTrainingStatistics"
+    ENDPOINT_POST_TRAINING_STATS = "MLModels/PostTrainingStatistics"
+    ENDPOINT_PREDICT = "MLModels/Predict"
+    ENDPOINT_TRAIN = "MLModels/Train"
+    ENDPOINT_TRAIN_REQUEST = "MLModels/Train/AddRequest"
+    ENDPOINT_TRAINING = "ModelTraining"
+    ENDPOINT_TRAINING_IDLE = "ModelTraining/Idle"
+    ENDPOINT_TRAINING_NO_PROCESSED = "ModelTraining/NoProcessed"
+    ENDPOINT_TRAINING_RESULTS = "ModelTraining/Results"
+
+
 # PetroVisor ML API calls
 class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
     """
@@ -182,7 +200,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
             'Regression', 'BinaryClassification', 'MultipleClassification', 'Clustering',
             'NaiveBayes', 'NaiveBayesCategorical'
         """
-        route = "MLModels/TrainersAndMetrics"
+        route = MLMixinHelper.ENDPOINT_TRAINERS_AND_METRICS
         model_type = self.get_ml_model_type_enum(model_type, **kwargs).name
         return self.get(route, query={"ModelType": model_type}, **kwargs)
 
@@ -240,7 +258,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         skip_pre_processing : bool, default True
             Skip pre-processing of the data
         """
-        route = "MLModels/PreTrainingStatistics"
+        route = MLMixinHelper.ENDPOINT_PRE_TRAINING_STATS
         return self.post(
             route,
             data={
@@ -264,7 +282,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         entity : str | dict | None, default None
             Entity object or Entity name
         """
-        route = "MLModels/PostTrainingStatistics"
+        route = MLMixinHelper.ENDPOINT_POST_TRAINING_STATS
         if entity:
             request = {"ModelName": model_name}
             entity_name = ApiHelper.get_object_name(entity)
@@ -288,7 +306,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         data : dict
             ML Model data
         """
-        route = "MLModels/Predict"
+        route = MLMixinHelper.ENDPOINT_PREDICT
         entity_name = ApiHelper.get_object_name(entity)
         request = {
             "ModelName": model_name,
@@ -360,8 +378,8 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         activity : str
             Name of workflow activity to select best ML Model
         """
-        route = "MLModels/Train"
-        request = {
+        route = MLMixinHelper.ENDPOINT_TRAIN
+        request: Dict[str, Any] = {
             "ModelName": model_name,
             "Options": {
                 "EntitySet": None,
@@ -407,7 +425,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
             request["Source"] = request_source
             if activity:
                 request["Activity"] = activity
-            self.post(f"{route}/AddRequest", data=request, **kwargs)
+            self.post(MLMixinHelper.ENDPOINT_TRAIN_REQUEST, data=request, **kwargs)
         return self.post(route, data=request, **kwargs)
 
     # check whether ML service is idle
@@ -418,7 +436,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         Parameters
         ----------
         """
-        route = "ModelTraining/Idle"
+        route = MLMixinHelper.ENDPOINT_TRAINING_IDLE
         return self.get(route, **kwargs)
 
     # get ML model training states
@@ -433,9 +451,9 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         exclude_processed : bool, default False
             Exclude processed states
         """
-        route = "ModelTraining"
+        route = MLMixinHelper.ENDPOINT_TRAINING
         if exclude_processed:
-            self.get(f"{route}/NoProcessed", **kwargs)
+            self.get(MLMixinHelper.ENDPOINT_TRAINING_NO_PROCESSED, **kwargs)
         return self.get(route, **kwargs)
 
     # get ML model id
@@ -478,7 +496,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         model_name_or_id : str, UUId
             ML Model name or ML Model Training Process UUID
         """
-        route = "ModelTraining"
+        route = MLMixinHelper.ENDPOINT_TRAINING
         uuid = self.ml_get_model_training_id(model_name_or_id, **kwargs)
         return self.get(f"{route}/{self.encode(uuid)}", **kwargs)
 
@@ -494,7 +512,7 @@ class MLMixin(SupportsPsharpRequests, SupportsItemRequests, SupportsRequests):
         model_name_or_id : str, UUId
             ML Model name or ML Model Training Process UUID
         """
-        route = "ModelTraining/Results"
+        route = MLMixinHelper.ENDPOINT_TRAINING_RESULTS
         uuid = self.ml_get_model_training_id(model_name_or_id, **kwargs)
         return self.get(f"{route}/{self.encode(uuid)}", **kwargs)
 

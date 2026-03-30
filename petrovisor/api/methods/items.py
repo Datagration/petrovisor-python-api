@@ -14,6 +14,113 @@ from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
+# Items mixin helper
+class ItemsMixinHelper:
+    # get item types
+    @staticmethod
+    def get_item_types() -> List:
+        """
+        Get all item types
+        """
+        return list(ItemsMixinHelper.get_item_routes().keys())
+
+    # get item routes
+    @staticmethod
+    def get_item_routes() -> Dict:
+        """
+        Get all item routes
+        """
+        return dict(
+            **ItemsMixinHelper.get_named_item_routes(),
+            **ItemsMixinHelper.get_petrovisor_item_routes(),
+        )
+
+    # get 'NamedItem' routes
+    @staticmethod
+    def get_named_item_routes() -> Dict:
+        """
+        Get routes of NamedItems
+        """
+        return {
+            ItemType.Unit: "Units",
+            ItemType.UnitMeasurement: "UnitMeasurements",
+            ItemType.Entity: "Entities",
+            ItemType.EntityType: "EntityTypes",
+            ItemType.Signal: "Signals",
+            ItemType.Tag: "Tags",
+            ItemType.Label: "Labels",
+            ItemType.MessageEntry: "MessageEntries",
+            ItemType.Ticket: "Tickets",
+            ItemType.ProcessTemplate: "ProcessTemplates",
+            ItemType.UserSetting: "UserSettings",
+            ItemType.EventSubscription: "EventSubscriptions",
+        }
+
+    # get 'PetroVisorItem' routes
+    @staticmethod
+    def get_info_item_routes() -> Dict:
+        """
+        Get routes of InfoItems
+        """
+        return dict(
+            **{
+                ItemType.MLModel: "MLModels",
+                ItemType.DataGrid: "DataGrids",
+                ItemType.DataConnection: "DataConnections",
+                ItemType.DataSourceMapping: "DataSourceMappings",
+                ItemType.DataIntegrationSession: "DataIntegrationSessions",
+                ItemType.Scenario: "Scenarios",
+            },
+            **{  # alias
+                ItemType.MachineLearningModel: "MLModels",  # alias MLModel
+            },
+        )
+
+    # get 'PetroVisorItem' routes
+    @staticmethod
+    def get_petrovisor_item_routes() -> Dict:
+        """
+        Get routes of PetroVisorItems
+        """
+        return dict(
+            **{
+                ItemType.ConfigurationSettings: "ConfigurationSettings",
+                ItemType.RefTable: "RefTables",
+                ItemType.PivotTable: "PivotTables",
+                ItemType.Hierarchy: "Hierarchies",
+                ItemType.Scope: "Scopes",
+                ItemType.EntitySet: "EntitySets",
+                ItemType.Context: "Contexts",
+                ItemType.TableCalculation: "TableCalculations",
+                ItemType.EventCalculation: "EventCalculations",
+                ItemType.CleansingCalculation: "CleansingCalculations",
+                ItemType.PSharpScript: "PSharpScripts",
+                ItemType.CleansingScript: "CleansingScripts",
+                ItemType.Plot: "Plots",
+                ItemType.Chart: "Charts",
+                ItemType.Filter: "Filters",
+                ItemType.Workflow: "Workflows",
+                ItemType.WorkflowSchedule: "WorkflowSchedules",
+                ItemType.CustomWorkflowActivity: "CustomWorkflowActivities",
+                ItemType.RWorkflowActivity: "RWorkflowActivities",
+                ItemType.PythonWorkflowActivity: "PythonWorkflowActivities",
+                ItemType.WebWorkflowActivity: "WebWorkflowActivities",
+                ItemType.DataIntegrationSet: "DataIntegrationSets",
+                ItemType.WorkspacePackage: "WorkspacePackages",
+                ItemType.DCA: "DCA",
+                ItemType.PowerBIItem: "PowerBIItems",
+                ItemType.Dashboard: "Dashboards",
+            },
+            **{  # alias
+                ItemType.ConfigurationSettingValue: "ConfigurationSettings",  # alias ConfigurationSettings
+                ItemType.PivotTableDefinition: "PivotTables",  # alias PivotTable
+                ItemType.ChartDefinition: "Charts",  # alias Chart
+                ItemType.FilterDefinition: "Filters",  # alias Filter
+            },
+            **ItemsMixinHelper.get_info_item_routes(),
+        )
+
+
 # Items API calls
 class ItemsMixin(SupportsRequests):
     """
@@ -327,10 +434,15 @@ class ItemsMixin(SupportsRequests):
                 f"PetroVisor::get_item_field(): "
                 f"item '{item}' doesn't not have '{field_name}' field!"
             )
+        elif not isinstance(item, dict):
+            raise ValueError(
+                f"PetroVisor::get_item_field(): "
+                f"item '{item}' is not a dict-like object!"
+            )
         return item[field_name]
 
     # get 'NamedItem' route
-    def get_item_route(self, data_type: str, **kwargs) -> str:
+    def get_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding NamedItem type
 
@@ -342,7 +454,7 @@ class ItemsMixin(SupportsRequests):
         return ApiHelper.get_dict_value(self.ItemRoutes, data_type, **kwargs)
 
     # get 'PetroVisorItems' route
-    def get_petrovisor_item_route(self, data_type: str, **kwargs) -> str:
+    def get_petrovisor_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding PetroVisorItem type
 
@@ -354,7 +466,7 @@ class ItemsMixin(SupportsRequests):
         return ApiHelper.get_dict_value(self.PetroVisorItemRoutes, data_type, **kwargs)
 
     # get 'InfoItems' route
-    def get_info_item_route(self, data_type: str, **kwargs) -> str:
+    def get_info_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding InfoItem type
 
@@ -400,110 +512,3 @@ class ItemsMixin(SupportsRequests):
             Item type
         """
         return ApiHelper.contains(self.InfoItemRoutes, data_type, **kwargs)
-
-
-# Items mixin helper
-class ItemsMixinHelper:
-    # get item types
-    @staticmethod
-    def get_item_types() -> List:
-        """
-        Get all item types
-        """
-        return list(ItemsMixinHelper.get_item_routes().keys())
-
-    # get item routes
-    @staticmethod
-    def get_item_routes() -> Dict:
-        """
-        Get all item routes
-        """
-        return dict(
-            **ItemsMixinHelper.get_named_item_routes(),
-            **ItemsMixinHelper.get_petrovisor_item_routes(),
-        )
-
-    # get 'NamedItem' routes
-    @staticmethod
-    def get_named_item_routes() -> Dict:
-        """
-        Get routes of NamedItems
-        """
-        return {
-            ItemType.Unit: "Units",
-            ItemType.UnitMeasurement: "UnitMeasurements",
-            ItemType.Entity: "Entities",
-            ItemType.EntityType: "EntityTypes",
-            ItemType.Signal: "Signals",
-            ItemType.Tag: "Tags",
-            ItemType.Label: "Labels",
-            ItemType.MessageEntry: "MessageEntries",
-            ItemType.Ticket: "Tickets",
-            ItemType.ProcessTemplate: "ProcessTemplates",
-            ItemType.UserSetting: "UserSettings",
-            ItemType.EventSubscription: "EventSubscriptions",
-        }
-
-    # get 'PetroVisorItem' routes
-    @staticmethod
-    def get_info_item_routes() -> Dict:
-        """
-        Get routes of InfoItems
-        """
-        return dict(
-            **{
-                ItemType.MLModel: "MLModels",
-                ItemType.DataGrid: "DataGrids",
-                ItemType.DataConnection: "DataConnections",
-                ItemType.DataSourceMapping: "DataSourceMappings",
-                ItemType.DataIntegrationSession: "DataIntegrationSessions",
-                ItemType.Scenario: "Scenarios",
-            },
-            **{  # alias
-                ItemType.MachineLearningModel: "MLModels",  # alias MLModel
-            },
-        )
-
-    # get 'PetroVisorItem' routes
-    @staticmethod
-    def get_petrovisor_item_routes() -> Dict:
-        """
-        Get routes of PetroVisorItems
-        """
-        return dict(
-            **{
-                ItemType.ConfigurationSettings: "ConfigurationSettings",
-                ItemType.RefTable: "RefTables",
-                ItemType.PivotTable: "PivotTables",
-                ItemType.Hierarchy: "Hierarchies",
-                ItemType.Scope: "Scopes",
-                ItemType.EntitySet: "EntitySets",
-                ItemType.Context: "Contexts",
-                ItemType.TableCalculation: "TableCalculations",
-                ItemType.EventCalculation: "EventCalculations",
-                ItemType.CleansingCalculation: "CleansingCalculations",
-                ItemType.PSharpScript: "PSharpScripts",
-                ItemType.CleansingScript: "CleansingScripts",
-                ItemType.Plot: "Plots",
-                ItemType.Chart: "Charts",
-                ItemType.Filter: "Filters",
-                ItemType.Workflow: "Workflows",
-                ItemType.WorkflowSchedule: "WorkflowSchedules",
-                ItemType.CustomWorkflowActivity: "CustomWorkflowActivities",
-                ItemType.RWorkflowActivity: "RWorkflowActivities",
-                ItemType.PythonWorkflowActivity: "PythonWorkflowActivities",
-                ItemType.WebWorkflowActivity: "WebWorkflowActivities",
-                ItemType.DataIntegrationSet: "DataIntegrationSets",
-                ItemType.WorkspacePackage: "WorkspacePackages",
-                ItemType.DCA: "DCA",
-                ItemType.PowerBIItem: "PowerBIItems",
-                ItemType.Dashboard: "Dashboards",
-            },
-            **{  # alias
-                ItemType.ConfigurationSettingValue: "ConfigurationSettings",  # alias ConfigurationSettings
-                ItemType.PivotTableDefinition: "PivotTables",  # alias PivotTable
-                ItemType.ChartDefinition: "Charts",  # alias Chart
-                ItemType.FilterDefinition: "Filters",  # alias Filter
-            },
-            **ItemsMixinHelper.get_info_item_routes(),
-        )

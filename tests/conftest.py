@@ -1,6 +1,15 @@
 import os
+from pathlib import Path
+
 import petrovisor as pv
 import pytest
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
 
 
 @pytest.fixture

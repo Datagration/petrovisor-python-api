@@ -6,6 +6,7 @@ from typing import (
     Dict,
     Tuple,
     Iterable,
+    cast,
 )
 
 import io
@@ -22,6 +23,158 @@ from petrovisor.api.protocols.protocols import (
     SupportsEntitiesRequests,
     SupportsDataFrames,
 )
+
+
+# DataFrames mixin helper
+class DataFrameMixinHelper:
+    # set DataFrame indices
+    @staticmethod
+    def set_dataframe_index(
+        df: pd.DataFrame,
+        indices: List[str],
+        inplace: bool = False,
+        add_default_index: bool = False,
+        default_index_name: str = "index",
+        **kwargs,
+    ):
+        """
+        Set DataFrame index
+
+        Parameters
+        ----------
+        df : DataFrame
+            DataFrame
+        indices : list
+            Columns to use as indices
+        inplace : bool, default False
+            Whether to modify DataFrame or to work with a copy
+        add_default_index : bool, default False
+            Whether to add default index column
+        default_index_name : str, default 'index'
+            Default index name
+
+        Returns
+        -------
+        Tuple (DataFrame, default_index_column)
+        """
+        # define working DataFrame
+        df_with_index = df if inplace else df.copy()
+        # get column indices
+        idx = [item for item in indices if item in df.columns]
+        # add default index
+        index_col = ""
+        if add_default_index:
+            # get index name which does not match any column name
+            def get_default_index_name(df: pd.DataFrame):
+                index_name = default_index_name
+                i = 0
+                while index_name in df.columns:
+                    index_name = f"{default_index_name}_{i}"
+                    i += 1
+                return index_name
+
+            index_col = get_default_index_name(df)
+            df_with_index[index_col] = df_with_index.index
+            idx.insert(0, index_col)
+        # set indices
+        df_with_index = df_with_index.set_index(idx)
+        return df_with_index, index_col
+
+    # create DataFrame from list
+    @staticmethod
+    def create_dataframe_from_list(data: List[str], **kwargs) -> Optional[pd.DataFrame]:
+        """
+        Create DataFrame from list of tabulated string
+
+        Parameters
+        ----------
+        data : list
+            List of tabulated strings
+        """
+        if len(data) < 1:
+            return None
+
+        # Try with default C engine first
+        try:
+            return pd.read_csv(io.StringIO("\n".join(data)), delimiter="\t", **kwargs)
+        except pd.errors.ParserError as e:
+            # Fall back to Python engine which is more flexible with inconsistent fields
+            # and can handle tabs within field values better
+            import warnings
+
+            warnings.warn(
+                f"Inconsistent field count detected in tab-delimited data: {e}. "
+                "Using Python parser engine for more flexible parsing.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+            # Build parser options based on pandas version
+            parser_options = {
+                "delimiter": "\t",
+                "engine": "python",
+                "quoting": 3,  # csv.QUOTE_NONE - don't interpret quotes
+            }
+
+            # pandas 1.3+ uses on_bad_lines, older versions use error_bad_lines
+            try:
+                return pd.read_csv(
+                    io.StringIO("\n".join(data)),
+                    on_bad_lines="skip",
+                    **parser_options,
+                    **kwargs,
+                )
+            except TypeError:
+                # Fallback for pandas < 1.3
+                return pd.read_csv(
+                    io.StringIO("\n".join(data)),
+                    error_bad_lines=False,
+                    **parser_options,
+                    **kwargs,
+                )
+
+    # remove entity name from column names
+    @staticmethod
+    def remove_entities_from_columns(columns: Iterable[str]) -> List[str]:
+        """
+        Remove entity name from column names
+
+        Parameters
+        ----------
+        columns : list
+            Column names
+        """
+        return [
+            c[1] if len(c) > 1 else c[0] for c in (col.split(" : ") for col in columns)
+        ]
+
+    # extract entity name from column names
+    @staticmethod
+    def get_entities_from_columns(columns: Iterable[str]) -> List[str]:
+        """
+        Extract entity name from column names
+
+        Parameters
+        ----------
+        columns : list
+            Column names
+        """
+        return [
+            c[0] if len(c) > 1 else "" for c in (col.split(" : ") for col in columns)
+        ]
+
+    # get list of unique non-empty names
+    @staticmethod
+    def get_unique_non_empty_names(x: List[str]) -> List[str]:
+        """
+        get list of unique non-empty names
+
+        Parameters
+        ----------
+        x : list
+            List of names
+        """
+        return list(set([e for e in x if e]))
 
 
 # DataFrames utilities
@@ -75,7 +228,7 @@ class DataFrameMixin(
             file_obj.seek(0)
         elif file_name.lower().endswith(".xlsx"):
             file_obj = io.BytesIO()
-            with pd.ExcelWriter(file_obj, engine="xlsxwriter") as writer:
+            with pd.ExcelWriter(cast(Any, file_obj), engine="xlsxwriter") as writer:
                 df.to_excel(writer, index=False)
             file_obj.seek(0)
         else:
@@ -202,16 +355,19 @@ class DataFrameMixin(
                 # create DataFrame
                 df = DataFrameMixinHelper.create_dataframe_from_list(psharp_table)
                 # assign column types
-                df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
-                # group by entity
-                if groupby_entity:
-                    df = {e: df_group for e, df_group in df.groupby(entity_col)}
-                # convert to wide format with columns format "{entity_name} : {column_name}"
-                elif has_entity_col and not with_entity_column:
-                    df = self.convert_dataframe_from_long_to_wide(df)
-                # convert to long format with 'Entity' column
-                elif not has_entity_col and with_entity_column:
-                    df = self.convert_dataframe_from_wide_to_long(df)
+                if df is not None:
+                    df = self.assign_dataframe_column_types(df, columns_dtype, **kwargs)
+                    # group by entity
+                    if groupby_entity:
+                        df = {
+                            str(e): df_group for e, df_group in df.groupby(entity_col)
+                        }
+                    # convert to wide format with columns format "{entity_name} : {column_name}"
+                    elif has_entity_col and not with_entity_column:
+                        df = self.convert_dataframe_from_long_to_wide(df)
+                    # convert to long format with 'Entity' column
+                    elif not has_entity_col and with_entity_column:
+                        df = self.convert_dataframe_from_wide_to_long(df)
 
             # special case when columns have format "{entity_name} : {column_name}"
             # and group by entity is required
@@ -237,7 +393,7 @@ class DataFrameMixin(
                             for cv, ce in zip(row.split("\t"), col_entities)
                             if not ce or ce == e
                         ],
-                        columns=e_columns,
+                        columns=cast(Any, e_columns),
                     )
 
                 # assign column types
@@ -319,7 +475,7 @@ class DataFrameMixin(
                                 col_name, col_unit_name
                             )
                             columns_short_to_long[col_name] = full_column_name
-                            columns_dtype[columns_short_to_long[col_name]] = col_dtype
+                            columns_dtype[full_column_name] = col_dtype
                         else:
                             full_column_name = columns_short_to_long[col_name]
                         # change entity field to 'Entity'
@@ -376,7 +532,7 @@ class DataFrameMixin(
 
             # group by entity
             if groupby_entity:
-                df = {e: df_group for e, df_group in df.groupby(entity_col)}
+                df = {str(e): df_group for e, df_group in df.groupby(entity_col)}
             # convert to wide format with columns format "{entity_name} : {column_name"
             elif not with_entity_column:
                 df = self.convert_dataframe_from_long_to_wide(df)
@@ -441,8 +597,16 @@ class DataFrameMixin(
                 for e in select_entities
             ]
 
-        # data containers
-        data_to_save = {s.name: [] for s in SignalType}
+        # data containers keyed by Data/Save endpoint field names
+        data_to_save = {
+            "StaticNumericData": [],
+            "StaticStringData": [],
+            "TimeNumericData": [],
+            "TimeStringData": [],
+            "DepthNumericData": [],
+            "DepthStringData": [],
+            "PVTNumericData": [],
+        }
 
         # collect data info
         with_entity_col = entity_col in columns
@@ -452,7 +616,9 @@ class DataFrameMixin(
             # extract entity name from column names
             col_entities = DataFrameMixinHelper.get_entities_from_columns(columns)
             # list of all entities
-            entities = DataFrameMixinHelper.get_unique_non_empty_names(col_entities)
+            entity_list: List[str] = DataFrameMixinHelper.get_unique_non_empty_names(
+                col_entities
+            )
             # get column data info
             col_data = {
                 e: [
@@ -462,20 +628,20 @@ class DataFrameMixin(
                     )
                     if centity == e
                 ]
-                for e in entities
+                for e in entity_list
                 if (select_entities is None) or (e in select_entities)
             }
         else:
             # get column names
             col_names = columns
             # get list of entities
-            entities = (
+            entity_list: List[str] = (
                 list(set(df[entity_col].tolist())) if (entity_col in columns) else []
             )
             # get column data info
             col_data = {
                 e: [(cname, cidx) for cidx, cname in enumerate(columns)]
-                for e in entities
+                for e in entity_list
                 if (select_entities is None) or (e in select_entities)
             }
 
@@ -576,7 +742,9 @@ class DataFrameMixin(
             return column_name in {date_col, depth_col, entity_col, alias_col}
 
         # get column data
-        def _get_column_data(column_index: int, entity_name: str) -> List:
+        def _get_column_data(column_index: Optional[int], entity_name: str) -> List:
+            if column_index is None:
+                return []
             if not with_entity_col:
                 return df.iloc[:, column_index].to_list()
             return df[df[entity_col] == entity_name].iloc[:, column_index].to_list()
@@ -607,34 +775,35 @@ class DataFrameMixin(
                     signal_type = signal["SignalType"]
 
                     # static signal
-                    if signal_type in {SignalType.Static.name, SignalType.String.name}:
-                        dtype = "Numeric" if (signal_type == "Static") else "String"
+                    if signal_type == SignalType.Static.name:
                         static_data = _get_column_data(column_index, entity_name)
-                        if static_data and len(static_data) > 0:
-                            value = (
-                                static_data[0]
-                                if (signal_type == "Static")
-                                else static_data[0]
-                            )
-                            data_to_save[signal_type].append(
+                        if static_data:
+                            data_to_save["StaticNumericData"].append(
                                 {
                                     "Entity": entity_name,
                                     "Signal": signal_name,
                                     "Unit": signal_unit_name,
                                     "Data": self.get_json_valid_value(
-                                        value, dtype=dtype, **kwargs
+                                        static_data[0], dtype="Numeric", **kwargs
+                                    ),
+                                }
+                            )
+                    elif signal_type == SignalType.String.name:
+                        static_data = _get_column_data(column_index, entity_name)
+                        if static_data:
+                            data_to_save["StaticStringData"].append(
+                                {
+                                    "Entity": entity_name,
+                                    "Signal": signal_name,
+                                    "Unit": signal_unit_name,
+                                    "Data": self.get_json_valid_value(
+                                        static_data[0], dtype="String", **kwargs
                                     ),
                                 }
                             )
                     # time signal
-                    elif signal_type in (
-                        SignalType.TimeDependent.name,
-                        SignalType.StringTimeDependent.name,
-                    ):
-                        dtype = (
-                            "Numeric" if (signal_type == "TimeDependent") else "String"
-                        )
-                        data_to_save[signal_type].append(
+                    elif signal_type == SignalType.TimeDependent.name:
+                        data_to_save["TimeNumericData"].append(
                             {
                                 "Entity": entity_name,
                                 "Signal": signal_name,
@@ -645,7 +814,29 @@ class DataFrameMixin(
                                             dvalue, dtype="Time", **kwargs
                                         ),
                                         "Value": self.get_json_valid_value(
-                                            value, dtype=dtype, **kwargs
+                                            value, dtype="Numeric", **kwargs
+                                        ),
+                                    }
+                                    for dvalue, value in zip(
+                                        _get_column_data(date_index, entity_name),
+                                        _get_column_data(column_index, entity_name),
+                                    )
+                                ],
+                            }
+                        )
+                    elif signal_type == SignalType.StringTimeDependent.name:
+                        data_to_save["TimeStringData"].append(
+                            {
+                                "Entity": entity_name,
+                                "Signal": signal_name,
+                                "Unit": signal_unit_name,
+                                "Data": [
+                                    {
+                                        "Date": self.get_json_valid_value(
+                                            dvalue, dtype="Time", **kwargs
+                                        ),
+                                        "Value": self.get_json_valid_value(
+                                            value, dtype="String", **kwargs
                                         ),
                                     }
                                     for dvalue, value in zip(
@@ -656,14 +847,8 @@ class DataFrameMixin(
                             }
                         )
                     # depth signal
-                    elif signal_type in (
-                        SignalType.DepthDependent.name,
-                        SignalType.StringDepthDependent.name,
-                    ):
-                        dtype = (
-                            "Numeric" if (signal_type == "DepthDependent") else "String"
-                        )
-                        data_to_save[signal_type].append(
+                    elif signal_type == SignalType.DepthDependent.name:
+                        data_to_save["DepthNumericData"].append(
                             {
                                 "Entity": entity_name,
                                 "Signal": signal_name,
@@ -674,7 +859,29 @@ class DataFrameMixin(
                                             dvalue, dtype="Numeric", **kwargs
                                         ),
                                         "Value": self.get_json_valid_value(
-                                            value, dtype=dtype, **kwargs
+                                            value, dtype="Numeric", **kwargs
+                                        ),
+                                    }
+                                    for dvalue, value in zip(
+                                        _get_column_data(depth_index, entity_name),
+                                        _get_column_data(column_index, entity_name),
+                                    )
+                                ],
+                            }
+                        )
+                    elif signal_type == SignalType.StringDepthDependent.name:
+                        data_to_save["DepthStringData"].append(
+                            {
+                                "Entity": entity_name,
+                                "Signal": signal_name,
+                                "Unit": signal_unit_name,
+                                "Data": [
+                                    {
+                                        "Depth": self.get_json_valid_value(
+                                            dvalue, dtype="Numeric", **kwargs
+                                        ),
+                                        "Value": self.get_json_valid_value(
+                                            value, dtype="String", **kwargs
                                         ),
                                     }
                                     for dvalue, value in zip(
@@ -741,7 +948,7 @@ class DataFrameMixin(
         indices: Optional[Union[str, List[str]]] = None,
         inplace: bool = False,
         **kwargs,
-    ):
+    ) -> pd.DataFrame:
         """
         Convert DataFrame from long to wide format.
         Wide format assumes column names as '{entity_name} : {column_name}'
@@ -766,10 +973,13 @@ class DataFrameMixin(
         date_col = self.get_date_column_name()
         depth_col = self.get_depth_column_name()
         alias_col = self.get_alias_column_name()
-        column_indices = (
+        _raw_indices = (
             copy.deepcopy(indices)
             if indices
             else [date_col, depth_col, alias_col, entity_col]
+        )
+        column_indices: List[str] = (
+            [_raw_indices] if isinstance(_raw_indices, str) else _raw_indices
         )
         if entity_col not in column_indices:
             column_indices.append(entity_col)
@@ -1014,8 +1224,8 @@ class DataFrameMixin(
             if (arg in kwargs)
         }
         if datetime_args:
-            return pd.to_datetime(df[column], **datetime_args)
-        return pd.to_datetime(df[column])
+            return cast(pd.Series, pd.to_datetime(df[column], **datetime_args))
+        return cast(pd.Series, pd.to_datetime(df[column]))
 
     # convert datetime to string
     def datetime_to_string(
@@ -1054,7 +1264,9 @@ class DataFrameMixin(
             ""
             if pd.isnull(d)
             else (
-                d.strftime(format) if isinstance(d, datetime) else parse_date(d, format)
+                d.strftime(format or "%Y-%m-%dT%H:%M:%S.%f")
+                if isinstance(d, datetime)
+                else parse_date(d, format or "%Y-%m-%dT%H:%M:%S.%f")
             )
         )
 
@@ -1075,12 +1287,10 @@ class DataFrameMixin(
         format : str, default '%Y-%m-%dT%H:%M:%S.%f'
             Time format
         """
-        return datetime.strptime(d, format)
+        return datetime.strptime(str(d), format or "%Y-%m-%d %H:%M:%S")
 
     # get column name without unit
-    def get_column_name_without_unit(
-        self, column_name: Union[str, int], **kwargs
-    ) -> Union[str, int]:
+    def get_column_name_without_unit(self, column_name: str, **kwargs) -> str:
         """
         Get column name without unit from column name
 
@@ -1113,7 +1323,7 @@ class DataFrameMixin(
         return ""
 
     # get column name and unit
-    def get_column_name_and_unit(self, column_name: str, **kwargs) -> Tuple[str, str]:
+    def get_column_name_and_unit(self, column_name: Any, **kwargs) -> Tuple[Any, str]:
         """
         Get column name and unit from column name
 
@@ -1273,155 +1483,3 @@ class DataFrameMixin(
                 ): self.get_json_valid_value(row[1], "numeric", **kwargs)
                 for row in x
             }
-
-
-# DataFrame mixin helper
-class DataFrameMixinHelper:
-    # set DataFrame indices
-    @staticmethod
-    def set_dataframe_index(
-        df: pd.DataFrame,
-        indices: List[str],
-        inplace: bool = False,
-        add_default_index: bool = False,
-        default_index_name: str = "index",
-        **kwargs,
-    ):
-        """
-        Set DataFrame index
-
-        Parameters
-        ----------
-        df : DataFrame
-            DataFrame
-        indices : list
-            Columns to use as indices
-        inplace : bool, default False
-            Whether to modify DataFrame or to work with a copy
-        add_default_index : bool, default False
-            Whether to add default index column
-        default_index_name : str, default 'index'
-            Default index name
-
-        Returns
-        -------
-        Tuple (DataFrame, default_index_column)
-        """
-        # define working DataFrame
-        df_with_index = df if inplace else df.copy()
-        # get column indices
-        idx = [item for item in indices if item in df.columns]
-        # add default index
-        index_col = ""
-        if add_default_index:
-            # get index name which does not match any column name
-            def get_default_index_name(df: pd.DataFrame):
-                index_name = default_index_name
-                i = 0
-                while index_name in df.columns:
-                    index_name = f"{default_index_name}_{i}"
-                    i += 1
-                return index_name
-
-            index_col = get_default_index_name(df)
-            df_with_index[index_col] = df_with_index.index
-            idx.insert(0, index_col)
-        # set indices
-        df_with_index = df_with_index.set_index(idx)
-        return df_with_index, index_col
-
-    # create DataFrame from list
-    @staticmethod
-    def create_dataframe_from_list(data: List[str], **kwargs) -> Optional[pd.DataFrame]:
-        """
-        Create DataFrame from list of tabulated string
-
-        Parameters
-        ----------
-        data : list
-            List of tabulated strings
-        """
-        if len(data) < 1:
-            return None
-
-        # Try with default C engine first
-        try:
-            return pd.read_csv(io.StringIO("\n".join(data)), delimiter="\t", **kwargs)
-        except pd.errors.ParserError as e:
-            # Fall back to Python engine which is more flexible with inconsistent fields
-            # and can handle tabs within field values better
-            import warnings
-
-            warnings.warn(
-                f"Inconsistent field count detected in tab-delimited data: {e}. "
-                "Using Python parser engine for more flexible parsing.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-
-            # Build parser options based on pandas version
-            parser_options = {
-                "delimiter": "\t",
-                "engine": "python",
-                "quoting": 3,  # csv.QUOTE_NONE - don't interpret quotes
-            }
-
-            # pandas 1.3+ uses on_bad_lines, older versions use error_bad_lines
-            try:
-                return pd.read_csv(
-                    io.StringIO("\n".join(data)),
-                    on_bad_lines="skip",
-                    **parser_options,
-                    **kwargs,
-                )
-            except TypeError:
-                # Fallback for pandas < 1.3
-                return pd.read_csv(
-                    io.StringIO("\n".join(data)),
-                    error_bad_lines=False,
-                    **parser_options,
-                    **kwargs,
-                )
-
-    # remove entity name from column names
-    @staticmethod
-    def remove_entities_from_columns(columns: Iterable[str]) -> List[str]:
-        """
-        Remove entity name from column names
-
-        Parameters
-        ----------
-        columns : list
-            Column names
-        """
-        return [
-            c[1] if len(c) > 1 else c[0] for c in (col.split(" : ") for col in columns)
-        ]
-
-    # extract entity name from column names
-    @staticmethod
-    def get_entities_from_columns(columns: Iterable[str]) -> List[str]:
-        """
-        Extract entity name from column names
-
-        Parameters
-        ----------
-        columns : list
-            Column names
-        """
-        return [
-            c[0] if len(c) > 1 else "" for c in (col.split(" : ") for col in columns)
-        ]
-
-    # get list of unique non-empty names
-    @staticmethod
-    def get_unique_non_empty_names(x: List[str]) -> List[str]:
-        """
-        get list of unique non-empty names
-
-        Parameters
-        ----------
-        x : list
-            List of names
-        """
-        return list(set([e for e in x if e]))

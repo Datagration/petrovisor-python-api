@@ -101,16 +101,39 @@ class ContextsManager(list):
         # initialize list of contexts
         super().__init__(all_contexts)
 
+        # Convert to proper Pydantic types
+        _entity_set: Union[EntitySet, None] = (
+            EntitySet.model_validate(entity_set)
+            if isinstance(entity_set, dict)
+            else entity_set
+            if isinstance(entity_set, EntitySet)
+            else None
+        )
+        _scope: Union[Scope, None] = (
+            Scope.model_validate(scope)
+            if isinstance(scope, dict)
+            else scope
+            if isinstance(scope, Scope)
+            else None
+        )
+        _hierarchy: Union[Hierarchy, None] = (
+            Hierarchy.model_validate(hierarchy)
+            if isinstance(hierarchy, dict)
+            else hierarchy
+            if isinstance(hierarchy, Hierarchy)
+            else None
+        )
+
         if len(all_contexts) == 0:
-            context = Context(name=default_name or "")
-            context.entity_set = entity_set
-            context.scope = scope
-            context.hierarchy = hierarchy
+            context = Context(Name=default_name or "")
+            context.entity_set = _entity_set
+            context.scope = _scope
+            context.hierarchy = _hierarchy
         elif len(all_contexts) == 1 or primary_context.casefold() == "first":
             context = all_contexts[0]
         else:
             context = api.merge_contexts(all_contexts)
         self.name = context.name
-        self.entity_set = context.entity_set or entity_set
-        self.scope = context.scope or scope
-        self.hierarchy = context.hierarchy or hierarchy
+        self.entity_set = context.entity_set or _entity_set
+        self.scope = context.scope or _scope
+        self.hierarchy = context.hierarchy or _hierarchy

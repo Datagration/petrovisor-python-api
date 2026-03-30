@@ -61,11 +61,6 @@ def test_signals_by_entity(api: PetroVisor):
     assert signal_name in [s["Name"] for s in entity_signals]
 
 
-# Note: Entity and signal existence tests removed due to backend eventual consistency issues.
-# The Cache-Control: no-cache headers and exponential backoff improvements work correctly
-# once items are propagated, but immediate verification after creation is unreliable.
-
-
 def test_delete_nonexistent_entity(api: PetroVisor):
     """
     Test that deleting a non-existent entity completes quickly without errors

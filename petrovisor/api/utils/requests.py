@@ -412,18 +412,20 @@ class ApiRequests:
                 elif method_name == "TRACE":
                     pass
                 # raise exception if error occurred
-                response.raise_for_status()
+                if response is not None:
+                    response.raise_for_status()
             except requests.exceptions.HTTPError as err:
                 # check if unauthorized request (401)
                 if (
                     retry_on_unauthorized
-                    and response.status_code == requests.codes.unauthorized
+                    and response is not None
+                    and response.status_code == requests.codes["unauthorized"]
                 ):
                     return response
 
-                if response.status_code in {
-                    requests.codes.bad_request,
-                    requests.codes.not_found,
+                if response is not None and response.status_code in {
+                    requests.codes["bad_request"],
+                    requests.codes["not_found"],
                 }:
                     max_retries = max_retries_top
 
