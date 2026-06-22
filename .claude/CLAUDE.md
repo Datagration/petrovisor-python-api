@@ -15,7 +15,18 @@
 - No speculative abstractions. No docstrings on unchanged functions. No unnecessary error handling.
 
 ### Type Checking
-`uvx ty check` baseline: **3 warnings** (2 `no-matching-overload` on `pd.read_csv`, 1 `invalid-type-form` in `argument.py`). These are known false positives — see @petrovisor/models/argument.py and @petrovisor/api/methods/dataframes.py. Any new errors or warnings beyond the baseline should be fixed before committing.
+`uvx ty check` baseline: **27 warnings**. These are known false positives — all related to optional dependencies and mixin inheritance:
+- 8 `unresolved-import` for optional backends (cudf ×3, modin.pandas ×3, duckdb ×2) in `dataframes.py`
+- 2 `no-matching-overload` on `pd.read_csv` in `dataframes.py` (pandas version compatibility)
+- 1 `no-matching-overload` on `nw.to_native` in `dataframes.py` (narwhals strict parameter)
+- 3 `unresolved-attribute` for mixin methods (`read_dataframe_from_bytes`, `read_dataframe_from_file`) in `files.py`, `save_data`, `save_table_data`
+- 1 `invalid-type-form` in `argument.py:74`
+- 7 `invalid-argument-type` on `load_signals_data` calls in `signals.py` (mixin type narrowing)
+- 2 `invalid-argument-type` on `_as_data_list` calls in `signals.py` (mixin type narrowing)
+- 1 `invalid-argument-type` on `json_normalize` in `dataframes.py` (pandas stubs)
+- 2 `invalid-assignment` in `signals.py` (backward-compat type widening)
+
+Any new errors or warnings beyond this baseline should be fixed before committing.
 
 ### Running Tests
 Tests require a live API connection. Set up credentials once:

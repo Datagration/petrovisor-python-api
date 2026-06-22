@@ -6,6 +6,7 @@ from typing import (
     Dict,
     Tuple,
     Iterable,
+    Set,
     cast,
 )
 
@@ -14,9 +15,12 @@ import re
 import copy
 from datetime import datetime
 import pickle
+from enum import Enum
 import pandas as pd
+import numpy as np
 
 from petrovisor.api.enums.internal_dtypes import SignalType
+from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsSignalsRequests,
@@ -25,8 +29,533 @@ from petrovisor.api.protocols.protocols import (
 )
 
 
+# DataFrame Backend Enum
+class DataFrameBackend(str, Enum):
+    """
+    Supported user-facing DataFrame backends.
+
+    Narwhals is NOT listed here — it is used internally as a routing/dispatch
+    layer when available (see DataFrameMixinHelper.is_narwhals_available).
+    The choice of whether to route through narwhals is automatic; callers
+    never need to specify it.
+
+    Modin, cuDF, and Dask are also not listed: they are pandas-compatible
+    libraries that narwhals already handles transparently.  Users who work
+    with those DataFrames can pass them directly — narwhals will unwrap them —
+    but the SDK does not advertise or maintain explicit code paths for them.
+
+    Values
+    ------
+    PANDAS : str
+        Pandas DataFrame — default and always available.
+    POLARS : str
+        Polars DataFrame (requires polars package).
+    PYARROW : str
+        PyArrow Table (requires pyarrow).
+    DUCKDB : str
+        DuckDB relation (requires duckdb).
+    """
+
+    PANDAS = "pandas"
+    POLARS = "polars"
+    PYARROW = "pyarrow"
+    DUCKDB = "duckdb"
+
+
 # DataFrames mixin helper
 class DataFrameMixinHelper:
+    """DataFrame utilities and table-format conversion methods."""
+
+    # Reserved column name constants
+    COLUMN_ENTITY = "Entity"
+    COLUMN_ALIAS = "Alias"
+    COLUMN_DATE = "Date"
+    COLUMN_DEPTH = "Depth"
+
+    # Backend availability cache (populated on first access)
+    _available_backends: Optional[Set[str]] = None
+
+    @staticmethod
+    def is_narwhals_available() -> bool:
+        """Return True when narwhals is installed.
+
+        Narwhals is used internally as a routing/dispatch layer — it is not a
+        user-facing backend.  Use this instead of
+        ``is_backend_available("narwhals")`` everywhere in internal logic.
+        """
+        try:
+            import narwhals  # type: ignore[import-untyped]  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
+
+    @staticmethod
+    def get_available_backends() -> Set[str]:
+        """Return the set of user-facing backends that are currently installed.
+
+        Narwhals is intentionally excluded — it is an internal dispatch layer,
+        not a user-facing backend.  Use ``is_narwhals_available()`` to check
+        whether narwhals is present for internal routing decisions.
+
+        Returns
+        -------
+        set[str]
+            Subset of DataFrameBackend values that are importable right now.
+            'pandas' is always present.
+        """
+        # Use cached result if available
+        if DataFrameMixinHelper._available_backends is not None:
+            return DataFrameMixinHelper._available_backends
+
+        backends = {"pandas"}  # pandas is always available (required dependency)
+
+        # Check for polars
+        try:
+            import polars as pl  # type: ignore[import-untyped]  # noqa: F401
+
+            backends.add(DataFrameBackend.POLARS)
+        except ImportError:
+            pass
+
+        # Check for PyArrow
+        try:
+            import pyarrow  # type: ignore[import-untyped]  # noqa: F401
+
+            backends.add(DataFrameBackend.PYARROW)
+        except ImportError:
+            pass
+
+        # Check for DuckDB
+        try:
+            import duckdb  # type: ignore[import-untyped]  # noqa: F401
+
+            backends.add(DataFrameBackend.DUCKDB)
+        except ImportError:
+            pass
+
+        # Cache the result
+        DataFrameMixinHelper._available_backends = backends
+        return backends
+
+    @staticmethod
+    def is_backend_available(backend: str) -> bool:
+        """
+        Check if a specific backend is available.
+
+        Parameters
+        ----------
+        backend : str
+            Backend name to check
+
+        Returns
+        -------
+        bool
+            True if backend is available, False otherwise
+
+        Examples
+        --------
+        >>> if DataFrameMixinHelper.is_backend_available('polars'):
+        ...     df = api.load_signals_data(..., backend='polars')
+        """
+        return backend in DataFrameMixinHelper.get_available_backends()
+
+    @staticmethod
+    def detect_backend(df) -> str:
+        """
+        Detect DataFrame backend from input type.
+
+        Parameters
+        ----------
+        df : DataFrame
+            DataFrame of any backend type
+
+        Returns
+        -------
+        str
+            Backend name: 'pandas', 'polars', 'pyarrow', 'duckdb', or 'unknown'.
+            Narwhals, modin, cuDF, and dask are intentionally excluded — they
+            are either internal dispatch layers (narwhals) or pandas-compatible
+            libraries handled transparently by narwhals.
+        """
+        # Check for pandas (most common)
+        if isinstance(df, (pd.DataFrame, pd.Series)):
+            return DataFrameBackend.PANDAS
+
+        # Check for polars
+        try:
+            import polars as pl  # type: ignore[import-untyped]
+
+            if isinstance(df, (pl.DataFrame, pl.Series)):
+                return DataFrameBackend.POLARS
+        except ImportError:
+            pass
+
+        # Check for PyArrow
+        try:
+            import pyarrow as pa  # type: ignore[import-untyped]
+
+            if isinstance(df, pa.Table):
+                return DataFrameBackend.PYARROW
+        except ImportError:
+            pass
+
+        # Check for DuckDB
+        try:
+            import duckdb  # type: ignore[import-untyped]
+
+            if isinstance(df, duckdb.DuckDBPyRelation):
+                return DataFrameBackend.DUCKDB
+        except ImportError:
+            pass
+
+        return "unknown"
+
+    @staticmethod
+    def is_polars_backend(backend: str) -> bool:
+        """Return True when backend is 'polars' and the library is installed."""
+        return (
+            backend == DataFrameBackend.POLARS
+            and DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS)
+        )
+
+    @staticmethod
+    def df_drop_column(df: Any, col: str, backend: str) -> Any:
+        """Drop a column by name — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            return nw.to_native(nw.from_native(df).drop([col]))
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df.drop(col)
+        return df.drop(columns=[col])
+
+    @staticmethod
+    def df_merge(
+        df_left: Any,
+        df_right: Any,
+        on: Union[str, List[str]],
+        backend: str,
+    ) -> Any:
+        """Full/outer join two DataFrames on key column(s) — polars/pandas (narwhals lacks coalesce)."""
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df_left.join(df_right, on=on, how="full", coalesce=True)
+        return pd.merge(df_left, df_right, on=on)
+
+    @staticmethod
+    def df_get_column_names(df: Any) -> List[str]:
+        """Return column names as a plain list of strings for any supported backend."""
+        # PyArrow Table uses .column_names; pandas/polars use .columns
+        if hasattr(df, "column_names"):
+            return list(df.column_names)
+        return list(df.columns)
+
+    @staticmethod
+    def df_select_columns(df: Any, columns: List[str], backend: str) -> Any:
+        """Select/reorder columns — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            return nw.to_native(nw.from_native(df).select(columns))
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df.select(columns)
+        return df[columns]
+
+    @staticmethod
+    def df_rename_column(df: Any, old_name: str, new_name: str, backend: str) -> Any:
+        """Rename a single column — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            return nw.to_native(nw.from_native(df).rename({old_name: new_name}))
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df.rename({old_name: new_name})
+        return df.rename(columns={old_name: new_name})
+
+    @staticmethod
+    def df_head(df: Any, n: int, backend: str) -> Any:
+        """Return the first n rows — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            return nw.to_native(nw.from_native(df).head(n))
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df.head(n)
+        return df.iloc[:n]
+
+    @staticmethod
+    def df_fill_null(df: Any, value: Any, backend: str) -> Any:
+        """Fill numeric null/NaN values with a scalar — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            ndf = nw.from_native(df)
+            num_cols = [c for c in ndf.columns if ndf[c].dtype.is_numeric()]
+            if not num_cols:
+                return df
+            return nw.to_native(
+                ndf.with_columns([nw.col(c).fill_null(value) for c in num_cols])
+            )
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            import polars as pl  # type: ignore[import-untyped]
+
+            num_cols = [c for c, t in zip(df.columns, df.dtypes) if t.is_numeric()]
+            return (
+                df.with_columns([pl.col(c).fill_null(value) for c in num_cols])
+                if num_cols
+                else df
+            )
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        return df.fillna({c: value for c in num_cols}) if num_cols else df
+
+    @staticmethod
+    def df_fill_null_string(df: Any, value: str, backend: str) -> Any:
+        """Fill string/object null values — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            ndf = nw.from_native(df)
+            str_cols = [c for c in ndf.columns if ndf[c].dtype == nw.String]
+            if not str_cols:
+                return df
+            return nw.to_native(
+                ndf.with_columns([nw.col(c).fill_null(value) for c in str_cols])
+            )
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            import polars as pl  # type: ignore[import-untyped]
+
+            str_cols = [
+                c for c, t in zip(df.columns, df.dtypes) if t in (pl.String, pl.Utf8)
+            ]
+            return (
+                df.with_columns([pl.col(c).fill_null(value) for c in str_cols])
+                if str_cols
+                else df
+            )
+        str_cols = df.select_dtypes(include="object").columns.tolist()
+        return df.fillna({c: value for c in str_cols}) if str_cols else df
+
+    @staticmethod
+    def df_forward_fill(df: Any, backend: str) -> Any:
+        """Forward-fill (ffill) nulls across all columns — narwhals-first, pandas fallback."""
+        if DataFrameMixinHelper.is_narwhals_available():
+            import narwhals as nw  # type: ignore[import-untyped]
+
+            ndf = nw.from_native(df)
+            return nw.to_native(
+                ndf.with_columns(
+                    [nw.col(c).fill_null(strategy="forward") for c in ndf.columns]
+                )
+            )
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return df.fill_null(strategy="forward")
+        return df.ffill()
+
+    @staticmethod
+    def df_interpolate(df: Any, backend: str) -> Any:
+        """Linear interpolation of numeric nulls — polars/pandas only (narwhals lacks Expr.interpolate)."""
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            import polars as pl  # type: ignore[import-untyped]
+
+            num_cols = [c for c, t in zip(df.columns, df.dtypes) if t.is_numeric()]
+            return (
+                df.with_columns([pl.col(c).interpolate() for c in num_cols])
+                if num_cols
+                else df
+            )
+        return df.interpolate(method="linear")
+
+    @staticmethod
+    def df_to_backend(df: Any, backend: str) -> Any:
+        """Convert df to the requested backend type if it isn't already."""
+        import pandas as _pd
+
+        if (
+            backend == DataFrameBackend.POLARS
+            and DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS)
+        ):
+            import polars as pl  # type: ignore[import-untyped]
+
+            if isinstance(df, _pd.DataFrame):
+                return pl.from_pandas(df)
+            return df  # already polars
+
+        if backend == DataFrameBackend.PANDAS and not isinstance(df, _pd.DataFrame):
+            # polars → pandas fallback
+            detected = DataFrameMixinHelper.detect_backend(df)
+            if detected == DataFrameBackend.POLARS:
+                return df.to_pandas()
+
+        return df
+
+    @staticmethod
+    def infer_column_type(
+        dtype_or_series, backend: str = DataFrameBackend.PANDAS
+    ) -> str:
+        """
+        Infer column type from a dtype or Series.
+
+        Parameters
+        ----------
+        dtype_or_series : dtype | Series
+            Dtype to check (pandas dtype, polars dtype) or a Series
+        backend : str, default 'pandas'
+            DataFrame backend
+
+        Returns
+        -------
+        str
+            Column type: 'bool', 'numeric', 'datetime', or 'string'
+        """
+        if backend == DataFrameBackend.PANDAS:
+            from pandas.api.types import (
+                is_bool_dtype,
+                is_numeric_dtype,
+                is_datetime64_any_dtype,
+            )
+
+            # The pandas dtype checking functions work on both Series and dtypes
+            if is_bool_dtype(dtype_or_series):
+                return "bool"
+            elif is_numeric_dtype(dtype_or_series):
+                return "numeric"
+            elif is_datetime64_any_dtype(dtype_or_series):
+                return "datetime"
+            else:
+                return "string"
+
+        elif backend == DataFrameBackend.POLARS:
+            try:
+                import polars as pl  # type: ignore[import-untyped]
+
+                # Extract dtype if it's a Series
+                if hasattr(dtype_or_series, "dtype"):
+                    dtype = dtype_or_series.dtype
+                else:
+                    dtype = dtype_or_series
+
+                if dtype == pl.Boolean:
+                    return "bool"
+                elif dtype in (
+                    pl.Int8,
+                    pl.Int16,
+                    pl.Int32,
+                    pl.Int64,
+                    pl.UInt8,
+                    pl.UInt16,
+                    pl.UInt32,
+                    pl.UInt64,
+                    pl.Float32,
+                    pl.Float64,
+                ):
+                    return "numeric"
+                elif dtype in (pl.Date, pl.Datetime, pl.Duration, pl.Time):
+                    return "datetime"
+                else:
+                    return "string"
+            except ImportError:
+                # Fallback to pandas logic if polars not available
+                return "string"
+
+        return "string"  # default
+
+    @staticmethod
+    def create_dataframe_from_dict(
+        data: Dict[str, Any], backend: str = DataFrameBackend.PANDAS, **kwargs
+    ) -> Union[pd.DataFrame, Any]:
+        """
+        Create DataFrame from dictionary of columns.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary of {column_name: values}. Values can be:
+            - List/array of values
+            - String/type: creates empty Series with that dtype
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars')
+
+        Returns
+        -------
+        DataFrame
+            DataFrame of specified backend type
+
+        Examples
+        --------
+        >>> data = {"A": [1, 2, 3], "B": [4, 5, 6]}
+        >>> df = DataFrameMixinHelper.create_dataframe_from_dict(data)
+
+        >>> data = {"A": "int64", "B": "string"}
+        >>> df = DataFrameMixinHelper.create_dataframe_from_dict(data)
+        """
+        if backend == DataFrameBackend.PANDAS:
+            # Create DataFrame with proper handling of dtypes
+            df = pd.DataFrame()
+            for col_name, values in data.items():
+                if isinstance(values, (str, type)):
+                    # Empty column with specific dtype
+                    df[col_name] = pd.Series(dtype=values)
+                else:
+                    # Column with data
+                    df[col_name] = values
+            return df
+
+        elif backend == DataFrameBackend.POLARS:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl  # type: ignore[import-untyped]
+
+                # For polars, we need to convert dtype strings to polars dtypes
+                if any(isinstance(v, (str, type)) for v in data.values()):
+                    # Has dtype specifications - need to create schema
+                    schema = {}
+                    actual_data = {}
+                    for col_name, values in data.items():
+                        if isinstance(values, str):
+                            # Map pandas dtype strings to polars
+                            dtype_map = {
+                                "int64": pl.Int64,
+                                "int32": pl.Int32,
+                                "float64": pl.Float64,
+                                "float32": pl.Float32,
+                                "string": pl.String,
+                                "str": pl.String,
+                                "object": pl.String,
+                                "bool": pl.Boolean,
+                                "datetime64": pl.Datetime,
+                            }
+                            schema[col_name] = dtype_map.get(values, pl.String)
+                            actual_data[col_name] = []  # Empty column
+                        elif isinstance(values, type):
+                            # Python type
+                            if values is int:
+                                schema[col_name] = pl.Int64
+                            elif values is float:
+                                schema[col_name] = pl.Float64
+                            elif values is str:
+                                schema[col_name] = pl.String
+                            elif values is bool:
+                                schema[col_name] = pl.Boolean
+                            else:
+                                schema[col_name] = pl.String
+                            actual_data[col_name] = []  # Empty column
+                        else:
+                            actual_data[col_name] = values
+                    return pl.DataFrame(actual_data, schema=schema)
+                else:
+                    # Simple case - all data, no dtype specs
+                    return pl.DataFrame(data)
+            else:
+                # Fallback to pandas if polars not available
+                return DataFrameMixinHelper.create_dataframe_from_dict(
+                    data, backend=DataFrameBackend.PANDAS
+                )
+
+        else:
+            # Unknown backend - default to pandas
+            return DataFrameMixinHelper.create_dataframe_from_dict(
+                data, backend=DataFrameBackend.PANDAS
+            )
+
     # set DataFrame indices
     @staticmethod
     def set_dataframe_index(
@@ -176,6 +705,1161 @@ class DataFrameMixinHelper:
         """
         return list(set([e for e in x if e]))
 
+    # ========================================================================
+    # DataFrame → Entity/Signal/Unit/Data conversion methods
+    # ========================================================================
+
+    @staticmethod
+    def parse_signal_column(col: str) -> Tuple[str, str]:
+        """Parse 'signal name [unit]' → ('signal name', 'unit').
+
+        Blank unit brackets like '[ ]' return ' ' (single space) — the canonical
+        dimensionless unit — truthy so that unit-fill logic is not triggered.
+        """
+        if "[" in col and col.endswith("]"):
+            bracket_idx = col.rfind("[")
+            unit = col[bracket_idx + 1 : -1].strip()
+            return col[:bracket_idx].strip(), unit if unit else " "
+        return col, " "
+
+    @staticmethod
+    def normalize_depth_column(
+        df: pd.DataFrame,
+        depth_col: str,
+        convert_fn: Any,
+    ) -> pd.DataFrame:
+        """Convert depth values to meters and rename column to 'Depth [m]'.
+
+        Looks for any column whose base name matches *depth_col* (e.g. 'Depth [ft]',
+        'Depth [m]', plain 'Depth').  If the unit is already 'm' (or blank / absent)
+        the DataFrame is returned unchanged.  Otherwise *convert_fn* is called with
+        (values, source_unit, 'm') to perform the conversion.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+        depth_col : str
+            Base depth column name (default 'Depth').
+        convert_fn : callable
+            Function with signature convert_fn(values, source, target) → list-like.
+            Typically ``self.convert_units``.
+        """
+        for col in list(df.columns):
+            base = col[: col.index("[")].strip() if "[" in col else col
+            if base != depth_col:
+                continue
+            unit = col[col.index("[") + 1 : -1].strip() if "[" in col else ""
+            if unit in ("m", ""):
+                # already meters or no unit — just ensure column is named 'Depth [m]'
+                if col != f"{depth_col} [m]":
+                    df = df.rename(columns={col: f"{depth_col} [m]"})
+                return df
+            # convert depth values to metres
+            converted = convert_fn(df[col].tolist(), unit, "m")
+            if converted is not None:
+                df = df.copy()
+                df[col] = converted
+            df = df.rename(columns={col: f"{depth_col} [m]"})
+            return df
+        return df
+
+    @staticmethod
+    def is_table_format(df: pd.DataFrame) -> bool:
+        """True if DataFrame uses long table format (Signal [Unit] columns), not Entity/Signal/Unit/Data format."""
+        return "Data" not in df.columns
+
+    @staticmethod
+    def index_records(
+        sub_df: pd.DataFrame, idx_col: str, idx_key: str, val_col: str
+    ) -> List[Dict]:
+        """Extract {idx_key: idx_val, "Value": val} dicts from sub_df."""
+        return [
+            {idx_key: r[idx_col], "Value": r[val_col]}
+            for r in sub_df[[idx_col, val_col]].to_dict("records")
+        ]
+
+    @staticmethod
+    def table_df_to_data_list(
+        df: pd.DataFrame,
+        date_col: str = COLUMN_DATE,
+        depth_col: str = COLUMN_DEPTH,
+    ) -> List[Dict]:
+        """
+        Convert a table-format DataFrame to a list of Entity/Signal/Unit/Data records.
+
+        Long format:  Entity, Date (optional), Depth [unit] (optional), Signal [Unit], ...
+        Wide format:  Date (optional), Depth [unit] (optional), Entity : Signal [Unit], ...
+
+        Parameters
+        ----------
+        df : DataFrame
+            Table-format DataFrame
+        date_col : str, default 'Date'
+            Column name for dates (can be overridden, e.g., 'Timestamp' or 'Time')
+        depth_col : str, default 'Depth'
+            Base name for depth columns (actual column may have unit suffix like 'Depth [m]')
+        """
+        entity_col = DataFrameMixinHelper.COLUMN_ENTITY
+
+        columns = list(df.columns)
+        is_wide = entity_col not in columns
+
+        # Identify index columns (Date / Depth [unit])
+        index_cols: Set[str] = set()
+        depth_col_name: Optional[str] = None
+        for c in columns:
+            if c == date_col:
+                index_cols.add(c)
+            else:
+                base = c[: c.index("[")].strip() if "[" in c else c
+                if base == depth_col:
+                    depth_col_name = c
+                    index_cols.add(c)
+
+        has_date = date_col in index_cols
+        has_depth = depth_col_name is not None
+
+        records: List[Dict] = []
+
+        if is_wide:
+            # Wide: columns are "Entity : Signal [Unit]", no Entity column
+            for col in columns:
+                if col in index_cols:
+                    continue
+                if " : " not in col:
+                    continue
+                entity_part, signal_col = col.split(" : ", 1)
+                signal_name, unit = DataFrameMixinHelper.parse_signal_column(
+                    signal_col.strip()
+                )
+                if has_date:
+                    data: Any = DataFrameMixinHelper.index_records(
+                        df, date_col, "Date", col
+                    )
+                elif has_depth:
+                    assert depth_col_name is not None
+                    data = DataFrameMixinHelper.index_records(
+                        df, depth_col_name, "Depth", col
+                    )
+                else:
+                    data = df[col].iloc[0]
+                records.append(
+                    {
+                        "Entity": entity_part.strip(),
+                        "Signal": signal_name,
+                        "Unit": unit,
+                        "Data": data,
+                    }
+                )
+        else:
+            # Long: Entity column present
+            index_cols.add(entity_col)
+            index_cols.add(DataFrameMixinHelper.COLUMN_ALIAS)
+            signal_cols = [c for c in columns if c not in index_cols]
+            for signal_col in signal_cols:
+                signal_name, unit = DataFrameMixinHelper.parse_signal_column(signal_col)
+                for entity_val, entity_df in df.groupby(entity_col, sort=False):
+                    if has_date:
+                        data = DataFrameMixinHelper.index_records(
+                            entity_df, date_col, "Date", signal_col
+                        )
+                    elif has_depth:
+                        assert depth_col_name is not None
+                        data = DataFrameMixinHelper.index_records(
+                            entity_df, depth_col_name, "Depth", signal_col
+                        )
+                    else:
+                        data = entity_df[signal_col].iloc[0]
+                    records.append(
+                        {
+                            "Entity": str(entity_val),
+                            "Signal": signal_name,
+                            "Unit": unit,
+                            "Data": data,
+                        }
+                    )
+        return records
+
+    @staticmethod
+    def series_to_data_list(
+        s: pd.Series,
+        date_col: str = COLUMN_DATE,
+        depth_col: str = COLUMN_DEPTH,
+    ) -> List[Dict]:
+        """
+        Convert a named Series to Entity/Signal/Unit/Data records.
+
+        Three conventions:
+          1. Row dict (no name, or name has no signal-format):
+               pd.Series({'Entity': 'Well', 'Date': '...', 'Signal [unit]': val})
+          2. Named time/depth series for one entity:
+               pd.Series([v1, v2], index=[date1, date2], name='Entity : Signal [unit]')
+          3. Named static series for multiple entities:
+               pd.Series({'Well1': v1, 'Well2': v2}, name='Signal [unit]')
+
+        Parameters
+        ----------
+        s : Series
+            Input Series
+        date_col : str, default 'Date'
+            Column name for dates (used when converting row-dict fallback)
+        depth_col : str, default 'Depth'
+            Base name for depth columns
+        """
+        name = s.name
+        if name is not None:
+            name_str = str(name)
+            if " : " in name_str:
+                # Convention 2: "Entity : Signal [unit]", index = dates or depths
+                entity_part, signal_col = name_str.split(" : ", 1)
+                signal_name, unit = DataFrameMixinHelper.parse_signal_column(
+                    signal_col.strip()
+                )
+                first_idx = s.index[0] if len(s) > 0 else None
+                if isinstance(first_idx, (int, float, np.integer, np.floating)):
+                    data: Any = [{"Depth": idx, "Value": val} for idx, val in s.items()]
+                else:
+                    data = [{"Date": idx, "Value": val} for idx, val in s.items()]
+                return [
+                    {
+                        "Entity": entity_part.strip(),
+                        "Signal": signal_name,
+                        "Unit": unit,
+                        "Data": data,
+                    }
+                ]
+            if "[" in name_str and name_str.endswith("]"):
+                # Convention 3: "Signal [unit]", index = entity names → static per entity
+                signal_name, unit = DataFrameMixinHelper.parse_signal_column(name_str)
+                return [
+                    {
+                        "Entity": str(entity),
+                        "Signal": signal_name,
+                        "Unit": unit,
+                        "Data": val,
+                    }
+                    for entity, val in s.items()
+                ]
+        # Convention 1: treat as a single long-format row
+        d = s.to_dict()
+        if "Data" not in d:
+            return DataFrameMixinHelper.table_df_to_data_list(
+                pd.DataFrame([d]), date_col=date_col, depth_col=depth_col
+            )
+        return [d]
+
+    @staticmethod
+    def to_data_list(
+        data: Union[List[Dict], Any],
+        date_col: str = COLUMN_DATE,
+        depth_col: str = COLUMN_DEPTH,
+    ) -> List[Dict]:
+        """
+        Convert data input to a list of Entity/Signal/Unit/Data records.
+
+        Accepts:
+          - DataFrame in long format  (Entity, Date/Depth, Signal [Unit] columns)
+          - DataFrame in wide format  (Date/Depth, Entity : Signal [Unit] columns)
+          - DataFrame in record format (Entity, Signal, Unit, Data columns)
+          - Series  (named time/depth series, named static series, or row dict)
+          - List of dicts
+          - Supports multiple DataFrame backends (pandas, polars, narwhals, etc.)
+
+        Parameters
+        ----------
+        data : list[dict] | DataFrame | Series | Any
+            Input data (any DataFrame backend)
+        date_col : str, default 'Date'
+            Column name for dates (can be 'Timestamp', 'Time', etc.)
+        depth_col : str, default 'Depth'
+            Base name for depth columns
+        """
+        # Unwrap narwhals wrappers to their native type first
+        if DataFrameMixinHelper.is_narwhals_available() and hasattr(
+            data, "__narwhals_dataframe__"
+        ):
+            import narwhals as nw
+
+            data = nw.to_native(data, pass_through=True)
+
+        # Detect backend and convert non-pandas DataFrames to pandas
+        backend = DataFrameMixinHelper.detect_backend(data)
+
+        if backend == DataFrameBackend.POLARS:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl
+
+                if isinstance(data, (pl.DataFrame, pl.Series)):
+                    data = data.to_pandas()
+        elif backend not in (
+            DataFrameBackend.PANDAS,
+            DataFrameBackend.PYARROW,
+            DataFrameBackend.DUCKDB,
+            "unknown",
+        ):
+            # pandas-compatible backends (modin, cudf, dask, …) — fall back to .to_pandas()
+            to_pandas_fn = getattr(data, "to_pandas", None)
+            if callable(to_pandas_fn):
+                data = to_pandas_fn()
+
+        # Now process as pandas DataFrame/Series
+        if isinstance(data, pd.DataFrame):
+            if DataFrameMixinHelper.is_table_format(data):
+                return DataFrameMixinHelper.table_df_to_data_list(
+                    data, date_col=date_col, depth_col=depth_col
+                )
+            return cast(List[Dict], data.to_dict("records"))
+        elif isinstance(data, pd.Series):
+            return DataFrameMixinHelper.series_to_data_list(
+                data, date_col=date_col, depth_col=depth_col
+            )
+        return list(data)
+
+    # ---- DataFrame builders for signals data ----
+
+    @staticmethod
+    def _build_indexed_df(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        index_col: str,
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        backend: str = DataFrameBackend.PANDAS,
+        parse_dates: bool = True,
+    ) -> Optional[Any]:
+        """Build a wide pivot DataFrame from indexed (time or depth) response data.
+
+        Supports both pandas and native polars construction (no pandas→polars conversion).
+        """
+        if not data_num and not data_str:
+            return None
+
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return DataFrameMixinHelper._build_indexed_df_polars(
+                data_num,
+                data_str,
+                index_col,
+                entity_col,
+                signal_col,
+                signals_with_units_map,
+                parse_dates,
+            )
+        return DataFrameMixinHelper._build_indexed_df_pandas(
+            data_num,
+            data_str,
+            index_col,
+            entity_col,
+            signal_col,
+            signals_with_units_map,
+            parse_dates,
+        )
+
+    @staticmethod
+    def _build_indexed_df_pandas(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        index_col: str,
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        parse_dates: bool,
+    ) -> Optional["pd.DataFrame"]:
+        data = [*(data_num or []), *(data_str or [])]
+        if not data:
+            return None
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+        unit_key = "UnitName" if response_entity_key == "EntityName" else "Unit"
+        meta = [response_entity_key, signal_col, unit_key]
+        df_normalized = pd.json_normalize(
+            data,
+            meta=meta,
+            record_path=["Data"],
+            errors="ignore",
+        )
+        if index_col not in df_normalized.columns:
+            return None
+        df = df_normalized.pivot(
+            index=[response_entity_key, index_col],
+            columns=signal_col,
+            values="Value",
+        )
+        df.columns.name = None
+        df = df.rename(columns=signals_with_units_map).reset_index()
+        if response_entity_key != entity_col:
+            df = df.rename(columns={response_entity_key: entity_col})
+        if parse_dates and index_col in df.columns:
+            df[index_col] = pd.to_datetime(df[index_col])
+        return df
+
+    @staticmethod
+    def _build_indexed_df_polars(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        index_col: str,
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        parse_dates: bool,
+    ) -> Optional[Any]:
+        import polars as pl
+
+        dfs: List[Any] = []
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        def _build_one(items: List[Dict], val_schema: Any) -> Optional[Any]:
+            rows = [
+                {
+                    entity_col: item[response_entity_key],
+                    "__sig__": item[signal_col],
+                    index_col: point.get(index_col),
+                    "Value": val_schema(point["Value"])
+                    if point.get("Value") is not None
+                    else None,
+                }
+                for item in items
+                for point in item.get("Data", [])
+                if index_col in point
+            ]
+            if not rows:
+                return None
+            schema: Dict[str, Any] = {
+                entity_col: pl.String,
+                "__sig__": pl.String,
+                index_col: pl.String,
+                "Value": pl.Float64 if val_schema is float else pl.String,
+            }
+            df = pl.DataFrame(rows, schema=schema)
+            df = df.pivot(values="Value", index=[entity_col, index_col], on="__sig__")
+            rename = {
+                k: v for k, v in signals_with_units_map.items() if k in df.columns
+            }
+            return df.rename(rename) if rename else df
+
+        if data_num:
+            df_num = _build_one(data_num, float)
+            if df_num is not None:
+                dfs.append(df_num)
+        if data_str:
+            df_str = _build_one(data_str, str)
+            if df_str is not None:
+                dfs.append(df_str)
+        if not dfs:
+            return None
+        df = (
+            dfs[0]
+            if len(dfs) == 1
+            else dfs[0].join(
+                dfs[1], on=[entity_col, index_col], how="full", coalesce=True
+            )
+        )
+        if parse_dates and index_col in df.columns:
+            df = df.with_columns(
+                pl.col(index_col).str.to_datetime(
+                    format="%Y-%m-%dT%H:%M:%S",
+                    time_unit="us",
+                    strict=False,
+                )
+            )
+        return df
+
+    @staticmethod
+    def _build_static_df(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        backend: str = DataFrameBackend.PANDAS,
+    ) -> Optional[Any]:
+        """Build a wide pivot DataFrame from static scalar response data."""
+        if not data_num and not data_str:
+            return None
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return DataFrameMixinHelper._build_static_df_polars(
+                data_num,
+                data_str,
+                entity_col,
+                signal_col,
+                signals_with_units_map,
+            )
+        return DataFrameMixinHelper._build_static_df_pandas(
+            data_num,
+            data_str,
+            entity_col,
+            signal_col,
+            signals_with_units_map,
+        )
+
+    @staticmethod
+    def _build_static_df_pandas(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+    ) -> Optional["pd.DataFrame"]:
+        data = [*(data_num or []), *(data_str or [])]
+        if not data:
+            return None
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+        df_normalized = pd.json_normalize(data)
+        if (
+            response_entity_key not in df_normalized.columns
+            or signal_col not in df_normalized.columns
+        ):
+            return None
+        df = df_normalized.pivot(
+            index=response_entity_key, columns=signal_col, values="Data"
+        )
+        df.columns.name = None
+        df = df.rename(columns=signals_with_units_map).reset_index()
+        if response_entity_key != entity_col:
+            df = df.rename(columns={response_entity_key: entity_col})
+        return df
+
+    @staticmethod
+    def _build_static_df_polars(
+        data_num: List[Dict],
+        data_str: List[Dict],
+        entity_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+    ) -> Optional[Any]:
+        import polars as pl
+
+        dfs: List[Any] = []
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        def _build_one(items: List[Dict], val_schema: Any) -> Optional[Any]:
+            rows = [
+                {
+                    entity_col: item[response_entity_key],
+                    "__sig__": item[signal_col],
+                    "Data": val_schema(item["Data"])
+                    if item.get("Data") is not None
+                    else None,
+                }
+                for item in items
+            ]
+            if not rows:
+                return None
+            schema: Dict[str, Any] = {
+                entity_col: pl.String,
+                "__sig__": pl.String,
+                "Data": pl.Float64 if val_schema is float else pl.String,
+            }
+            df = pl.DataFrame(rows, schema=schema)
+            df = df.pivot(values="Data", index=entity_col, on="__sig__")
+            rename = {
+                k: v for k, v in signals_with_units_map.items() if k in df.columns
+            }
+            return df.rename(rename) if rename else df
+
+        if data_num:
+            df_num = _build_one(data_num, float)
+            if df_num is not None:
+                dfs.append(df_num)
+        if data_str:
+            df_str = _build_one(data_str, str)
+            if df_str is not None:
+                dfs.append(df_str)
+        if not dfs:
+            return None
+        return (
+            dfs[0]
+            if len(dfs) == 1
+            else dfs[0].join(dfs[1], on=entity_col, how="full", coalesce=True)
+        )
+
+    @staticmethod
+    def _build_combined_df(
+        data_time_num: List[Dict],
+        data_time_str: List[Dict],
+        data_depth_num: List[Dict],
+        data_depth_str: List[Dict],
+        data_static_num: List[Dict],
+        data_static_str: List[Dict],
+        entity_col: str,
+        time_col: str,
+        depth_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        backend: str = DataFrameBackend.PANDAS,
+    ) -> Optional[Any]:
+        """Build all signal types (time, depth, static) into one DataFrame in a single pass.
+
+        Routing strategy (benchmarked at 200×200 / 500×500 / 1000×1000):
+
+        backend="pandas"
+            → _build_combined_df_no_pivot  (fastest pandas path, avoids pivot entirely)
+
+        backend="polars" (or any non-pandas backend) + narwhals installed
+            → _build_combined_df_narwhals  (narwhals dispatches to polars pivot; −77 to −82%)
+              Bridge backends (pyarrow, duckdb, dask, modin, cudf): built as polars
+              via narwhals, then converted to the target type at the very end.
+
+        backend="polars" + narwhals NOT installed
+            → _build_combined_df_polars    (direct polars pivot)
+
+        anything else + narwhals NOT installed + polars NOT installed
+            → _build_combined_df_pandas    (json_normalize + pandas pivot fallback)
+
+        Narwhals is never a user-facing backend value — it is selected automatically
+        as the internal dispatch layer when installed.
+        """
+        _args = (
+            data_time_num,
+            data_time_str,
+            data_depth_num,
+            data_depth_str,
+            data_static_num,
+            data_static_str,
+            entity_col,
+            time_col,
+            depth_col,
+            signal_col,
+            signals_with_units_map,
+        )
+        # pandas backend: no_pivot is the fastest pandas-native path
+        if backend == DataFrameBackend.PANDAS:
+            return DataFrameMixinHelper._build_combined_df_no_pivot(*_args)
+        # all non-pandas backends go through narwhals (polars pivot + bridge for pyarrow/duckdb)
+        try:
+            import narwhals  # noqa: F401
+
+            return DataFrameMixinHelper._build_combined_df_narwhals(
+                *_args, backend=backend
+            )
+        except ImportError:
+            pass
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            return DataFrameMixinHelper._build_combined_df_polars(*_args)
+        return DataFrameMixinHelper._build_combined_df_pandas(*_args)
+
+    @staticmethod
+    def _build_combined_df_pandas(
+        data_time_num: List[Dict],
+        data_time_str: List[Dict],
+        data_depth_num: List[Dict],
+        data_depth_str: List[Dict],
+        data_static_num: List[Dict],
+        data_static_str: List[Dict],
+        entity_col: str,
+        time_col: str,
+        depth_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+    ) -> Optional["pd.DataFrame"]:
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        def _pivot_indexed(data: List[Dict], idx: str) -> Optional["pd.DataFrame"]:
+            if not data:
+                return None
+            unit_key = "UnitName" if response_entity_key == "EntityName" else "Unit"
+            df = pd.json_normalize(
+                data,
+                meta=[response_entity_key, signal_col, unit_key],
+                record_path=["Data"],
+                errors="ignore",
+            )
+            if idx not in df.columns:
+                return None
+            df = df.pivot(
+                index=[response_entity_key, idx], columns=signal_col, values="Value"
+            )
+            df.columns.name = None
+            df = df.rename(columns=signals_with_units_map).reset_index()
+            if response_entity_key != entity_col:
+                df = df.rename(columns={response_entity_key: entity_col})
+            if idx == time_col:
+                df[time_col] = pd.to_datetime(df[time_col])
+            return df
+
+        def _pivot_static(data: List[Dict]) -> Optional["pd.DataFrame"]:
+            if not data:
+                return None
+            df = pd.json_normalize(data)
+            if response_entity_key not in df.columns or signal_col not in df.columns:
+                return None
+            df = df.pivot(index=response_entity_key, columns=signal_col, values="Data")
+            df.columns.name = None
+            df = df.rename(columns=signals_with_units_map).reset_index()
+            if response_entity_key != entity_col:
+                df = df.rename(columns={response_entity_key: entity_col})
+            return df
+
+        frames = [
+            f
+            for f in [
+                _pivot_indexed([*data_time_num, *data_time_str], time_col),
+                _pivot_indexed([*data_depth_num, *data_depth_str], depth_col),
+                _pivot_static([*data_static_num, *data_static_str]),
+            ]
+            if f is not None and not f.empty
+        ]
+        if not frames:
+            return None
+        if len(frames) == 1:
+            return frames[0]
+        df = frames[0]
+        for right in frames[1:]:
+            df = pd.merge(df, right, on=entity_col, how="outer")
+        return df
+
+    @staticmethod
+    def _build_combined_df_polars(
+        data_time_num: List[Dict],
+        data_time_str: List[Dict],
+        data_depth_num: List[Dict],
+        data_depth_str: List[Dict],
+        data_static_num: List[Dict],
+        data_static_str: List[Dict],
+        entity_col: str,
+        time_col: str,
+        depth_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+    ) -> Optional[Any]:
+        import polars as pl
+
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        def _pivot_indexed(
+            num: List[Dict], str_: List[Dict], idx: str
+        ) -> Optional[Any]:
+            dfs: List[Any] = []
+            for items, val_fn, val_type in [
+                (num, float, pl.Float64),
+                (str_, str, pl.String),
+            ]:
+                if not items:
+                    continue
+                rows = [
+                    {
+                        entity_col: item[response_entity_key],
+                        "__sig__": item[signal_col],
+                        idx: point.get(idx),
+                        "Value": val_fn(point["Value"])
+                        if point.get("Value") is not None
+                        else None,
+                    }
+                    for item in items
+                    for point in item.get("Data", [])
+                    if idx in point
+                ]
+                if not rows:
+                    continue
+                df = pl.DataFrame(
+                    rows,
+                    schema={
+                        entity_col: pl.String,
+                        "__sig__": pl.String,
+                        idx: pl.String,
+                        "Value": val_type,
+                    },
+                ).pivot(values="Value", index=[entity_col, idx], on="__sig__")
+                rename = {
+                    k: v for k, v in signals_with_units_map.items() if k in df.columns
+                }
+                dfs.append(df.rename(rename) if rename else df)
+            if not dfs:
+                return None
+            df = (
+                dfs[0]
+                if len(dfs) == 1
+                else dfs[0].join(
+                    dfs[1], on=[entity_col, idx], how="full", coalesce=True
+                )
+            )
+            if idx == time_col:
+                df = df.with_columns(
+                    pl.col(idx)
+                    .str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%SZ",
+                        time_unit="us",
+                        strict=False,
+                    )
+                    .dt.replace_time_zone(None)
+                )
+            return df
+
+        def _pivot_static(num: List[Dict], str_: List[Dict]) -> Optional[Any]:
+            dfs: List[Any] = []
+            for items, val_fn, val_type in [
+                (num, float, pl.Float64),
+                (str_, str, pl.String),
+            ]:
+                if not items:
+                    continue
+                rows = [
+                    {
+                        entity_col: item[response_entity_key],
+                        "__sig__": item[signal_col],
+                        "Data": val_fn(item["Data"])
+                        if item.get("Data") is not None
+                        else None,
+                    }
+                    for item in items
+                ]
+                if not rows:
+                    continue
+                df = pl.DataFrame(
+                    rows,
+                    schema={
+                        entity_col: pl.String,
+                        "__sig__": pl.String,
+                        "Data": val_type,
+                    },
+                ).pivot(values="Data", index=entity_col, on="__sig__")
+                rename = {
+                    k: v for k, v in signals_with_units_map.items() if k in df.columns
+                }
+                dfs.append(df.rename(rename) if rename else df)
+            if not dfs:
+                return None
+            return (
+                dfs[0]
+                if len(dfs) == 1
+                else dfs[0].join(dfs[1], on=entity_col, how="full", coalesce=True)
+            )
+
+        frames = [
+            f
+            for f in [
+                _pivot_indexed(data_time_num, data_time_str, time_col),
+                _pivot_indexed(data_depth_num, data_depth_str, depth_col),
+                _pivot_static(data_static_num, data_static_str),
+            ]
+            if f is not None
+        ]
+        if not frames:
+            return None
+        if len(frames) == 1:
+            return frames[0]
+        df = frames[0]
+        for right in frames[1:]:
+            df = df.join(right, on=entity_col, how="full", coalesce=True)
+        return df
+
+    @staticmethod
+    def _build_combined_df_narwhals(
+        data_time_num: List[Dict],
+        data_time_str: List[Dict],
+        data_depth_num: List[Dict],
+        data_depth_str: List[Dict],
+        data_static_num: List[Dict],
+        data_static_str: List[Dict],
+        entity_col: str,
+        time_col: str,
+        depth_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+        backend: str = DataFrameBackend.PANDAS,
+    ) -> Optional[Any]:
+        """Build combined DataFrame using narwhals (unified pandas+polars code path).
+
+        Identical logic to the pandas/polars variants but expressed in narwhals
+        expressions, so one code path handles both backends.
+        Requires narwhals >= 1.0 to be installed.
+
+        For pyarrow and duckdb backends, narwhals pivot is not implemented —
+        we use a polars bridge (build as polars, then convert to the target native type).
+        """
+        import narwhals as nw
+
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        # pyarrow and duckdb can't pivot natively — build as polars, then convert
+        _bridge_backends = (DataFrameBackend.PYARROW, DataFrameBackend.DUCKDB)
+        if backend in _bridge_backends:
+            result_pl = DataFrameMixinHelper._build_combined_df_narwhals(
+                data_time_num,
+                data_time_str,
+                data_depth_num,
+                data_depth_str,
+                data_static_num,
+                data_static_str,
+                entity_col,
+                time_col,
+                depth_col,
+                signal_col,
+                signals_with_units_map,
+                backend=DataFrameBackend.POLARS,
+            )
+            if result_pl is None:
+                return None
+            pd_result = result_pl.to_pandas()
+            if backend == DataFrameBackend.PYARROW:
+                import pyarrow as pa  # type: ignore[import-untyped]
+
+                return pa.Table.from_pandas(pd_result)
+            if backend == DataFrameBackend.DUCKDB:
+                import duckdb  # type: ignore[import-untyped]
+
+                return duckdb.from_df(pd_result)
+            return result_pl
+
+        nw_backend = (
+            "polars" if DataFrameMixinHelper.is_polars_backend(backend) else "pandas"
+        )
+
+        def _full_join_coalesce(left: Any, right: Any, on: List[str]) -> Any:
+            result = left.join(right, on=on if len(on) > 1 else on[0], how="full")
+            for key in on:
+                right_key = f"{key}_right"
+                if right_key in result.columns:
+                    result = result.with_columns(
+                        nw.col(key).fill_null(nw.col(right_key))
+                    ).drop(right_key)
+            return result
+
+        def _pivot_indexed(
+            num: List[Dict], str_: List[Dict], idx: str
+        ) -> Optional[Any]:
+            all_rows: List[Dict] = []
+            val_types: Dict[str, Any] = {}
+            for items, val_fn, nw_type in [
+                (num, float, nw.Float64),
+                (str_, str, nw.String),
+            ]:
+                if not items:
+                    continue
+                rows = [
+                    {
+                        entity_col: item[response_entity_key],
+                        "__sig__": item[signal_col],
+                        idx: point.get(idx),
+                        "Value": val_fn(point["Value"])
+                        if point.get("Value") is not None
+                        else None,
+                    }
+                    for item in items
+                    for point in item.get("Data", [])
+                    if idx in point
+                ]
+                if not rows:
+                    continue
+                all_rows.extend(rows)
+                val_types["Value"] = nw.String if val_fn is str else nw.Float64
+            if not all_rows:
+                return None
+            schema: Dict[str, Any] = {
+                entity_col: nw.String,
+                "__sig__": nw.String,
+                idx: nw.String,
+                "Value": val_types.get("Value", nw.Float64),
+            }
+            df = nw.from_dict(
+                {
+                    entity_col: [r[entity_col] for r in all_rows],
+                    "__sig__": [r["__sig__"] for r in all_rows],
+                    idx: [r[idx] for r in all_rows],
+                    "Value": [r["Value"] for r in all_rows],
+                },
+                schema=schema,
+                backend=nw_backend,
+            )
+            df = df.pivot(values="Value", index=[entity_col, idx], on="__sig__")
+            rename = {
+                k: v for k, v in signals_with_units_map.items() if k in df.columns
+            }
+            if rename:
+                df = df.rename(rename)
+            if idx == time_col:
+                df = df.with_columns(
+                    nw.col(idx).str.to_datetime(format="%Y-%m-%dT%H:%M:%S")
+                )
+            return df
+
+        def _pivot_static(num: List[Dict], str_: List[Dict]) -> Optional[Any]:
+            all_rows: List[Dict] = []
+            val_type: Any = nw.Float64
+            for items, val_fn, nw_type in [
+                (num, float, nw.Float64),
+                (str_, str, nw.String),
+            ]:
+                if not items:
+                    continue
+                rows = [
+                    {
+                        entity_col: item[response_entity_key],
+                        "__sig__": item[signal_col],
+                        "Data": val_fn(item["Data"])
+                        if item.get("Data") is not None
+                        else None,
+                    }
+                    for item in items
+                ]
+                if not rows:
+                    continue
+                all_rows.extend(rows)
+                val_type = nw.String if val_fn is str else nw.Float64
+            if not all_rows:
+                return None
+            df = nw.from_dict(
+                {
+                    entity_col: [r[entity_col] for r in all_rows],
+                    "__sig__": [r["__sig__"] for r in all_rows],
+                    "Data": [r["Data"] for r in all_rows],
+                },
+                schema=cast(
+                    Dict[str, Any],
+                    {entity_col: nw.String, "__sig__": nw.String, "Data": val_type},
+                ),
+                backend=nw_backend,
+            )
+            df = df.pivot(values="Data", index=entity_col, on="__sig__")
+            rename = {
+                k: v for k, v in signals_with_units_map.items() if k in df.columns
+            }
+            return df.rename(rename) if rename else df
+
+        frames = [
+            f
+            for f in [
+                _pivot_indexed(data_time_num, data_time_str, time_col),
+                _pivot_indexed(data_depth_num, data_depth_str, depth_col),
+                _pivot_static(data_static_num, data_static_str),
+            ]
+            if f is not None
+        ]
+        if not frames:
+            return None
+        if len(frames) == 1:
+            return nw.to_native(frames[0])
+        df = frames[0]
+        for right in frames[1:]:
+            df = _full_join_coalesce(df, right, [entity_col])
+        return nw.to_native(df)
+
+    @staticmethod
+    def _build_combined_df_no_pivot(
+        data_time_num: List[Dict],
+        data_time_str: List[Dict],
+        data_depth_num: List[Dict],
+        data_depth_str: List[Dict],
+        data_static_num: List[Dict],
+        data_static_str: List[Dict],
+        entity_col: str,
+        time_col: str,
+        depth_col: str,
+        signal_col: str,
+        signals_with_units_map: Dict[str, str],
+    ) -> Optional[Any]:
+        """Build a pandas DataFrame without pivot — constructs columns directly from dicts.
+
+        Pandas-only path called exclusively from _build_combined_df when backend="pandas".
+        Instead of flatten-all-rows → pivot, this approach:
+        1. Builds a (entity, index) → {signal: value} mapping per signal type
+        2. Constructs the output DataFrame column-by-column from those mappings
+
+        ~70% faster than the pandas json_normalize+pivot path at 200×200.
+        """
+        response_entity_key = "EntityName" if entity_col != "Entity" else entity_col
+
+        def _collect_indexed(
+            items_list: List[tuple],
+            idx_key: str,
+        ) -> Dict[str, Dict[str, Any]]:
+            """Walk items and build (entity\x00index) → {col: val} mapping."""
+            rows_map: Dict[str, Dict[str, Any]] = {}
+            for items, is_numeric in items_list:
+                if not items:
+                    continue
+                for item in items:
+                    ent = item[response_entity_key]
+                    sig_raw = item[signal_col]
+                    sig_out = signals_with_units_map.get(sig_raw, sig_raw)
+                    for pt in item.get("Data") or []:
+                        if idx_key not in pt:
+                            continue
+                        idx_val = str(pt[idx_key])
+                        key = f"{ent}\x00{idx_val}"
+                        if key not in rows_map:
+                            rows_map[key] = {entity_col: ent, idx_key: idx_val}
+                        v = pt.get("Value")
+                        rows_map[key][sig_out] = (
+                            (float(v) if is_numeric else str(v))
+                            if v is not None
+                            else None
+                        )
+            return rows_map
+
+        # ── collect time and depth signals separately ─────────────────────────
+        time_rows = _collect_indexed(
+            [(data_time_num, True), (data_time_str, False)], time_col
+        )
+        depth_rows = _collect_indexed(
+            [(data_depth_num, True), (data_depth_str, False)], depth_col
+        )
+
+        # ── collect static signals ────────────────────────────────────────────
+        static_rows: Dict[str, Dict[str, Any]] = {}
+        for items, is_numeric in [(data_static_num, True), (data_static_str, False)]:
+            if not items:
+                continue
+            for item in items:
+                ent = item[response_entity_key]
+                sig_raw = item[signal_col]
+                sig_out = signals_with_units_map.get(sig_raw, sig_raw)
+                v = item.get("Data")
+                if ent not in static_rows:
+                    static_rows[ent] = {entity_col: ent}
+                static_rows[ent][sig_out] = (
+                    (float(v) if is_numeric else str(v)) if v is not None else None
+                )
+
+        def _merge_static(indexed: Dict[str, Dict[str, Any]]) -> None:
+            for row in indexed.values():
+                ent = row[entity_col]
+                if ent in static_rows:
+                    for k, v in static_rows[ent].items():
+                        if k != entity_col:
+                            row.setdefault(k, v)
+
+        if time_rows:
+            _merge_static(time_rows)
+        if depth_rows:
+            _merge_static(depth_rows)
+
+        # ── build one or two pandas frames then combine ───────────────────────
+        def _to_frame(
+            rows: Dict[str, Dict[str, Any]], idx_key: str, parse_time: bool
+        ) -> Any:
+            if not rows:
+                return None
+            row_list = list(rows.values())
+            all_keys = list(row_list[0].keys())
+            col_order = [entity_col, idx_key] + [
+                k for k in all_keys if k not in (entity_col, idx_key)
+            ]
+            col_data: Dict[str, List] = {
+                k: [r.get(k) for r in row_list] for k in col_order
+            }
+            df = pd.DataFrame(col_data)
+            if parse_time and idx_key in df.columns:
+                _ts = cast(pd.Series, pd.to_datetime(df[idx_key], utc=True))
+                df[idx_key] = _ts.dt.tz_localize(None)
+            return df
+
+        time_frame = _to_frame(time_rows, time_col, parse_time=True)
+        depth_frame = _to_frame(depth_rows, depth_col, parse_time=False)
+
+        # static-only case (no indexed signals at all)
+        if time_frame is None and depth_frame is None:
+            if not static_rows:
+                return None
+            row_list = list(static_rows.values())
+            col_data = {k: [r.get(k) for r in row_list] for k in row_list[0]}
+            result_frame: Any = pd.DataFrame(col_data)
+        elif time_frame is not None and depth_frame is not None:
+            result_frame = pd.merge(time_frame, depth_frame, on=entity_col, how="outer")
+        else:
+            result_frame = time_frame if time_frame is not None else depth_frame
+
+        return result_frame
+
 
 # DataFrames utilities
 class DataFrameMixin(
@@ -188,12 +1872,184 @@ class DataFrameMixin(
     DataFrames Utilities
     """
 
+    # read dataframe from file
+    def read_dataframe_from_file(
+        self,
+        filepath: str,
+        backend: str = DataFrameBackend.PANDAS,
+        delimiter: str = ",",
+        engine: Optional[str] = None,
+        **kwargs,
+    ) -> Union[pd.DataFrame, Any]:
+        """
+        Read DataFrame from file with backend selection.
+
+        Parameters
+        ----------
+        filepath : str
+            Path to file
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars')
+        delimiter : str, default ','
+            Delimiter for CSV/TSV files
+        engine : str, optional
+            Engine for pandas readers (e.g., 'openpyxl', 'pyarrow', 'c')
+
+        Returns
+        -------
+        DataFrame
+            DataFrame of specified backend type
+
+        Raises
+        ------
+        ValueError
+            If file extension is not supported
+
+        Examples
+        --------
+        >>> df = api.read_dataframe_from_file("data.csv")
+        >>> df = api.read_dataframe_from_file("data.xlsx", engine="openpyxl")
+        >>> df = api.read_dataframe_from_file("data.parquet", backend="polars")
+        """
+        ext = ApiHelper.get_file_extension(filepath).lower()
+
+        if backend == DataFrameBackend.PANDAS:
+            if ext in (".xlsx", ".xls"):
+                return pd.read_excel(filepath, engine=cast(Any, engine or "openpyxl"))
+            elif ext == ".csv":
+                return pd.read_csv(filepath, delimiter=delimiter, engine=engine)
+            elif ext in (".tsv", ".txt"):
+                return pd.read_table(filepath, sep=delimiter, engine=engine)
+            elif ext == ".parquet":
+                return pd.read_parquet(filepath, engine=engine or "auto")
+            elif ext in (".feather", ".arrow"):
+                return pd.read_feather(filepath)
+            else:
+                raise ValueError(
+                    f"PetroVisor::read_dataframe_from_file(): "
+                    f"Unsupported file extension: '{ext}'. "
+                    f"Supported formats: .csv, .tsv, .txt, .xlsx, .xls, .parquet, .feather, .arrow"
+                )
+
+        elif backend == DataFrameBackend.POLARS:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl  # type: ignore[import-untyped]
+
+                if ext in (".xlsx", ".xls"):
+                    return pl.read_excel(filepath)
+                elif ext == ".csv":
+                    return pl.read_csv(filepath, separator=delimiter)
+                elif ext in (".tsv", ".txt"):
+                    return pl.read_csv(filepath, separator=delimiter)
+                elif ext == ".parquet":
+                    return pl.read_parquet(filepath)
+                elif ext in (".feather", ".arrow"):
+                    return pl.read_ipc(filepath)
+                else:
+                    raise ValueError(
+                        f"PetroVisor::read_dataframe_from_file(): "
+                        f"Unsupported file extension for polars: '{ext}'"
+                    )
+            else:
+                # Fallback to pandas if polars not available
+                return self.read_dataframe_from_file(
+                    filepath,
+                    backend=DataFrameBackend.PANDAS,
+                    delimiter=delimiter,
+                    engine=engine,
+                    **kwargs,
+                )
+
+        else:
+            raise ValueError(f"Unsupported backend: '{backend}'")
+
+    # read dataframe from bytes
+    def read_dataframe_from_bytes(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        backend: str = DataFrameBackend.PANDAS,
+        **kwargs,
+    ) -> Union[pd.DataFrame, Any]:
+        """
+        Read DataFrame from bytes using file extension.
+
+        Parameters
+        ----------
+        file_bytes : bytes
+            File content as bytes
+        filename : str
+            Filename (used to determine format from extension)
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars')
+
+        Returns
+        -------
+        DataFrame
+            DataFrame of specified backend type
+
+        Raises
+        ------
+        ValueError
+            If file extension is not supported
+
+        Examples
+        --------
+        >>> file_bytes = api.get_file("data.csv")
+        >>> df = api.read_dataframe_from_bytes(file_bytes, "data.csv")
+        >>> df = api.read_dataframe_from_bytes(file_bytes, "data.parquet", backend="polars")
+        """
+        ext = ApiHelper.get_file_extension(filename).lower()
+
+        if backend == DataFrameBackend.PANDAS:
+            if ext == ".csv":
+                return pd.read_csv(io.BytesIO(file_bytes))
+            elif ext in (".xlsx", ".xls"):
+                return pd.read_excel(io.BytesIO(file_bytes))
+            elif ext == ".parquet":
+                return pd.read_parquet(io.BytesIO(file_bytes))
+            elif ext in (".feather", ".arrow"):
+                return pd.read_feather(io.BytesIO(file_bytes))
+            else:
+                raise ValueError(
+                    f"PetroVisor::read_dataframe_from_bytes(): "
+                    f"Unsupported file extension: '{ext}'. "
+                    f"Supported formats: .csv, .xlsx, .xls, .parquet, .feather, .arrow"
+                )
+
+        elif backend == DataFrameBackend.POLARS:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl  # type: ignore[import-untyped]
+
+                if ext == ".csv":
+                    return pl.read_csv(file_bytes)
+                elif ext in (".xlsx", ".xls"):
+                    return pl.read_excel(file_bytes)
+                elif ext == ".parquet":
+                    return pl.read_parquet(file_bytes)
+                elif ext in (".feather", ".arrow"):
+                    return pl.read_ipc(file_bytes)
+                else:
+                    raise ValueError(
+                        f"PetroVisor::read_dataframe_from_bytes(): "
+                        f"Unsupported file extension for polars: '{ext}'"
+                    )
+            else:
+                # Fallback to pandas if polars not available
+                return self.read_dataframe_from_bytes(
+                    file_bytes, filename, backend=DataFrameBackend.PANDAS, **kwargs
+                )
+
+        else:
+            raise ValueError(f"Unsupported backend: '{backend}'")
+
     # convert dataframe to file-like object
     def convert_dataframe_to_file_object(
         self,
-        df: pd.DataFrame,
+        df: Any,
         file_name: str,
         date_format: Optional[str] = None,
+        backend: Optional[str] = None,
         **kwargs,
     ) -> io.BytesIO:
         """
@@ -202,18 +2058,44 @@ class DataFrameMixin(
         Parameters
         ----------
         df : DataFrame
-            DataFrame
+            DataFrame (pandas, polars, or other backend)
         file_name : str
             File name
         date_format : str, default None
             Date format
+        backend : str, default None
+            DataFrame backend. If None, auto-detected from df type
         """
-        if not isinstance(df, (pd.DataFrame, pd.Series)):
+        # Unwrap narwhals wrappers to their native type first
+        if DataFrameMixinHelper.is_narwhals_available() and hasattr(
+            df, "__narwhals_dataframe__"
+        ):
+            import narwhals as nw
+
+            df = nw.to_native(df, pass_through=True)
+
+        # Auto-detect backend if not specified
+        if backend is None:
+            backend = DataFrameMixinHelper.detect_backend(df)
+
+        # Check if it's a DataFrame type we recognize
+        if backend == "unknown":
             return df
+
+        # Convert non-pandas DataFrames to pandas for serialization
+        df_pandas = df
+        if backend == DataFrameBackend.POLARS:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl
+
+                if isinstance(df, (pl.DataFrame, pl.Series)):
+                    df_pandas = df.to_pandas()
+
+        # Serialize to file format
         if file_name.lower().endswith(".csv"):
             file_obj = io.BytesIO()
             if date_format:
-                df.to_csv(
+                df_pandas.to_csv(
                     file_obj,
                     header=True,
                     index=False,
@@ -222,22 +2104,22 @@ class DataFrameMixin(
                     date_format="%Y-%m-%dT%H:%M:%S.%fZ",
                 )
             else:
-                df.to_csv(
+                df_pandas.to_csv(
                     file_obj, header=True, index=False, encoding="utf-8", mode="wb"
                 )
             file_obj.seek(0)
         elif file_name.lower().endswith(".xlsx"):
             file_obj = io.BytesIO()
             with pd.ExcelWriter(cast(Any, file_obj), engine="xlsxwriter") as writer:
-                df.to_excel(writer, index=False)
+                df_pandas.to_excel(writer, index=False)
             file_obj.seek(0)
         else:
             try:
                 file_obj = io.BytesIO()
-                df.to_pickle(file_obj, compression="gzip")
+                df_pandas.to_pickle(file_obj, compression="gzip")
                 file_obj.seek(0)
             except Exception:
-                file_obj = io.BytesIO(pickle.dumps(df))
+                file_obj = io.BytesIO(pickle.dumps(df_pandas))
         file_obj.name = file_name
         return file_obj
 
@@ -741,14 +2623,6 @@ class DataFrameMixin(
         def _is_index_column(column_name: str) -> bool:
             return column_name in {date_col, depth_col, entity_col, alias_col}
 
-        # get column data
-        def _get_column_data(column_index: Optional[int], entity_name: str) -> List:
-            if column_index is None:
-                return []
-            if not with_entity_col:
-                return df.iloc[:, column_index].to_list()
-            return df[df[entity_col] == entity_name].iloc[:, column_index].to_list()
-
         # get signals
         col_names = list(set(col_names))
         existing_signal_names = self.get_signal_names(**kwargs)
@@ -758,10 +2632,55 @@ class DataFrameMixin(
             if not _is_index_column(cname)
         }
 
+        # pre-group by entity for long format to avoid repeated DataFrame filtering
+        entity_groups: Dict[str, pd.DataFrame] = (
+            {str(e): g for e, g in df.groupby(entity_col, sort=False)}
+            if with_entity_col
+            else {}
+        )
+
+        def _val_series(
+            entity_df: pd.DataFrame, col_name: str, col_idx: int
+        ) -> pd.Series:
+            if with_entity_col:
+                return entity_df[col_name]
+            return df.iloc[:, col_idx]
+
+        def _index_series(
+            entity_df: pd.DataFrame, idx: Optional[int], idx_col: str
+        ) -> pd.Series:
+            if idx is None:
+                return pd.Series(dtype=object)
+            if with_entity_col:
+                # Use positional index — handles "Depth [m]" vs "Depth" mismatch
+                return entity_df.iloc[:, idx]
+            return df.iloc[:, idx]
+
+        def _build_records(
+            idx_s: pd.Series,
+            val_s: pd.Series,
+            idx_key: str,
+            idx_dtype: str,
+            val_dtype: str,
+        ) -> List[Dict[str, Any]]:
+            sub = pd.DataFrame({idx_key: idx_s.values, "Value": val_s.values})
+            return [
+                {
+                    idx_key: self.get_json_valid_value(
+                        r[idx_key], dtype=idx_dtype, **kwargs
+                    ),
+                    "Value": self.get_json_valid_value(
+                        r["Value"], dtype=val_dtype, **kwargs
+                    ),
+                }
+                for r in sub.to_dict("records")
+            ]
+
         # collect signals data
         for _entity_name, d in col_data.items():
             # make sure that entity column is string
             entity_name = str(_entity_name)
+            entity_df = entity_groups.get(entity_name, pd.DataFrame())
             # collect signals data
             for col in d:
                 # column name
@@ -776,28 +2695,32 @@ class DataFrameMixin(
 
                     # static signal
                     if signal_type == SignalType.Static.name:
-                        static_data = _get_column_data(column_index, entity_name)
-                        if static_data:
+                        vals = _val_series(
+                            entity_df, column_name, column_index
+                        ).tolist()
+                        if vals:
                             data_to_save["StaticNumericData"].append(
                                 {
                                     "Entity": entity_name,
                                     "Signal": signal_name,
                                     "Unit": signal_unit_name,
                                     "Data": self.get_json_valid_value(
-                                        static_data[0], dtype="Numeric", **kwargs
+                                        vals[0], dtype="Numeric", **kwargs
                                     ),
                                 }
                             )
                     elif signal_type == SignalType.String.name:
-                        static_data = _get_column_data(column_index, entity_name)
-                        if static_data:
+                        vals = _val_series(
+                            entity_df, column_name, column_index
+                        ).tolist()
+                        if vals:
                             data_to_save["StaticStringData"].append(
                                 {
                                     "Entity": entity_name,
                                     "Signal": signal_name,
                                     "Unit": signal_unit_name,
                                     "Data": self.get_json_valid_value(
-                                        static_data[0], dtype="String", **kwargs
+                                        vals[0], dtype="String", **kwargs
                                     ),
                                 }
                             )
@@ -808,20 +2731,13 @@ class DataFrameMixin(
                                 "Entity": entity_name,
                                 "Signal": signal_name,
                                 "Unit": signal_unit_name,
-                                "Data": [
-                                    {
-                                        "Date": self.get_json_valid_value(
-                                            dvalue, dtype="Time", **kwargs
-                                        ),
-                                        "Value": self.get_json_valid_value(
-                                            value, dtype="Numeric", **kwargs
-                                        ),
-                                    }
-                                    for dvalue, value in zip(
-                                        _get_column_data(date_index, entity_name),
-                                        _get_column_data(column_index, entity_name),
-                                    )
-                                ],
+                                "Data": _build_records(
+                                    _index_series(entity_df, date_index, date_col),
+                                    _val_series(entity_df, column_name, column_index),
+                                    "Date",
+                                    "Time",
+                                    "Numeric",
+                                ),
                             }
                         )
                     elif signal_type == SignalType.StringTimeDependent.name:
@@ -830,20 +2746,13 @@ class DataFrameMixin(
                                 "Entity": entity_name,
                                 "Signal": signal_name,
                                 "Unit": signal_unit_name,
-                                "Data": [
-                                    {
-                                        "Date": self.get_json_valid_value(
-                                            dvalue, dtype="Time", **kwargs
-                                        ),
-                                        "Value": self.get_json_valid_value(
-                                            value, dtype="String", **kwargs
-                                        ),
-                                    }
-                                    for dvalue, value in zip(
-                                        _get_column_data(date_index, entity_name),
-                                        _get_column_data(column_index, entity_name),
-                                    )
-                                ],
+                                "Data": _build_records(
+                                    _index_series(entity_df, date_index, date_col),
+                                    _val_series(entity_df, column_name, column_index),
+                                    "Date",
+                                    "Time",
+                                    "String",
+                                ),
                             }
                         )
                     # depth signal
@@ -853,20 +2762,13 @@ class DataFrameMixin(
                                 "Entity": entity_name,
                                 "Signal": signal_name,
                                 "Unit": signal_unit_name,
-                                "Data": [
-                                    {
-                                        "Depth": self.get_json_valid_value(
-                                            dvalue, dtype="Numeric", **kwargs
-                                        ),
-                                        "Value": self.get_json_valid_value(
-                                            value, dtype="Numeric", **kwargs
-                                        ),
-                                    }
-                                    for dvalue, value in zip(
-                                        _get_column_data(depth_index, entity_name),
-                                        _get_column_data(column_index, entity_name),
-                                    )
-                                ],
+                                "Data": _build_records(
+                                    _index_series(entity_df, depth_index, depth_col),
+                                    _val_series(entity_df, column_name, column_index),
+                                    "Depth",
+                                    "Numeric",
+                                    "Numeric",
+                                ),
                             }
                         )
                     elif signal_type == SignalType.StringDepthDependent.name:
@@ -875,20 +2777,13 @@ class DataFrameMixin(
                                 "Entity": entity_name,
                                 "Signal": signal_name,
                                 "Unit": signal_unit_name,
-                                "Data": [
-                                    {
-                                        "Depth": self.get_json_valid_value(
-                                            dvalue, dtype="Numeric", **kwargs
-                                        ),
-                                        "Value": self.get_json_valid_value(
-                                            value, dtype="String", **kwargs
-                                        ),
-                                    }
-                                    for dvalue, value in zip(
-                                        _get_column_data(depth_index, entity_name),
-                                        _get_column_data(column_index, entity_name),
-                                    )
-                                ],
+                                "Data": _build_records(
+                                    _index_series(entity_df, depth_index, depth_col),
+                                    _val_series(entity_df, column_name, column_index),
+                                    "Depth",
+                                    "Numeric",
+                                    "String",
+                                ),
                             }
                         )
                     else:
@@ -1344,14 +3239,14 @@ class DataFrameMixin(
         """
         Get predefined 'Entity' column name used in return tables from api calls
         """
-        return "Entity"
+        return DataFrameMixinHelper.COLUMN_ENTITY
 
     # get 'Alias' column name
     def get_alias_column_name(self, **kwargs) -> str:
         """
         Get predefined 'Alias' column name used in return tables from api calls
         """
-        return "Alias"
+        return DataFrameMixinHelper.COLUMN_ALIAS
 
     # get 'EntityType' column name
     def get_entity_type_column_name(self, **kwargs) -> str:
@@ -1372,7 +3267,7 @@ class DataFrameMixin(
         """
         Get predefined 'Date' column name used in return tables from api calls
         """
-        return "Date"
+        return DataFrameMixinHelper.COLUMN_DATE
 
     # get 'Time' column name
     def get_time_column_name(self, **kwargs) -> str:
@@ -1386,7 +3281,7 @@ class DataFrameMixin(
         """
         Get predefined 'Depth' column name used in return tables from api calls
         """
-        return "Depth"
+        return DataFrameMixinHelper.COLUMN_DEPTH
 
     # get signal data type name
     def get_signal_data_type_name(

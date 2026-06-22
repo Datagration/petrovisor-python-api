@@ -323,7 +323,7 @@ class ApiRequests:
         timeout = None  # no timeout
         max_retries_top = 5
         max_retries = 1  # increased to max_retries_top times in case of 400 Bad Request or 404 Not Found
-        waiting_time = 5  # in seconds
+        waiting_time = 2  # in seconds
 
         # get response
         response = None
@@ -461,6 +461,8 @@ class ApiRequests:
             break
 
         if response is not None:
+            if response.status_code == requests.codes["no_content"]:
+                return None
             try:
                 if format in ("json",):
                     return response.json()

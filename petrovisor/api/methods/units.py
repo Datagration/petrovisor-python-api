@@ -1,5 +1,6 @@
 from typing import (
     Any,
+    Sequence,
     Union,
     List,
     Dict,
@@ -98,7 +99,7 @@ class UnitsMixin(SupportsRequests):
         return self.post(f"{route}", data=validated_unit, **kwargs)
 
     # add units
-    def add_units(self, units: List[Union[Unit, Dict[str, Any]]], **kwargs) -> Any:
+    def add_units(self, units: Sequence[Union[Unit, Dict[str, Any]]], **kwargs) -> Any:
         """
         Add multiple units
 

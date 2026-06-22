@@ -685,15 +685,30 @@ def test_save_data(api: PetroVisor):
             (depth_str_signal, SignalType.StringDepthDependent),
         ]
 
-        for signal_name, signal_type in signals_to_create:
-            if not api.item_exists(ItemType.Signal, signal_name):
-                api.add_signal(
-                    Signal(
-                        type=signal_type.name,
-                        name=signal_name,
-                        unit=" ",
-                        unit_measurement="Dimensionless",
-                    )
+        with _cf.ThreadPoolExecutor(max_workers=6) as _pool:
+            _ready_futs = {
+                sig_static_num: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_static_num, "static"
+                ),
+                sig_static_str: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_static_str, "string"
+                ),
+                sig_time_num: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_time_num, "time"
+                ),
+                sig_time_str: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_time_str, "timestring"
+                ),
+                sig_depth_num: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_depth_num, "depth"
+                ),
+                sig_depth_str: _pool.submit(
+                    _wait_for_save_ready, api, e1, sig_depth_str, "stringdepth"
+                ),
+            }
+            for sig_name, fut in _ready_futs.items():
+                assert fut.result() is not None, (
+                    f"data layer never ready for {sig_name}"
                 )
 
         time.sleep(2)
@@ -887,15 +902,30 @@ def test_load_data(api: PetroVisor):
             (depth_str_signal, SignalType.StringDepthDependent),
         ]
 
-        for signal_name, signal_type in signals_to_create:
-            if not api.item_exists(ItemType.Signal, signal_name):
-                api.add_signal(
-                    Signal(
-                        type=signal_type.name,
-                        name=signal_name,
-                        unit=" ",
-                        unit_measurement="Dimensionless",
-                    )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as _pool:
+            _ready_futs = {
+                sig_static_num: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_static_num, "static"
+                ),
+                sig_static_str: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_static_str, "string"
+                ),
+                sig_time_num: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_time_num, "time"
+                ),
+                sig_time_str: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_time_str, "timestring"
+                ),
+                sig_depth_num: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_depth_num, "depth"
+                ),
+                sig_depth_str: _pool.submit(
+                    _wait_for_save_ready, api, ent, sig_depth_str, "stringdepth"
+                ),
+            }
+            for sig_name, fut in _ready_futs.items():
+                assert fut.result() is not None, (
+                    f"data layer never ready for {sig_name}"
                 )
 
         time.sleep(2)
@@ -1065,9 +1095,56 @@ def test_load_data(api: PetroVisor):
             f"{'✅' if result else 'ℹ️ '} Depth numeric loaded (range): {type(result).__name__}"
         )
 
-        # Test 9: Depth string — top N values
-        result = api.load_data(
-            data_type="stringdepth", data=spec_depth_str, num_values=2
+        print("✅ test_load_data passed")
+
+    finally:
+        _cleanup(api, [ent], signal_names)
+
+
+# ============================================================================
+# test_get_data_range
+# ============================================================================
+
+
+def test_get_data_range(api: PetroVisor):
+    """Test get_data_range() with Data/TimeRange and Data/DepthStepExtremum endpoints."""
+    entity_name = "Test Range Well"
+    time_signal_num = "Test Range Time Numeric"
+    time_signal_str = "Test Range Time String"
+    depth_signal_num = "Test Range Depth Numeric"
+    depth_signal_str = "Test Range Depth String"
+    signals_to_create = [
+        (time_signal_num, SignalType.TimeDependent),
+        (time_signal_str, SignalType.StringTimeDependent),
+        (depth_signal_num, SignalType.DepthDependent),
+        (depth_signal_str, SignalType.StringDepthDependent),
+    ]
+
+    try:
+        _ensure_entities(api, [entity_name])
+        for signal_name, signal_type in signals_to_create:
+            _ensure_signal(api, signal_name, signal_type)
+        import concurrent.futures as _cf
+
+        with _cf.ThreadPoolExecutor(max_workers=2) as _pool:
+            _f1 = _pool.submit(
+                _wait_for_save_ready, api, entity_name, time_signal_num, "time"
+            )
+            _f2 = _pool.submit(
+                _wait_for_save_ready, api, entity_name, depth_signal_num, "depth"
+            )
+            _f1.result()
+            _f2.result()
+
+        api.save_table_data(
+            pd.DataFrame(
+                {
+                    "Entity": [entity_name] * 5,
+                    "Date": pd.date_range("2024-01-01", periods=5, freq="D"),
+                    f"{time_signal_num} [ ]": [10, 20, 30, 40, 50],
+                    f"{time_signal_str} [ ]": ["a", "b", "c", "d", "e"],
+                }
+            )
         )
         print(
             f"{'✅' if result else 'ℹ️ '} Depth string loaded (top 2): {type(result).__name__}"
@@ -1134,14 +1211,13 @@ def test_delete_data(api: PetroVisor):
         if not api.item_exists(ItemType.Entity, entity_name):
             api.add_entity(Entity(name=entity_name, type="Well"))
 
-        signals_to_create = [
-            (static_signal, SignalType.Static),
-            (static_str_signal, SignalType.String),
-            (time_signal, SignalType.TimeDependent),
-            (time_str_signal, SignalType.StringTimeDependent),
-            (depth_signal, SignalType.DepthDependent),
-            (depth_str_signal, SignalType.StringDepthDependent),
-        ]
+        with _cf.ThreadPoolExecutor(max_workers=2) as _pool:
+            _f1 = _pool.submit(_wait_for_save_ready, api, entity_name, static_signal)
+            _f2 = _pool.submit(
+                _wait_for_save_ready, api, entity_name, time_signal, "time"
+            )
+            _f1.result()
+            _f2.result()
 
         for signal_name, signal_type in signals_to_create:
             if not api.item_exists(ItemType.Signal, signal_name):
@@ -1348,13 +1424,53 @@ def test_save_table_data(api: PetroVisor):
         TimeIncrement,
         DepthIncrement,
     )
-    import time
 
-    entity_name = "Test ST Well"
-    static_signal = "Test ST Static"
-    time_signal = "Test ST Time"
-    depth_signal = "Test ST Depth"
-    unit = " "
+    signal_configs = [
+        {
+            "name": "static numeric signal",
+            "type": SignalType.Static,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "static string signal",
+            "type": SignalType.String,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "time numeric signal",
+            "type": SignalType.TimeDependent,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "time string signal",
+            "type": SignalType.StringTimeDependent,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "depth numeric signal",
+            "type": SignalType.DepthDependent,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "depth string signal",
+            "type": SignalType.StringDepthDependent,
+            "unit": " ",
+            "measurement": "Dimensionless",
+        },
+        {
+            "name": "pvt signal",
+            "type": SignalType.PVT,
+            "unit": "Pa",
+            "measurement": "Pressure",
+        },
+    ]
+    for cfg in signal_configs:
+        _ensure_signal(api, cfg["name"], cfg["type"], unit=cfg["unit"])
 
     try:
         if not api.item_exists(ItemType.Entity, entity_name):

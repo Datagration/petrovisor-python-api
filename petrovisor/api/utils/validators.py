@@ -92,9 +92,9 @@ class Validator:
             "1second",
         ):
             return TimeIncrement.EverySecond
-        elif increment_type in ("everyfiveminute", "5min", "5minutes"):
+        elif increment_type in ("everyfiveminutes", "5min", "5mins", "5minutes"):
             return TimeIncrement.EveryFiveMinutes
-        elif increment_type in ("everyfifteenminutes", "15min", "15minutes"):
+        elif increment_type in ("everyfifteenminutes", "15min", "15mins", "15minutes"):
             return TimeIncrement.EveryFifteenMinutes
         raise ValueError(
             f"PetroVisor::get_time_increment_enum(): "

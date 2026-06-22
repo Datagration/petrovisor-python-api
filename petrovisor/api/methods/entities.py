@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Optional,
+    Sequence,
     Union,
     List,
     Dict,
@@ -9,6 +10,7 @@ from typing import (
 from petrovisor.api.models.entity import Entity
 from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.enums.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
@@ -175,7 +177,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
 
     # add entities
     def add_entities(
-        self, entities: List[Union[Entity, Dict[str, Any]]], **kwargs
+        self, entities: Sequence[Union[Entity, Dict[str, Any]]], **kwargs
     ) -> Any:
         """
         Add multiple entities
@@ -206,18 +208,17 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entity : Entity | dict | str
             Entity
         """
-        route = EntitiesMixinHelper.ENDPOINT
         if isinstance(entity, Entity):
             name = entity.name
         else:
             name = ApiHelper.get_object_name(entity)
         if not name:
             return ApiRequests.success()
-        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        return self.delete_item(ItemType.Entity, name, **kwargs)
 
     # delete entities
     def delete_entities(
-        self, entities: List[Union[Entity, Dict[str, Any], str]], **kwargs
+        self, entities: Sequence[Union[Entity, Dict[str, Any], str]], **kwargs
     ) -> Any:
         """
         Delete multiple entities

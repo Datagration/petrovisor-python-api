@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Optional,
+    Sequence,
     Union,
     List,
     Dict,
@@ -35,13 +36,127 @@ from petrovisor.api.models.hierarchy import Hierarchy
 # Contexts mixin helper
 class ContextsMixinHelper:
     """
-    Contexts mixin helper — endpoint constants.
+    Contexts mixin helper — endpoint constants and range-resolution helpers.
     """
 
     ENDPOINT_CONTEXTS = "Contexts"
     ENDPOINT_SCOPES = "Scopes"
     ENDPOINT_ENTITY_SETS = "EntitySets"
     ENDPOINT_HIERARCHIES = "Hierarchies"
+
+    @staticmethod
+    def _resolve_time_range(
+        scope: Dict,
+        time_signals: List[Dict],
+        entity_names: List[str],
+        api: Any,
+    ) -> tuple:
+        """Resolve time start, end, and step from scope or signal data ranges.
+
+        Returns
+        -------
+        tuple[str, str, str]
+            (time_start, time_end, time_step) all as strings ready for the API.
+            time_start/time_end are ISO format; time_step is a TimeIncrement name.
+        """
+        time_step_raw = scope.get("TimeIncrement", None)
+        if time_step_raw:
+            time_step = str(api.get_time_increment_enum(time_step_raw).name)
+        else:
+            time_step = str(TimeIncrement.EverySecond.name)
+
+        time_start = scope.get("Start", None)
+        if not time_start or pd.isnull(time_start):
+            time_starts: List[Any] = [
+                pd.to_datetime(
+                    (
+                        api.get_data_range(
+                            s["SignalType"],
+                            signal=s["Name"],
+                            entity=entity_names,
+                        )
+                        or {}
+                    ).get("Start", "")
+                )
+                for s in time_signals
+            ]
+            time_start = np.min(time_starts)
+
+        time_end = scope.get("End", None)
+        if not time_end or pd.isnull(time_end):
+            time_ends: List[Any] = [
+                pd.to_datetime(
+                    (
+                        api.get_data_range(
+                            s["SignalType"],
+                            signal=s["Name"],
+                            entity=entity_names,
+                        )
+                        or {}
+                    ).get("End", "")
+                )
+                for s in time_signals
+            ]
+            time_end = np.max(time_ends)
+
+        ts = pd.to_datetime(time_start)
+        te = pd.to_datetime(time_end)
+        return (
+            api.datetime_to_string(ts) if not pd.isnull(ts) else None,
+            api.datetime_to_string(te) if not pd.isnull(te) else None,
+            time_step,
+        )
+
+    @staticmethod
+    def _resolve_depth_range(
+        scope: Dict,
+        depth_signals: List[Dict],
+        entity_names: List[str],
+        api: Any,
+    ) -> tuple:
+        """Resolve depth start, end, and step from scope or signal data ranges.
+
+        Returns
+        -------
+        tuple[float, float, str]
+            (depth_start, depth_end, depth_step) where depth_start/end are floats
+            and depth_step is a DepthIncrement name string.
+        """
+        depth_step_raw = scope.get("DepthIncrement", None)
+        if depth_step_raw:
+            depth_step = str(api.get_depth_increment_enum(depth_step_raw).name)
+        else:
+            depth_step = str(DepthIncrement.Meter.name)
+
+        depth_start = scope.get("StartDepth", None)
+        if depth_start is None or pd.isnull(depth_start):
+            depth_starts = [
+                (
+                    api.get_data_range(
+                        s["SignalType"], signal=s["Name"], entity=entity_names
+                    )
+                    or {}
+                ).get("Start", None)
+                for s in depth_signals
+            ]
+            _min = np.min([v for v in depth_starts if v is not None] or None)
+            depth_start = float(_min if _min is not None else np.finfo(np.float64).min)
+
+        depth_end = scope.get("EndDepth", None)
+        if depth_end is None or pd.isnull(depth_end):
+            depth_ends = [
+                (
+                    api.get_data_range(
+                        s["SignalType"], signal=s["Name"], entity=entity_names
+                    )
+                    or {}
+                ).get("End", None)
+                for s in depth_signals
+            ]
+            _max = np.max([v for v in depth_ends if v is not None] or None)
+            depth_end = float(_max if _max is not None else np.finfo(np.float64).max)
+
+        return float(depth_start), float(depth_end), depth_step
 
 
 # Context API calls
@@ -66,8 +181,10 @@ class ContextMixin(
         relationship: Optional[Dict[str, str]] = None,
         entities: Optional[
             Union[
-                Union[str, Dict[str, Any], Entity],
-                List[Union[str, Dict[str, Any], Entity]],
+                str,
+                Dict[str, Any],
+                Entity,
+                Sequence[Union[str, Dict[str, Any], Entity]],
             ]
         ] = None,
         entity_type: Optional[Union[str, List[str]]] = None,
@@ -314,8 +431,10 @@ class ContextMixin(
         entity_set: Optional[Union[str, Dict[str, Any], EntitySet]],
         entities: Optional[
             Union[
-                Union[str, Dict[str, Any], Entity],
-                List[Union[str, Dict[str, Any], Entity]],
+                str,
+                Dict[str, Any],
+                Entity,
+                Sequence[Union[str, Dict[str, Any], Entity]],
             ]
         ] = None,
         entity_type: Optional[Union[str, List[str]]] = None,

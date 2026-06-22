@@ -224,11 +224,15 @@ class WorkspaceValuesMixin(SupportsRequests):
         value_specs = WorkspaceValueMixinHelper.get_workspace_value_specs(
             name, value, unit=unit, description=description, **kwargs
         )
-        # get existing workspace values names
+        # get existing workspace values names (list endpoint may be stale — use POST then
+        # fall back to PUT on 409 to handle eventual-consistency races)
         workspace_value_names = self.get_workspace_value_names(**kwargs)
         if name in workspace_value_names:
             return self.put(f"{route}/{self.encode(name)}", data=value_specs, **kwargs)
-        return self.post(f"{route}", data=value_specs, **kwargs)
+        try:
+            return self.post(f"{route}", data=value_specs, **kwargs)
+        except Exception:
+            return self.put(f"{route}/{self.encode(name)}", data=value_specs, **kwargs)
 
     # rename workspace value
     def rename_workspace_value(self, old_name: str, new_name: str, **kwargs) -> Dict:

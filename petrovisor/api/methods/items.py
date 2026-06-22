@@ -7,6 +7,7 @@ from typing import (
 )
 
 import time
+import warnings
 
 from petrovisor.api.enums.items import ItemType
 from petrovisor.api.utils.helper import ApiHelper
@@ -46,7 +47,6 @@ class ItemsMixinHelper:
             ItemType.UnitMeasurement: "UnitMeasurements",
             ItemType.Entity: "Entities",
             ItemType.EntityType: "EntityTypes",
-            ItemType.Signal: "Signals",
             ItemType.Tag: "Tags",
             ItemType.Label: "Labels",
             ItemType.MessageEntry: "MessageEntries",
@@ -84,6 +84,7 @@ class ItemsMixinHelper:
         """
         return dict(
             **{
+                ItemType.Signal: "Signals",
                 ItemType.ConfigurationSettings: "ConfigurationSettings",
                 ItemType.RefTable: "RefTables",
                 ItemType.PivotTable: "PivotTables",
@@ -138,23 +139,141 @@ class ItemsMixin(SupportsRequests):
         """
         return ItemsMixinHelper.get_item_types()
 
-    # items exists
-    def item_exists(self, item_type: str, item: Union[str, Dict], **kwargs) -> bool:
-        """
-        Get item
+    def item_exists(
+        self,
+        item_type: str,
+        item: Union[str, Dict],
+        after: Optional[str] = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        **kwargs,
+    ) -> bool:
+        """Return whether an item of *item_type* named *item* exists.
+
+        Uses the list endpoint as a fast pre-check, avoiding the ~10 s 404
+        penalty the individual GET incurs on missing items.
+
+        The ``after`` argument handles eventual consistency when the caller
+        knows a mutation just occurred:
+
+        ``after=None`` (default)
+            Single list check, no retry.  Use for stable lookups.
+
+        ``after="create"``
+            Polls until the item appears in the individual GET (faster
+            propagation path than the list after a creation).
+
+        ``after="delete"``
+            Polls until the item disappears from the list (avoids the slow
+            404 path on the individual GET after a deletion).
 
         Parameters
         ----------
         item_type : str
-            Item type
-        item: Union[str, Dict]
-            Item object
+            ``ItemType`` enum value (e.g. ``ItemType.Signal``).
+        item : str or dict
+            Item name or dict with a ``Name`` key.
+        after : {"create", "delete", None}, default None
+            Consistency hint — see above.
+        max_retries : int, default 3
+            Poll attempts before giving up.  Ignored when ``after=None``.
+        retry_delay : float, default 1.0
+            Seconds between polls.
         """
-        item_names = self.get_item_names(item_type, **kwargs)
-        if not item_names:
-            return False
         item_name = self.get_item_name(item, **kwargs)
-        return item_name in item_names
+
+        if after == "create":
+            # Individual GET converges fast (~0.5 s) once the item propagates.
+            # 404 misses during polling are expected — suppress RuntimeWarnings.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                for attempt in range(max_retries):
+                    if self.get_item(item_type, item_name, **kwargs) is not None:
+                        return True
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            return False
+
+        if after == "delete":
+            for attempt in range(max_retries):
+                names = self.get_item_names(item_type, **kwargs)
+                if not names or item_name not in names:
+                    return False
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            return True
+
+        # after=None — single list check, no retries.
+        names = self.get_item_names(item_type, **kwargs)
+        return bool(names) and item_name in names
+
+    def resolve_item(
+        self,
+        item_type: str,
+        name: str,
+        after: Optional[str] = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        **kwargs,
+    ) -> Optional[Any]:
+        """Return the full item dict for *name* of *item_type*, or None if not found.
+
+        Use this instead of ``item_exists`` when you need the item's data, not
+        just a presence check.  Shares the same ``after`` polling strategies.
+
+        ``after=None`` (default)
+            Single list pre-check, then fetch.  Fast for stable lookups;
+            avoids the ~10 s 404 on missing items.
+
+        ``after="create"``
+            Polls individual GET until the item is returned.  Converges
+            faster than the list after a creation.
+
+        ``after="delete"``
+            Polls the list until the name is absent, then returns ``None``.
+
+        Parameters
+        ----------
+        item_type : str
+            ``ItemType`` enum value (e.g. ``ItemType.Signal``).
+        name : str
+            Item name to resolve.
+        after : {"create", "delete", None}, default None
+            Consistency hint — see above.
+        max_retries : int, default 3
+            Poll attempts before returning ``None``.  Ignored when ``after=None``.
+        retry_delay : float, default 1.0
+            Seconds between polls.
+        """
+        item_name = self.get_item_name(name, **kwargs)
+
+        if after == "create":
+            # Individual GET converges fast (~0.5 s) once the item propagates.
+            # 404 misses during polling are expected — suppress RuntimeWarnings.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                for attempt in range(max_retries):
+                    item = self.get_item(item_type, item_name, **kwargs)
+                    if item is not None:
+                        return item
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            return None
+
+        if after == "delete":
+            for attempt in range(max_retries):
+                names = self.get_item_names(item_type, **kwargs)
+                if not names or item_name not in names:
+                    return None
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            return None
+
+        # after=None — single list pre-check, then fetch.
+        names = self.get_item_names(item_type, **kwargs)
+        if names and item_name in names:
+            return self.get_item(item_type, item_name, **kwargs)
+        return None
 
     # get item
     def get_item(self, item_type: str, name: str, **kwargs) -> Any:
@@ -200,25 +319,14 @@ class ItemsMixin(SupportsRequests):
             )
         name = self.get_item_name(item, **kwargs)
 
-        # Check if item exists before attempting delete
         if not self.item_exists(item_type, name):
-            # Item doesn't exist, nothing to delete
             return ApiRequests.success()
 
-        # Delete the item
         self.delete(f"{route}/{self.encode(name)}", **kwargs)
 
-        # Verify deletion with exponential backoff retry
-        max_retries = 3
-        delay = 0.5
-        for attempt in range(max_retries):
-            if not self.item_exists(item_type, name):
-                return ApiRequests.success()
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2  # Exponential backoff: 0.5s, 1s, 2s
-
-        # Item still exists after retries
+        self.item_exists(
+            item_type, name, after="delete", max_retries=3, retry_delay=0.5
+        )
         return ApiRequests.success()
 
     # add or edit item
@@ -362,7 +470,7 @@ class ItemsMixin(SupportsRequests):
     # get item infos
     def get_item_infos(
         self, item_type: str, name: Optional[str] = None, **kwargs
-    ) -> Union[List, Dict]:
+    ) -> Union[List, Dict, None]:
         """
         Get item infos of given type
 
@@ -388,7 +496,7 @@ class ItemsMixin(SupportsRequests):
             if name:
                 return self.get(f"{route}/{self.encode(name)}/PetroVisorItem", **kwargs)
             return self.get(f"{route}/PetroVisorItems", **kwargs)
-        return {} if name else []
+        return None if name else []
 
     # get item name
     def get_item_name(self, item: Union[str, Dict], **kwargs) -> str:

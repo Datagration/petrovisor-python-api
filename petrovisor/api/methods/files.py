@@ -170,7 +170,12 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
 
     # get object by name
     def get_object(
-        self, name: str, func: Optional[Callable] = None, binary: bool = True, **kwargs
+        self,
+        name: str,
+        func: Optional[Callable] = None,
+        binary: bool = True,
+        backend: str = "pandas",
+        **kwargs,
     ) -> Any:
         """
         Load object from blob storage using pickle.loads()
@@ -183,18 +188,30 @@ class FilesMixin(SupportsDataFrames, SupportsRequests):
             Function to be called to prepare object after load. If None, then pickle.loads() is used
         binary : bool, default True
             Whether to use binary (True) stream io.BytesIO or text (False) stream io.StringIO
+        backend : str, default 'pandas'
+            DataFrame backend for supported formats ('pandas', 'polars')
+
+        Returns
+        -------
+        Any
+            Deserialized object (DataFrame, dict, or pickled object)
+
+        Examples
+        --------
+        >>> df = api.get_object("data.csv")
+        >>> df = api.get_object("data.parquet", backend="polars")
         """
         file_obj = self.get_file(name, **kwargs)
 
         # custom binary deserialization
         if func and hasattr(func, "__call__"):
             return func(file_obj, **kwargs)
-        # DataFrame from csv
-        if name.lower().endswith(".csv"):
-            return pd.read_csv(io.BytesIO(file_obj))
-        # DataFrame from excel
-        if name.lower().endswith(".xlsx"):
-            return pd.read_excel(io.BytesIO(file_obj))
+
+        # DataFrame from supported formats
+        ext = name.lower().split(".")[-1]
+        if ext in ("csv", "xlsx", "xls", "parquet", "feather", "arrow"):
+            return self.read_dataframe_from_bytes(file_obj, name, backend=backend)
+
         # unpickle
         if binary:
             try:

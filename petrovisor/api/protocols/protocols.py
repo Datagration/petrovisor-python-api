@@ -2,6 +2,7 @@ from typing import (
     Any,
     Callable,
     Optional,
+    Sequence,
     Union,
     Tuple,
     List,
@@ -165,6 +166,9 @@ class SupportsItemRequests(Protocol):
     # items exists
     def item_exists(self, item_type: str, item: Union[str, Dict], **kwargs) -> bool: ...
 
+    # resolve item (returns full dict, or None)
+    def resolve_item(self, item_type: str, name: str, **kwargs) -> Optional[Any]: ...
+
 
 # PetroVisor Entities requests protocol
 class SupportsEntitiesRequests(Protocol):
@@ -185,7 +189,7 @@ class SupportsEntitiesRequests(Protocol):
     def add_entity(self, entity: Union[Any, Dict[str, Any]], **kwargs) -> Any: ...
 
     # add entities
-    def add_entities(self, entities: List, **kwargs) -> Any: ...
+    def add_entities(self, entities: Sequence, **kwargs) -> Any: ...
 
     # delete entity
     def delete_entity(
@@ -194,7 +198,7 @@ class SupportsEntitiesRequests(Protocol):
 
     # delete entities
     def delete_entities(
-        self, entities: List[Union[Any, Dict[str, Any], str]], **kwargs
+        self, entities: Sequence[Union[Any, Dict[str, Any], str]], **kwargs
     ) -> Any: ...
 
     # rename entity type
@@ -222,7 +226,7 @@ class SupportsSignalsRequests(Protocol):
     # get 'Signal' names
     def get_signal_names(
         self,
-        signal_type: Optional[str] = "",
+        signal_type: Optional[Union[str, SignalType]] = "",
         entity: Optional[Union[Any, str]] = None,
         **kwargs,
     ) -> List[str]: ...
@@ -249,7 +253,7 @@ class SupportsSignalsRequests(Protocol):
 
     # add signals
     def add_signals(
-        self, signals: List[Union[Any, Dict[str, Any]]], **kwargs
+        self, signals: Sequence[Union[Any, Dict[str, Any]]], **kwargs
     ) -> Any: ...
 
     # delete signal
@@ -259,7 +263,7 @@ class SupportsSignalsRequests(Protocol):
 
     # delete signals
     def delete_signals(
-        self, signals: List[Union[Any, Dict[str, Any], str]], **kwargs
+        self, signals: Sequence[Union[Any, Dict[str, Any], str]], **kwargs
     ) -> Any: ...
 
     # get data range
@@ -274,7 +278,7 @@ class SupportsSignalsRequests(Protocol):
     # load signals data as DataFrame
     def load_signals_data(
         self,
-        signals: Union[str, List[Union[str, Dict, Tuple[Any, str]]]],
+        signals: Union[str, Sequence[Union[str, Dict, Tuple[Any, str]]]],
         **kwargs,
     ) -> Optional[pd.DataFrame]: ...
 
@@ -288,7 +292,7 @@ class SupportsSignalsRequests(Protocol):
     # save data
     def save_data(
         self,
-        data: Union[List[Dict], pd.DataFrame, pd.Series],
+        data: Union[str, List[Dict], pd.DataFrame, pd.Series],
         **kwargs,
     ) -> Any: ...
 
@@ -399,7 +403,9 @@ class SupportsUnitsRequests(Protocol):
     def add_unit(self, unit: Union[Any, Dict[str, Any]], **kwargs) -> Any: ...
 
     # add units
-    def add_units(self, units: List[Union[Any, Dict[str, Any]]], **kwargs) -> Any: ...
+    def add_units(
+        self, units: Sequence[Union[Any, Dict[str, Any]]], **kwargs
+    ) -> Any: ...
 
     # convert values from one unit to another
     def convert_units(
@@ -423,7 +429,7 @@ class SupportsContextRequests(Protocol):
         relationship: Optional[Dict[str, str]] = None,
         entity_type: Optional[Union[str, List[str]]] = None,
         entities: Optional[
-            Union[Union[str, Dict, "Entity"], List[Union[str, Dict, "Entity"]]]
+            Union[str, Dict, "Entity", Sequence[Union[str, Dict, "Entity"]]]
         ] = None,
         time_start: Optional[Union[str, datetime]] = None,
         time_end: Optional[Union[str, datetime]] = None,
@@ -451,7 +457,7 @@ class SupportsContextRequests(Protocol):
     def get_entity_set(
         self,
         name: Optional[Union[str, Dict, "EntitySet"]],
-        entities: Optional[List[str]] = None,
+        entities: Optional[Sequence[str]] = None,
         entity_type: Optional[Union[str, List[str]]] = None,
         **kwargs,
     ) -> Optional[Dict]: ...

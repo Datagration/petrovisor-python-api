@@ -9,16 +9,8 @@ from typing import (
 
 import warnings
 from datetime import datetime
-import time
 import json
 import pandas as pd
-import numpy as np
-from pandas.api.types import (
-    is_bool_dtype,
-    is_numeric_dtype,
-    is_string_dtype,
-    is_datetime64_dtype,
-)
 
 from petrovisor.api.enums.internal_dtypes import RefTableColumnType
 from petrovisor.api.utils.helper import ApiHelper
@@ -40,13 +32,22 @@ class RefTableMixinHelper:
     # create DataFrame in case if it is passed as dictionary
     @staticmethod
     def create_dataframe(d: Dict):
-        df = pd.DataFrame()
-        for c, d in d.items():
-            if isinstance(d, (str, type)):
-                df[c] = pd.Series(dtype=d)
-            else:
-                df[c] = d
-        return df
+        """
+        Create DataFrame from dictionary.
+
+        Parameters
+        ----------
+        d : dict
+            Dictionary of {column_name: values}
+
+        Returns
+        -------
+        DataFrame
+            Pandas DataFrame
+        """
+        from petrovisor.api.methods.dataframes import DataFrameMixinHelper
+
+        return DataFrameMixinHelper.create_dataframe_from_dict(d, backend="pandas")
 
     # get list given a value and default
     @staticmethod
@@ -65,17 +66,31 @@ class RefTableMixinHelper:
     def get_ref_table_column_type(dtype):
         """
         Get reference column type
+
+        Parameters
+        ----------
+        dtype : dtype
+            Pandas dtype to check
+
+        Returns
+        -------
+        str
+            RefTableColumnType name: 'Bool', 'Numeric', 'DateTime', or 'String'
         """
-        if dtype is bool or is_bool_dtype(dtype):
-            return RefTableColumnType.Bool.name
-        elif dtype is np.int64 or dtype is np.float64 or is_numeric_dtype(dtype):
-            return RefTableColumnType.Numeric.name
-        elif dtype is datetime.date or is_datetime64_dtype(dtype):
-            return RefTableColumnType.DateTime.name
-        elif dtype is object or is_string_dtype(dtype):
-            return RefTableColumnType.String.name
-        else:
-            return RefTableColumnType.Numeric.name
+        from petrovisor.api.methods.dataframes import DataFrameMixinHelper
+
+        # Use the centralized helper
+        col_type = DataFrameMixinHelper.infer_column_type(dtype, backend="pandas")
+
+        # Map to RefTableColumnType names (capitalized)
+        type_map = {
+            "bool": RefTableColumnType.Bool.name,
+            "numeric": RefTableColumnType.Numeric.name,
+            "datetime": RefTableColumnType.DateTime.name,
+            "string": RefTableColumnType.String.name,
+        }
+
+        return type_map.get(col_type, RefTableColumnType.Numeric.name)
 
 
 # Reference Table API calls
@@ -109,18 +124,17 @@ class RefTableMixin(
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            # Use exponential backoff for retry
-            max_retries = 5
-            delay = 0.5
-            item = self.get_item(ItemType.RefTable, name, **kwargs)
-            for attempt in range(max_retries):
-                if item:
-                    return item
-                if attempt < max_retries - 1:
-                    time.sleep(delay)
-                    delay *= 2  # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
-                    item = self.get_item(ItemType.RefTable, name, **kwargs)
-        # Final attempt without catching warnings
+            item = self.resolve_item(
+                ItemType.RefTable,
+                name,
+                after="create",
+                max_retries=5,
+                retry_delay=1.0,
+                **kwargs,
+            )
+        if item is not None:
+            return item
+        # Final attempt without suppressing warnings
         return self.get_item(ItemType.RefTable, name, **kwargs)
 
     # add reference table
@@ -299,15 +313,10 @@ class RefTableMixin(
                 return result
         if is_empty:
             return ApiRequests.success()
-        # Check that RefTable was created with exponential backoff
-        max_retries = 5
-        delay = 0.5
-        for attempt in range(max_retries):
-            if self.item_exists(ItemType.RefTable, name):
-                break
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2  # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
+        # Wait until the new RefTable is visible before seeding data
+        self.item_exists(
+            ItemType.RefTable, name, after="create", max_retries=5, retry_delay=1.0
+        )
         # Save data to already exists RefTable
         return self.save_ref_table_data(
             name,
@@ -331,8 +340,9 @@ class RefTableMixin(
         options: Optional[Dict] = None,
         date_col: Optional[str] = "Timestamp",
         entity_col: Optional[str] = "Entity",
+        backend: str = "pandas",
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> Any:
         """
         Load reference table data
 
@@ -363,6 +373,8 @@ class RefTableMixin(
             'Time' (typically used as displayed name)
         entity_col : str, default 'Entity'
             Entity column name
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars'). Output DataFrame will be in the specified backend format.
         """
         route = RefTableMixinHelper.ENDPOINT
 
@@ -507,6 +519,24 @@ class RefTableMixin(
             ]
             # assign data and column names
             df = pd.DataFrame(data=data, columns=cast(Any, columns))
+
+        # Convert to requested backend
+        if backend != "pandas":
+            from petrovisor.api.methods.dataframes import DataFrameMixinHelper
+
+            if backend == "polars" and DataFrameMixinHelper.is_backend_available(
+                "polars"
+            ):
+                import polars as pl
+
+                df = pl.from_pandas(df)
+            elif backend == "narwhals" and DataFrameMixinHelper.is_backend_available(
+                "narwhals"
+            ):
+                import narwhals as nw
+
+                df = nw.from_native(df)
+
         return df
 
     # save data to reference table
@@ -608,21 +638,15 @@ class RefTableMixin(
                     )
                     df[df_col] = df[df_col].astype(dtype)
 
-        if chunksize and (df.shape[0] > chunksize):
-            # num_chunks = int(math.ceil(df.shape[0] / chunksize))
-            # step = max(1, int(math.floor(0.1 * df.shape[0] / chunksize)))
-            i = 0
-
+        if chunksize and chunksize > 0 and (df.shape[0] > chunksize):
             for start in range(0, df.shape[0], chunksize):
-                end = min(start + chunksize, df.shape[0])
                 self.save_ref_table_data(
                     name,
-                    df[start:end],
+                    df.iloc[start : start + chunksize],
                     skip_existing_data=skip_existing_data,
                     chunksize=chunksize,
                     **kwargs,
                 )
-                i += 1
             return ApiRequests.success()
 
         # save data
@@ -835,11 +859,8 @@ class RefTableMixin(
         name : str
             Reference table name
         """
-        route = RefTableMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.RefTable, name):
             return ApiRequests.success()
-        # delete data
+        # delete data first, then the item definition
         self.delete_ref_table_data(name)
-        # delete item
-        self.delete(f"{route}/{self.encode(name)}", **kwargs)
-        return ApiRequests.success()
+        return self.delete_item(ItemType.RefTable, name, **kwargs)
