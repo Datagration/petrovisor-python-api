@@ -1734,6 +1734,98 @@ class DataFrameMixinHelper:
         return nw.to_native(df)
 
     @staticmethod
+    def _build_multi_index_df(
+        data_records: List[Dict],
+        entity_col: str,
+        index_cols: List[str],
+        col_unit_labels: List[str],
+        signals_with_units_map: Dict[str, str],
+        backend: str = "pandas",
+    ) -> Optional[Any]:
+        """Build a wide DataFrame from records that have multiple numeric index axes.
+
+        Generic version of the PVT builder: instead of a single Date/Depth index,
+        each row is keyed by ``(entity, *index_values)``.  For PVT signals the
+        caller passes ``index_cols=["Pressure", "Temperature"]`` and
+        ``col_unit_labels=["Pa", "K"]`` so column headers become
+        ``"Pressure [Pa]"`` and ``"Temperature [K]"``.
+
+        Each input record has the shape::
+
+            {"Entity": ..., "Signal": ..., "Unit": ...,
+             "Data": [{"Pressure": float, "Temperature": float, "Value": float}, ...]}
+
+        where the keys inside ``Data`` match ``index_cols`` plus ``"Value"``.
+
+        The output is pivoted wide: rows are
+        ``(entity_col, col_unit_labels[0], col_unit_labels[1], ...)``,
+        columns are signal names with unit suffix from *signals_with_units_map*.
+        Backend conversion mirrors ``_build_combined_df``.
+        """
+        if not data_records:
+            return None
+
+        # Build labelled output column names for the index axes
+        out_index_cols = [
+            f"{ic} [{ul}]" if ul else ic for ic, ul in zip(index_cols, col_unit_labels)
+        ]
+
+        # (entity, idx0, idx1, ...) -> {sig_col: value}
+        rows_map: Dict[tuple, Dict[str, Any]] = {}
+        response_entity_key = entity_col  # PVT response always uses "Entity"
+        for item in data_records:
+            ent = item.get(response_entity_key) or item.get("EntityName", "")
+            sig_raw = item.get("Signal", "")
+            sig_out = signals_with_units_map.get(sig_raw, sig_raw)
+            for pt in item.get("Data") or []:
+                idx_vals = tuple(pt.get(ic) for ic in index_cols)
+                if any(v is None for v in idx_vals):
+                    continue
+                key = (ent,) + idx_vals
+                if key not in rows_map:
+                    row: Dict[str, Any] = {entity_col: ent}
+                    for out_col, v in zip(out_index_cols, idx_vals):
+                        row[out_col] = float(v)
+                    rows_map[key] = row
+                v = pt.get("Value")
+                rows_map[key][sig_out] = float(v) if v is not None else None
+
+        if not rows_map:
+            return None
+
+        import pandas as _pd
+
+        df_pd = _pd.DataFrame(list(rows_map.values()))
+        sort_keys = [entity_col] + out_index_cols
+        df_pd = df_pd.sort_values(sort_keys).reset_index(drop=True)
+
+        if backend == DataFrameBackend.PANDAS:
+            return df_pd
+
+        if DataFrameMixinHelper.is_polars_backend(backend):
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.POLARS):
+                import polars as pl  # type: ignore[import-untyped]
+
+                return pl.from_pandas(df_pd)
+            return df_pd
+
+        if backend == DataFrameBackend.PYARROW:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.PYARROW):
+                import pyarrow as pa  # type: ignore[import-untyped]
+
+                return pa.Table.from_pandas(df_pd)
+            return df_pd
+
+        if backend == DataFrameBackend.DUCKDB:
+            if DataFrameMixinHelper.is_backend_available(DataFrameBackend.DUCKDB):
+                import duckdb  # type: ignore[import-untyped]
+
+                return duckdb.from_df(df_pd)
+            return df_pd
+
+        return df_pd
+
+    @staticmethod
     def _build_combined_df_no_pivot(
         data_time_num: List[Dict],
         data_time_str: List[Dict],
@@ -2551,6 +2643,41 @@ class DataFrameMixin(
                 depth_index = i
                 break
 
+        # Multi-axis index specs for signal types that require more than one index column.
+        # Each entry: signal_type_name → ordered list of (axis_key, axis_dtype) pairs.
+        # axis_key  — field name expected by the Data/Save endpoint ("Pressure", "Temperature").
+        # axis_dtype — passed to get_json_valid_value.
+        # To support a new multi-index signal type add one entry to each dict.
+        _MULTI_AXIS_SPECS: Dict[str, List[Tuple[str, str]]] = {
+            SignalType.PVT.name: [
+                ("Pressure", "Numeric"),
+                ("Temperature", "Numeric"),
+            ],
+        }
+        _MULTI_AXIS_BUCKET: Dict[str, str] = {
+            SignalType.PVT.name: "PVTNumericData",
+        }
+
+        # For each multi-axis type, locate the column indices of its axes in col_names.
+        # Result: {signal_type_name: {axis_key: column_index}}
+        # Only populated when ALL axes for a type are found; a partial match is ignored so
+        # a lone "Pressure" column in a non-PVT DataFrame is never treated as an index axis.
+        _multi_axis_index: Dict[str, Dict[str, int]] = {}
+        for _sig_type_name, _axes in _MULTI_AXIS_SPECS.items():
+            _found: Dict[str, int] = {}
+            for _axis_key, _axis_dtype in _axes:
+                for i, column_name in enumerate(col_names):
+                    if self.get_column_name_without_unit(column_name) == _axis_key:
+                        _found[_axis_key] = i
+                        break
+            if len(_found) == len(_axes):
+                _multi_axis_index[_sig_type_name] = _found
+
+        # flat set of all axis base names that are confirmed index columns
+        _multi_axis_bases: Set[str] = {
+            axis_key for axes in _multi_axis_index.values() for axis_key in axes
+        }
+
         # get signal info
         def _get_signal_info(
             column_name: str, signal_names: List[str], signals: Optional[Dict] = None
@@ -2621,7 +2748,10 @@ class DataFrameMixin(
 
         # check whether non index column
         def _is_index_column(column_name: str) -> bool:
-            return column_name in {date_col, depth_col, entity_col, alias_col}
+            base = self.get_column_name_without_unit(column_name)
+            return column_name in {date_col, depth_col, entity_col, alias_col} or (
+                base in _multi_axis_bases
+            )
 
         # get signals
         col_names = list(set(col_names))
@@ -2671,6 +2801,34 @@ class DataFrameMixin(
                     ),
                     "Value": self.get_json_valid_value(
                         r["Value"], dtype=val_dtype, **kwargs
+                    ),
+                }
+                for r in sub.to_dict("records")
+            ]
+
+        def _build_multi_index_records(
+            axis_series: List[Tuple[str, str, pd.Series]],
+            val_s: pd.Series,
+        ) -> List[Dict[str, Any]]:
+            """Build [{axis0: v, axis1: v, ..., Value: v}] for multi-index signals.
+
+            axis_series: [(axis_key, axis_dtype, series), ...]
+            """
+            frame: Dict[str, Any] = {
+                axis_key: axis_s.values for axis_key, _, axis_s in axis_series
+            }
+            frame["Value"] = val_s.values
+            sub = pd.DataFrame(frame)
+            return [
+                {
+                    **{
+                        axis_key: self.get_json_valid_value(
+                            r[axis_key], dtype=axis_dtype, **kwargs
+                        )
+                        for axis_key, axis_dtype, _ in axis_series
+                    },
+                    "Value": self.get_json_valid_value(
+                        r["Value"], dtype="Numeric", **kwargs
                     ),
                 }
                 for r in sub.to_dict("records")
@@ -2786,6 +2944,32 @@ class DataFrameMixin(
                                 ),
                             }
                         )
+                    # multi-axis signal (e.g. PVT: Pressure + Temperature)
+                    elif signal_type in _multi_axis_index:
+                        _axes_spec = _MULTI_AXIS_SPECS[signal_type]
+                        _axes_idx = _multi_axis_index[signal_type]
+                        _axis_series = [
+                            (
+                                axis_key,
+                                axis_dtype,
+                                _index_series(entity_df, _axes_idx[axis_key], axis_key),
+                            )
+                            for axis_key, axis_dtype in _axes_spec
+                        ]
+                        if all(not s.empty for _, _, s in _axis_series):
+                            data_to_save[_MULTI_AXIS_BUCKET[signal_type]].append(
+                                {
+                                    "Entity": entity_name,
+                                    "Signal": signal_name,
+                                    "Unit": signal_unit_name,
+                                    "Data": _build_multi_index_records(
+                                        _axis_series,
+                                        _val_series(
+                                            entity_df, column_name, column_index
+                                        ),
+                                    ),
+                                }
+                            )
                     else:
                         raise ValueError(
                             f"PetroVisor::get_signal_data_from_dataframe(): "

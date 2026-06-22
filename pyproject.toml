@@ -45,7 +45,7 @@ dev = [
     "pytest",
     "python-dotenv",
     "ruff",
-    "ty",
+    "ty; python_version>='3.8'",
     "ipykernel",
 ]
 docs = [

@@ -218,6 +218,25 @@ class SignalsMixinHelper:
             result.append(s)
         return result
 
+    @staticmethod
+    def _build_pvt_df(
+        data_pvt_num: List[Dict],
+        entity_col: str,
+        pressure_unit: str,
+        temperature_unit: str,
+        signals_with_units_map: Dict[str, str],
+        backend: str,
+    ) -> Optional[Any]:
+        """Build a PVT DataFrame — thin wrapper around DataFrameMixinHelper._build_multi_index_df."""
+        return DataFrameMixinHelper._build_multi_index_df(
+            data_pvt_num,
+            entity_col=entity_col,
+            index_cols=["Pressure", "Temperature"],
+            col_unit_labels=[pressure_unit, temperature_unit],
+            signals_with_units_map=signals_with_units_map,
+            backend=backend,
+        )
+
     # Range-resolution helpers delegated to ContextsMixinHelper
     _resolve_time_range = ContextsMixinHelper._resolve_time_range
     _resolve_depth_range = ContextsMixinHelper._resolve_depth_range
@@ -912,11 +931,17 @@ class SignalsMixin(
         _depth_col = "Depth"
         _signal_col = "Signal"
 
-        # Handle PVT data if present
+        # Build PVT DataFrame (separate from time/depth/static — different index axes)
+        df_pvt = None
         if data_pvt_num:
-            # PVT data has structure: Entity, Signal, Unit, Data[{Pressure, Temperature, Value}], Scenario
-            # TODO: Implement PVT-specific DataFrame construction
-            pass
+            df_pvt = SignalsMixinHelper._build_pvt_df(
+                data_pvt_num,
+                _entity_col,
+                pressure_unit,
+                temperature_unit,
+                signals_with_units_map,
+                backend,
+            )
 
         # Build all signal types in one pass and join on entity
         df = DataFrameMixinHelper._build_combined_df(
@@ -962,6 +987,10 @@ class SignalsMixin(
                 df, _depth_col, f"{_depth_col} [{_depth_label}]", backend
             )
 
+        # PVT-only result: return pvt df directly (already in the requested backend)
+        if df is None and df_pvt is not None:
+            return df_pvt
+
         if df is None:
             warnings.warn(
                 "PetroVisor::load_signals_data():: Couldn't retrieve any data.",
@@ -992,6 +1021,8 @@ class SignalsMixin(
         only_existing_entities: bool = True,
         entity_type: str = "",
         entities: Optional[Dict] = None,
+        pressure_unit: str = "Pa",
+        temperature_unit: str = "K",
         **kwargs,
     ) -> None:
         """
@@ -1014,6 +1045,10 @@ class SignalsMixin(
             Save data only if entity exist in workspace
         entity_type : str, default None
             Save data only for specified entity type
+        pressure_unit : str, default 'Pa'
+            Unit for Pressure axis when saving PVT signals
+        temperature_unit : str, default 'K'
+            Unit for Temperature axis when saving PVT signals
         """
         # read table
         if isinstance(df, str):
@@ -1037,6 +1072,8 @@ class SignalsMixin(
                         only_existing_entities=only_existing_entities,
                         entity_type=entity_type,
                         entities=entities,
+                        pressure_unit=pressure_unit,
+                        temperature_unit=temperature_unit,
                         **kwargs,
                     )
                 return None
@@ -1052,6 +1089,9 @@ class SignalsMixin(
             # save all signal types in a single Data/Save request
             if any(data_to_save.values()):
                 data_to_save["GenerateLogs"] = False
+                if data_to_save.get("PVTNumericData"):
+                    data_to_save["PressureUnit"] = pressure_unit
+                    data_to_save["TemperatureUnit"] = temperature_unit
                 self.post(SignalsMixinHelper.ENDPOINT_SAVE, data=data_to_save, **kwargs)
         return None
 
@@ -1690,9 +1730,27 @@ class SignalsMixin(
                 if bucket is None:
                     continue
                 # apply get_json_valid_value with correct dtypes
-                if sig_type in _dtypes:
+                raw_data = record.get("Data")
+                if sig_type == SignalType.PVT:
+                    # PVT Data: [{Pressure, Temperature, Value}] — two numeric axes
+                    if isinstance(raw_data, list):
+                        record["Data"] = [
+                            {
+                                "Pressure": self.get_json_valid_value(
+                                    r.get("Pressure"), dtype="Numeric", **kwargs
+                                ),
+                                "Temperature": self.get_json_valid_value(
+                                    r.get("Temperature"), dtype="Numeric", **kwargs
+                                ),
+                                "Value": self.get_json_valid_value(
+                                    r.get("Value"), dtype="Numeric", **kwargs
+                                ),
+                            }
+                            for r in raw_data
+                            if isinstance(r, dict)
+                        ]
+                elif sig_type in _dtypes:
                     idx_key, idx_dtype, val_dtype = _dtypes[sig_type]
-                    raw_data = record.get("Data")
                     if (
                         idx_key is not None
                         and idx_dtype is not None
@@ -1724,10 +1782,12 @@ class SignalsMixin(
         if depth_step:
             request_body["ValuesDepthIncrement"] = depth_step
 
-        # Add PVT unit parameters
-        if data_type == SignalType.PVT:
-            request_body["PressureUnit"] = pressure_unit
-            request_body["TemperatureUnit"] = temperature_unit
+        # Add PVT unit parameters when PVT data is present (explicit or auto-detected)
+        if data_type == SignalType.PVT or request_body.get("PVTNumericData"):
+            if pressure_unit:
+                request_body["PressureUnit"] = pressure_unit
+            if temperature_unit:
+                request_body["TemperatureUnit"] = temperature_unit
 
         # Skip the request if all data buckets are empty (avoids a server 500)
         _data_keys = [

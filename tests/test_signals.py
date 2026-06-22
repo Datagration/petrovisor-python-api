@@ -12,7 +12,7 @@ All tests include proper cleanup to avoid polluting the test workspace.
 
 from datetime import datetime
 
-from petrovisor import PetroVisor, Entity, SignalType, ItemType
+from petrovisor import PetroVisor, Entity, Signal, SignalType, ItemType
 import pandas as pd
 import numpy as np
 import pytest
@@ -607,8 +607,14 @@ def test_load_data(api: PetroVisor):
             return next((c for c in df.columns if sig in c), None)
 
         # ── load_signals_data() with context ──────────────────────────────────
-        # static + time together: 1 entity × 5 time steps = 5 rows
-        df = api.load_signals_data([sig_static_num, sig_time_num], context=ctx)
+        # static + time together: 1 entity × 5 time steps = 5 rows.
+        # Poll the combined call — individual polls above don't guarantee the
+        # combined response is ready (server routes static and time separately).
+        df = _wait_for_data(
+            api,
+            lambda: api.load_signals_data([sig_static_num, sig_time_num], context=ctx),
+            5,
+        )
         assert df is not None and not df.empty, (
             "load_signals_data(context) returned no data"
         )
@@ -1265,6 +1271,254 @@ def test_load_pivot_table_data_backend_pandas(api):
 # ============================================================================
 # load_data signature check (no API call)
 # ============================================================================
+
+
+def test_pvt_save_and_load(api: PetroVisor):
+    """PVT full roundtrip covering all public methods.
+
+    Creates entity "PVTTest Well" and three PVT signals (Rso, Bo, Mu), then
+    exercises each method:
+      - save_data()          explicit data_type="pvt" list payload
+      - save_data()          auto-detect (data_type=None)
+      - save_table_data()    wide-format DataFrame with Pressure/Temperature axes
+      - load_signals_data()  pandas + polars backends
+      - load_data()          signal-name delegation path
+      - delete_data()        data_type="pvt" + [{Entity, Signal}]
+    """
+    import time
+    import warnings as _warnings
+    import concurrent.futures
+
+    PFX = "PVTTest"
+    entity = f"{PFX} Well"
+    sig_rso = f"{PFX} Rso"
+    sig_bo = f"{PFX} Bo"
+    sig_mu = f"{PFX} Mu"
+    pressure_unit = "Pa"
+    temperature_unit = "K"
+
+    _pressures = [1e6, 2e6, 3e6]
+    _temperatures = [300.0, 350.0, 400.0]
+    _values = {
+        sig_rso: [20.0, 28.0, 36.0],
+        sig_bo: [1.10, 1.12, 1.14],
+        sig_mu: [1.20, 1.07, 0.96],
+    }
+    n_rows = len(_pressures)
+
+    def _pvt_records():
+        return [
+            {
+                "Entity": entity,
+                "Signal": sig,
+                "Unit": " ",
+                "Data": [
+                    {"Pressure": p, "Temperature": t, "Value": v}
+                    for p, t, v in zip(_pressures, _temperatures, vals)
+                ],
+            }
+            for sig, vals in _values.items()
+        ]
+
+    def _poll_ready(sig_name):
+        for _ in range(30):
+            with _warnings.catch_warnings():
+                _warnings.simplefilter("ignore", RuntimeWarning)
+                df_probe = api.load_signals_data(
+                    [sig_name],
+                    entities=[entity],
+                    pressure_unit=pressure_unit,
+                    temperature_unit=temperature_unit,
+                )
+            if df_probe is not None and len(df_probe) > 0:
+                return True
+            time.sleep(2)
+        return False
+
+    def _wait_all_ready():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            futs = {s: pool.submit(_poll_ready, s) for s in [sig_rso, sig_bo, sig_mu]}
+            for sig_name, fut in futs.items():
+                assert fut.result(), f"data layer never ready for {sig_name}"
+
+    def _delete_all():
+        for sig in [sig_rso, sig_bo, sig_mu]:
+            try:
+                api.delete_data(
+                    data_type="pvt",
+                    data=[{"Entity": entity, "Signal": sig}],
+                )
+            except Exception:
+                pass
+
+    def _save_pvt(data_type_arg=SignalType.PVT):
+        """Save PVT data, retrying until server accepts (metadata/data lag)."""
+        kw = dict(
+            data=_pvt_records(),
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+            with_logs=False,
+        )
+        if data_type_arg is not None:
+            kw["data_type"] = data_type_arg
+        for attempt in range(20):
+            with _warnings.catch_warnings():
+                _warnings.simplefilter("ignore", RuntimeWarning)
+                resp = api.save_data(**kw)
+            # Response is truthy on 2xx, None/falsy on server error
+            if resp is not None:
+                return
+            time.sleep(5)
+        raise RuntimeError("save_pvt returned error after 20 attempts")
+
+    def _assert_df(df, label):
+        assert df is not None, f"{label}: returned None"
+        assert isinstance(df, pd.DataFrame), f"{label}: not a DataFrame"
+        assert len(df) == n_rows, f"{label}: expected {n_rows} rows, got {len(df)}"
+        assert "Entity" in df.columns, f"{label}: missing Entity column"
+        assert any("Pressure" in c for c in df.columns), f"{label}: missing Pressure column"
+        assert any("Temperature" in c for c in df.columns), f"{label}: missing Temperature column"
+        for sig in [sig_rso, sig_bo, sig_mu]:
+            assert any(sig in c for c in df.columns), f"{label}: missing column for {sig}"
+        # verify values
+        p_col = next(c for c in df.columns if "Pressure" in c)
+        df_s = df.sort_values(p_col).reset_index(drop=True)
+        for sig, exp_vals in _values.items():
+            col = next(c for c in df.columns if sig in c)
+            for i, exp in enumerate(exp_vals):
+                assert abs(float(df_s[col].iloc[i]) - exp) < 1e-3, (
+                    f"{label}: {sig} mismatch at row {i}: {df_s[col].iloc[i]} != {exp}"
+                )
+
+    try:
+        # ── provision ─────────────────────────────────────────────────────────
+        _ensure_entities(api, [entity])
+        for name in [sig_rso, sig_bo, sig_mu]:
+            _ensure_signal(api, name, SignalType.PVT, unit=" ")
+        # Verify signals truly accessible via get_signal (list cache can lag after delete)
+        for name in [sig_rso, sig_bo, sig_mu]:
+            for _ in range(30):
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore", RuntimeWarning)
+                    sig_obj = api.get_signal(name)
+                if sig_obj is not None:
+                    break
+                # signal not accessible yet — may need recreation (list cache stale)
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore", RuntimeWarning)
+                    try:
+                        api.add_signal(
+                            Signal(
+                                type=SignalType.PVT.name,
+                                name=name,
+                                unit=" ",
+                                unit_measurement="Dimensionless",
+                            )
+                        )
+                    except Exception:
+                        pass
+                time.sleep(2)
+
+        # ── 1. save_data() explicit data_type="pvt" ───────────────────────────
+        _save_pvt(data_type_arg=SignalType.PVT)
+        _wait_all_ready()
+        df = api.load_signals_data(
+            [sig_rso, sig_bo, sig_mu],
+            entities=[entity],
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+        )
+        _assert_df(df, "save_data(explicit pvt)")
+        print("✅ save_data(explicit pvt)")
+
+        # ── 2. delete_data() ──────────────────────────────────────────────────
+        _delete_all()
+        print("✅ delete_data(pvt)")
+
+        # ── 3. save_data() auto-detect (data_type=None) ───────────────────────
+        _save_pvt(data_type_arg=None)
+        _wait_all_ready()
+        df = api.load_signals_data(
+            [sig_rso, sig_bo, sig_mu],
+            entities=[entity],
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+        )
+        _assert_df(df, "save_data(auto-detect)")
+        print("✅ save_data(auto-detect)")
+        _delete_all()
+
+        # ── 4. save_table_data() with wide PVT DataFrame ─────────────────────
+        # Wait until all 3 signals are visible in the signal list before building
+        # the DataFrame — get_signal_data_from_dataframe filters on signal existence.
+        all_sigs = [sig_rso, sig_bo, sig_mu]
+        for _ in range(30):
+            existing_sigs = set(api.get_signal_names() or [])
+            if all(s in existing_sigs for s in all_sigs):
+                break
+            time.sleep(2)
+
+        p_col = f"Pressure [{pressure_unit}]"
+        t_col = f"Temperature [{temperature_unit}]"
+        df_wide = pd.DataFrame(
+            {
+                "Entity": [entity] * n_rows,
+                p_col: _pressures,
+                t_col: _temperatures,
+                f"{sig_rso} [ ]": _values[sig_rso],
+                f"{sig_bo} [ ]": _values[sig_bo],
+                f"{sig_mu} [ ]": _values[sig_mu],
+            }
+        )
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("ignore", RuntimeWarning)
+            api.save_table_data(
+                df_wide,
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+                only_existing_entities=False,
+            )
+        _wait_all_ready()
+        df = api.load_signals_data(
+            [sig_rso, sig_bo, sig_mu],
+            entities=[entity],
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+        )
+        _assert_df(df, "save_table_data(wide pvt)")
+        print("✅ save_table_data(wide pvt)")
+
+        # ── 5. load_data() signal-name delegation ─────────────────────────────
+        df_ld = api.load_data(
+            data=[sig_rso, sig_bo, sig_mu],
+            entities=[entity],
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+        )
+        _assert_df(df_ld, "load_data(signal-name)")
+        print("✅ load_data(signal-name delegation)")
+
+        # ── 6. polars backend smoke test ─────────────────────────────────────
+        try:
+            import polars as _pl
+
+            df_pl = api.load_signals_data(
+                [sig_rso, sig_bo, sig_mu],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+                backend="polars",
+            )
+            assert df_pl is not None and isinstance(df_pl, _pl.DataFrame)
+            assert len(df_pl) == n_rows, "polars backend row count mismatch"
+            print("✅ load_signals_data(backend=polars)")
+        except ImportError:
+            pass
+
+    finally:
+        # Delete PVT data but leave entity+signals — deleting them causes metadata/data-layer
+        # propagation lag that makes the test fail on the next run.
+        _delete_all()
 
 
 def test_load_data_signature_extended():
