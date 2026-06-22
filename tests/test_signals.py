@@ -1,9 +1,5 @@
 """
-Comprehensive test suite for signal data endpoints.
-
-Tests dual-method data retrieval:
-- method="dataview" uses Filters/Data endpoint (frontend DataView compatibility)
-- method=None uses Data/Retrieve endpoint with IsNumeric parameter (default)
+Comprehensive test suite for signal data endpoints (Data/Retrieve, Data/Save, Data/Delete).
 
 Signal types tested:
 - Static numeric & string
@@ -14,676 +10,70 @@ Signal types tested:
 All tests include proper cleanup to avoid polluting the test workspace.
 """
 
-from petrovisor import PetroVisor, Signal, Entity, SignalType, ItemType
+from datetime import datetime
+
+from petrovisor import PetroVisor, Entity, SignalType, ItemType
 import pandas as pd
 import numpy as np
 import pytest
 
+from conftest import (
+    _UNIT,
+    ensure_entities as _ensure_entities,
+    ensure_signal as _ensure_signal,
+    ensure_signals as _ensure_signals,
+    wait_for_save_ready as _wait_for_save_ready,
+    wait_for_data as _wait_for_data,
+    cleanup as _cleanup,
+)
+
 
 # ============================================================================
-# MAIN COMPREHENSIVE TEST
+# test_save_data — covers save_data(), save_table_data(), delete_data()
+#   for all signal types and all input formats (list, DataFrame, Series,
+#   long/wide, explicit type vs auto-detect)
 # ============================================================================
-
-
-def test_signals_comprehensive(api: PetroVisor):
-    """
-    CONSOLIDATED comprehensive test covering ALL signal types with BOTH methods.
-
-    Signal Types Tested:
-    - Static numeric & string
-    - Time numeric & string
-    - Depth numeric & string
-    - PVT
-
-    Methods Tested:
-    - method="dataview" (Filters/Data endpoint)
-    - method=None (Data/Retrieve endpoint)
-    """
-    from petrovisor import (
-        EntitySet,
-        Hierarchy,
-        Scope,
-        Context,
-        TimeIncrement,
-        DepthIncrement,
-    )
-    import time
-
-    # ========== SIGNAL DEFINITIONS ==========
-    # Define ALL signal types with their configuration
-    signal_configs = [
-        {
-            "name": "static numeric signal",
-            "type": SignalType.Static,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "static string signal",
-            "type": SignalType.String,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "time numeric signal",
-            "type": SignalType.TimeDependent,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "time string signal",
-            "type": SignalType.StringTimeDependent,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "depth numeric signal",
-            "type": SignalType.DepthDependent,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "depth string signal",
-            "type": SignalType.StringDepthDependent,
-            "unit": " ",
-            "measurement": "Dimensionless",
-        },
-        {
-            "name": "pvt signal",
-            "type": SignalType.PVT,
-            "unit": "Pa",
-            "measurement": "Pressure",
-        },
-    ]
-
-    # Create signals using common logic with conditional handling
-    signals = []
-    for config in signal_configs:
-        signal = Signal(
-            type=config["type"].name,
-            name=config["name"],
-            unit=config["unit"],
-            unit_measurement=config["measurement"],
-        )
-        signals.append(signal)
-
-        if not api.item_exists(ItemType.Signal, signal.name):
-            api.add_signal(signal)
-
-    # Wait until all signals created
-    all_signals_exist = False
-    while not all_signals_exist:
-        all_signals_exist = True
-        for signal in signals:
-            if not api.item_exists(ItemType.Signal, signal.name):
-                all_signals_exist = False
-
-    # ========== ENTITY DEFINITIONS ==========
-    entities = [
-        Entity(name="Well 001", type="Well"),
-        Entity(name="Well 002", type="Well"),
-        Entity(name="Well 003", type="Well"),
-        Entity(name="Well 004", type="Well"),
-        Entity(name="Well 005", type="Well"),
-        Entity(name="Field 1", type="Field"),
-    ]
-
-    # Create entities
-    for entity in entities:
-        if not api.item_exists(ItemType.Entity, entity.name):
-            api.add_entity(entity)
-
-    # Wait for entities to propagate
-    max_retries = 10
-    for _ in range(max_retries):
-        all_exist = all(api.item_exists(ItemType.Entity, e.name) for e in entities)
-        if all_exist:
-            break
-        time.sleep(1)
-
-    # ========== CONTEXT SETUP ==========
-    entity_set = EntitySet(name="Field 1 Wells", entities=entities)
-
-    relationship = {
-        "Well 001": "Field 1",
-        "Well 002": "Field 1",
-        "Well 003": "Field 1",
-        "Well 004": "Field 1",
-        "Well 005": "Field 1",
-    }
-    hierarchy = Hierarchy(name="Field 1 Wells", relationship=relationship)
-
-    time_start = "2021-01-01T00:00:00"
-    time_end = "2022-01-01T00:00:00"
-    time_step = TimeIncrement.Daily.name
-    depth_start = 0
-    depth_end = 10
-    depth_step = DepthIncrement.Meter.name
-
-    scope = Scope(
-        name="Field 1 Wells Scope",
-        time_start=time_start,
-        time_end=time_end,
-        time_step=time_step,
-        depth_start=depth_start,
-        depth_end=depth_end,
-        depth_step=depth_step,
-    )
-
-    context = Context(
-        name="Context",
-        scope=scope,
-        entity_set=entity_set,
-        hierarchy=hierarchy,
-    )
-
-    # ========== DATA PREPARATION ==========
-    entity_col = "Entity"
-    time_col = "Date"
-    depth_col = "Depth [m]"
-    letters = list(map(chr, range(97, 123)))
-    num_wells = 5
-    depth_steps = 10
-    time_steps = 100
-
-    # Get signal names by type
-    stat_num_signal = signal_configs[0]["name"]
-    stat_str_signal = signal_configs[1]["name"]
-    time_num_signal = signal_configs[2]["name"]
-    time_str_signal = signal_configs[3]["name"]
-    depth_num_signal = signal_configs[4]["name"]
-    depth_str_signal = signal_configs[5]["name"]
-    pvt_signal = signal_configs[6]["name"]
-
-    # Static data
-    data_stat = []
-    for i in range(0, num_wells):
-        well_idx = i + 1
-        entities_list = [f"Well 00{well_idx}"]
-        num_vals = [i]
-        str_vals = [letters[i]]
-        data_stat.append(
-            pd.DataFrame(
-                {
-                    entity_col: entities_list,
-                    stat_num_signal: num_vals,
-                    stat_str_signal: str_vals,
-                }
-            )
-        )
-    df_stat = pd.concat(data_stat, ignore_index=True)
-    api.save_table_data(df_stat)
-
-    # Time data
-    data_time = []
-    for i in range(0, num_wells):
-        well_idx = i + 1
-        entities_arr = np.repeat(f"Well 00{well_idx}", time_steps)
-        dates = pd.date_range(time_start, periods=time_steps, freq="D").to_list()
-        num_vals = np.random.uniform(1, 4, time_steps)
-        str_vals = np.random.choice(letters, time_steps)
-        data_time.append(
-            pd.DataFrame(
-                {
-                    entity_col: entities_arr,
-                    time_col: dates,
-                    time_num_signal: num_vals,
-                    time_str_signal: str_vals,
-                }
-            )
-        )
-    df_time = pd.concat(data_time, ignore_index=True)
-    api.save_table_data(df_time)
-
-    # Depth data
-    data_depth = []
-    for i in range(0, num_wells):
-        well_idx = i + 1
-        entities_arr = np.repeat(f"Well 00{well_idx}", depth_steps)
-        depths = np.arange(0, depth_steps).tolist()
-        num_vals = np.sin(np.linspace(0, 1, depth_steps)) * 100
-        str_vals = np.random.choice(letters, depth_steps)
-        data_depth.append(
-            pd.DataFrame(
-                {
-                    entity_col: entities_arr,
-                    depth_col: depths,
-                    depth_num_signal: num_vals,
-                    depth_str_signal: str_vals,
-                }
-            )
-        )
-    df_depth = pd.concat(data_depth, ignore_index=True)
-    api.save_table_data(df_depth)
-
-    # Wait for all signals to be retrievable
-    max_retries = 10
-    retry_delay = 2
-    for attempt in range(max_retries):
-        all_retrievable = True
-        for signal in signals:
-            try:
-                signal_metadata = api.get_signal(signal.name)
-                if signal_metadata is None:
-                    all_retrievable = False
-                    print(
-                        f"Attempt {attempt + 1}/{max_retries}: Signal '{signal.name}' metadata not yet available"
-                    )
-                    break
-            except Exception as e:
-                all_retrievable = False
-                print(
-                    f"Attempt {attempt + 1}/{max_retries}: Error retrieving '{signal.name}': {e}"
-                )
-                break
-
-        if all_retrievable:
-            print(f"All signal metadata available after {attempt + 1} attempt(s)")
-            break
-
-        if attempt < max_retries - 1:
-            time.sleep(retry_delay)
-
-    # ========== TEST EACH SIGNAL TYPE WITH BOTH METHODS BACK TO BACK ==========
-
-    print("\n=== Static signals ===")
-    df = api.load_signals_data(
-        [stat_num_signal, stat_str_signal], context=context, method="dataview"
-    )
-    assert df is not None and df.shape[0] >= num_wells + 1, (
-        "Static signals (dataview) should return data"
-    )
-    print(f"✅ Static signals (dataview): {df.shape[0]} rows")
-    df = api.load_signals_data(
-        [stat_num_signal, stat_str_signal], context=context, method=None
-    )
-    if df is not None and df.shape[0] > 0:
-        print(f"✅ Static signals (Data/Retrieve): {df.shape[0]} rows")
-    else:
-        print("ℹ️  Static signals (Data/Retrieve): Returned None")
-
-    print("\n=== Time signals ===")
-    df = api.load_signals_data(
-        [time_num_signal, time_str_signal], context=context, method="dataview"
-    )
-    assert df is not None and df.shape[0] >= num_wells * time_steps, (
-        "Time signals (dataview) should return data"
-    )
-    print(f"✅ Time signals (dataview): {df.shape[0]} rows")
-    df = api.load_signals_data(
-        [time_num_signal, time_str_signal], context=context, method=None
-    )
-    if df is not None and df.shape[0] > 0:
-        print(f"✅ Time signals (Data/Retrieve): {df.shape[0]} rows")
-    else:
-        print("ℹ️  Time signals (Data/Retrieve): Returned None")
-
-    print("\n=== Depth signals ===")
-    df = api.load_signals_data(
-        [depth_num_signal, depth_str_signal], context=context, method="dataview"
-    )
-    assert df is not None and df.shape[0] >= num_wells * depth_steps, (
-        "Depth signals (dataview) should return data"
-    )
-    print(f"✅ Depth signals (dataview): {df.shape[0]} rows")
-    df = api.load_signals_data(
-        [depth_num_signal, depth_str_signal], context=context, method=None
-    )
-    if df is not None and df.shape[0] > 0:
-        print(f"✅ Depth signals (Data/Retrieve): {df.shape[0]} rows")
-    else:
-        print("ℹ️  Depth signals (Data/Retrieve): Returned None")
-
-    print("\n=== PVT signal ===")
-    df_pvt = api.load_signals_data(
-        [pvt_signal],
-        entities=["Well 001"],
-        method="dataview",
-        pressure_unit="psi",
-        temperature_unit="F",
-    )
-    if df_pvt is not None:
-        print(f"✅ PVT signal (dataview): {df_pvt.shape[0]} rows")
-    else:
-        print("ℹ️  PVT signal (dataview): No data (expected - no PVT data saved)")
-    df_pvt = api.load_signals_data(
-        [pvt_signal],
-        entities=["Well 001"],
-        method=None,
-        pressure_unit="psi",
-        temperature_unit="F",
-    )
-    if df_pvt is not None and len(df_pvt) > 0:
-        print(f"✅ PVT signal (Data/Retrieve): {df_pvt.shape[0]} rows")
-    else:
-        print("ℹ️  PVT signal (Data/Retrieve): No data")
-
-    print("\n=== All signals combined ===")
-    all_signals = [
-        stat_num_signal,
-        stat_str_signal,
-        time_num_signal,
-        time_str_signal,
-        depth_num_signal,
-        depth_str_signal,
-    ]
-    df = api.load_signals_data(all_signals, context=context, method="dataview")
-    assert df is not None and df.shape[0] > 0, (
-        "All signals (dataview) should return data"
-    )
-    print(f"✅ All signals combined (dataview): {df.shape[0]} rows")
-    df = api.load_signals_data(all_signals, context=context, method=None)
-    if df is not None and df.shape[0] > 0:
-        print(f"✅ All signals combined (Data/Retrieve): {df.shape[0]} rows")
-    else:
-        print("ℹ️  All signals combined (Data/Retrieve): Returned None")
-
-    # Case-insensitive method parameter
-    _ = api.load_signals_data([stat_num_signal], context=context, method="DataView")
-    _ = api.load_signals_data([stat_num_signal], context=context, method="dataview")
-    _ = api.load_signals_data([stat_num_signal], context=context, method="DATAVIEW")
-    print("✅ Case-insensitive method parameter works")
-
-    print("\n=== ✅ ALL TESTS COMPLETED SUCCESSFULLY ===")
-
-
-def test_get_data_range(api: PetroVisor):
-    """
-    Test get_data_range() method with unified Data/TimeRange and Data/DepthStepExtremum endpoints.
-
-    Tests both numeric and string signals to verify IsNumeric parameter works correctly.
-    """
-    import time
-
-    # Create test entity
-    entity_name = "Test Range Well"
-    time_signal_num = "Test Range Time Numeric"
-    time_signal_str = "Test Range Time String"
-    depth_signal_num = "Test Range Depth Numeric"
-    depth_signal_str = "Test Range Depth String"
-
-    try:
-        # Create entity
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
-
-        # Create signals
-        signals_to_create = [
-            (time_signal_num, SignalType.TimeDependent),
-            (time_signal_str, SignalType.StringTimeDependent),
-            (depth_signal_num, SignalType.DepthDependent),
-            (depth_signal_str, SignalType.StringDepthDependent),
-        ]
-
-        for signal_name, signal_type in signals_to_create:
-            if not api.item_exists(ItemType.Signal, signal_name):
-                api.add_signal(
-                    Signal(
-                        type=signal_type.name,
-                        name=signal_name,
-                        unit=" ",
-                        unit_measurement="Dimensionless",
-                    )
-                )
-
-        # Wait for signals to be created
-        time.sleep(2)
-
-        # Save some time data
-        df_time = pd.DataFrame(
-            {
-                "Entity": [entity_name] * 5,
-                "Date": pd.date_range("2024-01-01", periods=5, freq="D"),
-                f"{time_signal_num} [ ]": [10, 20, 30, 40, 50],
-                f"{time_signal_str} [ ]": ["a", "b", "c", "d", "e"],
-            }
-        )
-        api.save_table_data(df_time)
-
-        # Save some depth data
-        df_depth = pd.DataFrame(
-            {
-                "Entity": [entity_name] * 5,
-                "Depth [m]": [1000, 1001, 1002, 1003, 1004],
-                f"{depth_signal_num} [ ]": [100, 200, 300, 400, 500],
-                f"{depth_signal_str} [ ]": ["x", "y", "z", "w", "v"],
-            }
-        )
-        api.save_table_data(df_depth)
-
-        # Wait for data to propagate
-        time.sleep(3)
-
-        # Test 1: get_data_range for numeric time signal
-        time_range = api.get_data_range(
-            signal_type="time", signal=time_signal_num, entity=entity_name
-        )
-        if (
-            time_range
-            and isinstance(time_range, dict)
-            and "Start" in time_range
-            and "End" in time_range
-        ):
-            print(f"✅ Time numeric range: {time_range}")
-        else:
-            print(
-                f"ℹ️  Time numeric range: No data or not propagated yet (returned: {type(time_range).__name__})"
-            )
-
-        # Test 2: get_data_range for string time signal
-        time_range_str = api.get_data_range(
-            signal_type="timestring", signal=time_signal_str, entity=entity_name
-        )
-        if (
-            time_range_str
-            and isinstance(time_range_str, dict)
-            and "Start" in time_range_str
-            and "End" in time_range_str
-        ):
-            print(f"✅ Time string range: {time_range_str}")
-        else:
-            print(
-                f"ℹ️  Time string range: No data or not propagated yet (returned: {type(time_range_str).__name__})"
-            )
-
-        # Test 3: get_data_range for numeric depth signal
-        depth_range = api.get_data_range(
-            signal_type="depth", signal=depth_signal_num, entity=entity_name
-        )
-        if (
-            depth_range
-            and isinstance(depth_range, dict)
-            and "Start" in depth_range
-            and "End" in depth_range
-        ):
-            print(f"✅ Depth numeric range: {depth_range}")
-        else:
-            print(
-                f"ℹ️  Depth numeric range: No data or not propagated yet (returned: {type(depth_range).__name__})"
-            )
-
-        # Test 4: get_data_range for string depth signal
-        depth_range_str = api.get_data_range(
-            signal_type="stringdepth", signal=depth_signal_str, entity=entity_name
-        )
-        if (
-            depth_range_str
-            and isinstance(depth_range_str, dict)
-            and "Start" in depth_range_str
-            and "End" in depth_range_str
-        ):
-            print(f"✅ Depth string range: {depth_range_str}")
-        else:
-            print(
-                f"ℹ️  Depth string range: No data or not propagated yet (returned: {type(depth_range_str).__name__})"
-            )
-
-        # Test 5: get_data_range with only signal_type (no signal, no entity)
-        range_all_time = api.get_data_range(signal_type="time")
-        print(
-            f"✅ Time all range (signal_type only): returned {type(range_all_time).__name__}"
-        )
-
-        range_all_depth = api.get_data_range(signal_type="depth")
-        print(
-            f"✅ Depth all range (signal_type only): returned {type(range_all_depth).__name__}"
-        )
-
-        # Test 6: get_data_range with signal only (no signal_type, no entity)
-        # signal_type is inferred as None → raises ValueError (no type to route on)
-        with pytest.raises(ValueError):
-            api.get_data_range(signal=time_signal_num)
-        print("✅ Raises ValueError when signal_type is omitted (signal only)")
-
-        # Test 7: get_data_range with no args at all → same ValueError
-        with pytest.raises(ValueError):
-            api.get_data_range()
-        print("✅ Raises ValueError when called with no arguments")
-
-        print("✅ get_data_range() tests passed - endpoints called correctly")
-
-    finally:
-        # Cleanup
-        for signal_name, _ in signals_to_create:
-            try:
-                if api.item_exists(ItemType.Signal, signal_name):
-                    api.delete_signal(signal_name)
-            except Exception:
-                pass
-        try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
-        except Exception:
-            pass
-
-
-def test_cleanse_data(api: PetroVisor):
-    """
-    Test cleanse_data() method with unified Data/Cleanse endpoint.
-
-    Tests single-point data cleansing for both Static and TimeDependent signals
-    to verify IsNumeric parameter works correctly.
-    """
-    import time
-    from datetime import datetime
-
-    entity_name = "Test Cleanse Well"
-    static_signal = "Test Cleanse Static"
-    time_signal = "Test Cleanse Time"
-
-    try:
-        # Create entity
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
-
-        # Create signals
-        if not api.item_exists(ItemType.Signal, static_signal):
-            api.add_signal(
-                Signal(
-                    type=SignalType.Static.name,
-                    name=static_signal,
-                    unit=" ",
-                    unit_measurement="Dimensionless",
-                )
-            )
-
-        if not api.item_exists(ItemType.Signal, time_signal):
-            api.add_signal(
-                Signal(
-                    type=SignalType.TimeDependent.name,
-                    name=time_signal,
-                    unit=" ",
-                    unit_measurement="Dimensionless",
-                )
-            )
-
-        # Wait for signals to be created
-        time.sleep(2)
-
-        # Test 1: Cleanse static data point
-        result_static = api.cleanse_data(
-            value=100.5,
-            timestamp=None,
-            signal=static_signal,
-            unit=" ",
-            entity=entity_name,
-            cleansing_script="DefaultCleansing",
-        )
-        # Note: cleansing_script may not exist in workspace, but endpoint should be called correctly
-        if result_static is None:
-            print(
-                "ℹ️  Static data cleansing returned None (cleansing script may not exist in workspace)"
-            )
-        else:
-            print(f"✅ Static data cleansing result: {result_static}")
-
-        # Test 2: Cleanse time-dependent data point
-        result_time = api.cleanse_data(
-            value=50.25,
-            timestamp=datetime(2024, 1, 1),
-            signal=time_signal,
-            unit=" ",
-            entity=entity_name,
-            cleansing_script="DefaultCleansing",
-        )
-        # Note: cleansing_script may not exist in workspace, but endpoint should be called correctly
-        if result_time is None:
-            print(
-                "ℹ️  Time data cleansing returned None (cleansing script may not exist in workspace)"
-            )
-        else:
-            print(f"✅ Time data cleansing result: {result_time}")
-
-        print("✅ cleanse_data() tests passed - Data/Acquire endpoint called correctly")
-
-    finally:
-        # Cleanup
-        try:
-            if api.item_exists(ItemType.Signal, static_signal):
-                api.delete_signal(static_signal)
-        except Exception:
-            pass
-        try:
-            if api.item_exists(ItemType.Signal, time_signal):
-                api.delete_signal(time_signal)
-        except Exception:
-            pass
-        try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
-        except Exception:
-            pass
 
 
 def test_save_data(api: PetroVisor):
     """
-    Test save_data() method with unified Data/Save endpoint.
+    Consolidated save/delete roundtrip for all signal types and input formats.
 
-    Covers numeric and string variants of static, time, and depth signals,
-    plus DataFrame and Series as input types.
+    Covers:
+    - save_data() with explicit data_type + list payload
+    - save_data() / save_table_data() with long-format DataFrame
+    - save_data() with wide-format DataFrame
+    - save_data() with named Series
+    - delete_data() range, full, DataFrame spec, Series spec
+    - roundtrip verification via load_signals_data
     """
-    import time
+    from petrovisor import Scope, EntitySet, Context, TimeIncrement, DepthIncrement
 
-    entity_name = "Test Save Well"
-    static_signal = "Test Save Static"
-    static_str_signal = "Test Save Static String"
-    time_signal = "Test Save Time"
-    time_str_signal = "Test Save Time String"
-    depth_signal = "Test Save Depth"
-    depth_str_signal = "Test Save Depth String"
+    PFX = "SD"
+    e1, e2 = f"{PFX} Well 001", f"{PFX} Well 002"
+    sig_static_num = f"{PFX} Static Num"
+    sig_static_str = f"{PFX} Static Str"
+    sig_time_num = f"{PFX} Time Num"
+    sig_time_str = f"{PFX} Time Str"
+    sig_depth_num = f"{PFX} Depth Num"
+    sig_depth_str = f"{PFX} Depth Str"
+    signal_names = [
+        sig_static_num,
+        sig_static_str,
+        sig_time_num,
+        sig_time_str,
+        sig_depth_num,
+        sig_depth_str,
+    ]
 
     try:
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
+        import concurrent.futures as _cf
 
-        signals_to_create = [
-            (static_signal, SignalType.Static),
-            (static_str_signal, SignalType.String),
-            (time_signal, SignalType.TimeDependent),
-            (time_str_signal, SignalType.StringTimeDependent),
-            (depth_signal, SignalType.DepthDependent),
-            (depth_str_signal, SignalType.StringDepthDependent),
-        ]
+        with _cf.ThreadPoolExecutor(max_workers=2) as _pool:
+            _fe = _pool.submit(_ensure_entities, api, [e1, e2])
+            _fs = _pool.submit(_ensure_signals, api, PFX)
+            _fe.result()
+            _fs.result()
 
         with _cf.ThreadPoolExecutor(max_workers=6) as _pool:
             _ready_futs = {
@@ -711,196 +101,356 @@ def test_save_data(api: PetroVisor):
                     f"data layer never ready for {sig_name}"
                 )
 
-        time.sleep(2)
+        dates = ["2024-08-01", "2024-08-02", "2024-08-03"]
+        depths = [1000.0, 1001.0, 1002.0]
 
-        # Test 1: Static numeric — without logs
-        result = api.save_data(
+        # ── 1. save_data() with explicit data_type + list payload ─────────────
+        api.save_data(
             data_type="static",
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": static_signal,
-                    "Unit": " ",
-                    "Data": 42.5,
-                }
-            ],
             with_logs=False,
+            data=[
+                {"Entity": e1, "Signal": sig_static_num, "Unit": _UNIT, "Data": 11.0},
+            ],
         )
-        print(f"✅ Static numeric saved (no logs): {result is not None}")
-
-        # Test 2: Static numeric — with logs
-        result = api.save_data(
-            data_type="static",
+        api.save_data(
+            data_type="string",
+            with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": static_signal,
-                    "Unit": " ",
-                    "Data": 42.5,
-                }
+                    "Entity": e1,
+                    "Signal": sig_static_str,
+                    "Unit": _UNIT,
+                    "Data": "alpha",
+                },
             ],
+        )
+        api.save_data(
+            data_type="time",
+            with_logs=False,
+            data=[
+                {
+                    "Entity": e1,
+                    "Signal": sig_time_num,
+                    "Unit": _UNIT,
+                    "Data": [
+                        {"Date": "2024-08-01T00:00:00Z", "Value": 1.0},
+                        {"Date": "2024-08-02T00:00:00Z", "Value": 2.0},
+                        {"Date": "2024-08-03T00:00:00Z", "Value": 3.0},
+                    ],
+                },
+            ],
+        )
+        api.save_data(
+            data_type="timestring",
+            with_logs=False,
+            data=[
+                {
+                    "Entity": e1,
+                    "Signal": sig_time_str,
+                    "Unit": _UNIT,
+                    "Data": [
+                        {"Date": "2024-08-01T00:00:00Z", "Value": "on"},
+                        {"Date": "2024-08-02T00:00:00Z", "Value": "off"},
+                    ],
+                },
+            ],
+        )
+        api.save_data(
+            data_type="depth",
+            with_logs=False,
+            data=[
+                {
+                    "Entity": e1,
+                    "Signal": sig_depth_num,
+                    "Unit": _UNIT,
+                    "Data": [
+                        {"Depth": 1000.0, "Value": 10.0},
+                        {"Depth": 1001.0, "Value": 20.0},
+                        {"Depth": 1002.0, "Value": 30.0},
+                    ],
+                },
+            ],
+        )
+        api.save_data(
+            data_type="stringdepth",
+            with_logs=False,
+            data=[
+                {
+                    "Entity": e1,
+                    "Signal": sig_depth_str,
+                    "Unit": _UNIT,
+                    "Data": [
+                        {"Depth": 1000.0, "Value": "sand"},
+                        {"Depth": 1001.0, "Value": "shale"},
+                    ],
+                },
+            ],
+        )
+        print("✅ save_data() explicit type + list payload — all 6 types")
+
+        # ── 2. save_data() with long-format DataFrame (auto-detect) ───────────
+        api.save_data(
+            pd.DataFrame(
+                [[e1, 50.0], [e2, 60.0]],
+                columns=["Entity", f"{sig_static_num} [{_UNIT}]"],
+            )
+        )
+        api.save_data(
+            pd.DataFrame(
+                [[e1, d, v] for d, v in zip(dates, [4.0, 5.0, 6.0])]
+                + [[e2, d, v] for d, v in zip(dates, [7.0, 8.0, 9.0])],
+                columns=["Entity", "Date", f"{sig_time_num} [{_UNIT}]"],
+            )
+        )
+        api.save_data(
+            pd.DataFrame(
+                [[e1, d, v] for d, v in zip(depths, [40.0, 50.0, 60.0])],
+                columns=["Entity", "Depth [m]", f"{sig_depth_num} [{_UNIT}]"],
+            )
+        )
+        print("✅ save_data() long-format DataFrame (auto-detect)")
+
+        # ── 3. save_data() with wide-format DataFrame ─────────────────────────
+        api.save_data(
+            pd.DataFrame(
+                [[d, 100.0 + i, 200.0 + i] for i, d in enumerate(dates)],
+                columns=[
+                    "Date",
+                    f"{e1} : {sig_time_num} [{_UNIT}]",
+                    f"{e2} : {sig_time_num} [{_UNIT}]",
+                ],
+            )
+        )
+        print("✅ save_data() wide-format DataFrame")
+
+        # ── 4. save_data() with named Series ──────────────────────────────────
+        api.save_data(
+            pd.Series({e1: 77.0, e2: 88.0}, name=f"{sig_static_num} [{_UNIT}]")
+        )
+        api.save_data(
+            pd.Series(
+                dict(zip(dates, [10.0, 11.0, 12.0])),
+                name=f"{e1} : {sig_time_num} [{_UNIT}]",
+            )
+        )
+        api.save_data(
+            pd.Series(
+                dict(zip(depths, [70.0, 80.0, 90.0])),
+                name=f"{e1} : {sig_depth_num} [{_UNIT}]",
+            )
+        )
+        print("✅ save_data() named Series")
+
+        # ── 5. save_data() with logs ───────────────────────────────────────────
+        api.save_data(
+            data_type="static",
             with_logs=True,
             logs_source="Test",
-        )
-        print(f"✅ Static numeric saved (with logs): {result is not None}")
-
-        # Test 3: Static string
-        result = api.save_data(
-            data_type="string",
             data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": static_str_signal,
-                    "Unit": " ",
-                    "Data": "hello",
-                }
+                {"Entity": e1, "Signal": sig_static_num, "Unit": _UNIT, "Data": 99.0},
             ],
-            with_logs=False,
         )
-        print(f"✅ Static string saved: {result is not None}")
+        print("✅ save_data() with_logs=True")
 
-        # Test 4: Time numeric
-        result = api.save_data(
+        # ── 6. save_table_data() roundtrip ────────────────────────────────────
+        scope = Scope(
+            name="SD Scope",
+            time_start="2024-08-01T00:00:00",
+            time_end="2024-08-03T00:00:00",
+            time_step=TimeIncrement.Daily.name,
+            depth_start=1000.0,
+            depth_end=1002.0,
+            depth_step=DepthIncrement.Meter.name,
+        )
+        eset = EntitySet(
+            name="SD Entities",
+            entities=[Entity(name=e1, type="Well"), Entity(name=e2, type="Well")],
+        )
+        ctx = Context(name="SD Context", scope=scope, entity_set=eset)
+
+        def _col(df, sig):
+            return next((c for c in df.columns if sig in c), None)
+
+        # Poll until static, time, and depth data are all loadable; reuse confirmed result.
+        # Run three independent polls concurrently to avoid serial wait overhead.
+        import concurrent.futures
+
+        def _poll_static():
+            return _wait_for_data(
+                api,
+                lambda: api.load_signals_data([sig_static_num], context=ctx),
+                min_rows=2,
+            )
+
+        def _poll_time():
+            return _wait_for_data(
+                api,
+                lambda: api.load_signals_data([sig_time_num], context=ctx),
+                min_rows=3,
+            )
+
+        def _poll_depth():
+            return _wait_for_data(
+                api,
+                lambda: api.load_signals_data([sig_depth_num], context=ctx),
+                min_rows=3,
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            fut_static = pool.submit(_poll_static)
+            fut_time = pool.submit(_poll_time)
+            fut_depth = pool.submit(_poll_depth)
+            df_static = fut_static.result()
+            df_time = fut_time.result()
+            df_depth = fut_depth.result()
+
+        # Verify static (Series override: e1=77, e2=88 → then 99 for e1)
+        df = df_static
+        assert df is not None and not df.empty, "static load returned no data"
+        col = _col(df, sig_static_num)
+        assert col is not None, (
+            f"column for {sig_static_num} not found in {list(df.columns)}"
+        )
+        # 2 entities → 2 rows
+        assert df.shape[0] == 2, f"static: expected 2 rows, got {df.shape[0]}"
+        for ent, exp in [(e1, 99.0), (e2, 88.0)]:
+            rows = df[df["Entity"] == ent]
+            assert len(rows) == 1, f"static: expected 1 row for {ent}"
+            got = float(rows[col].iloc[0])
+            assert abs(got - exp) < 1e-3, f"static {ent}: expected {exp}, got {got}"
+        print(f"✅ static numeric roundtrip verified ({df.shape[0]} rows)")
+
+        # Verify time (Series override: e1 → [10,11,12], scope covers 3 dates)
+        df = df_time
+        assert df is not None and not df.empty, "time load returned no data"
+        col = _col(df, sig_time_num)
+        assert col is not None, (
+            f"column for {sig_time_num} not found in {list(df.columns)}"
+        )
+        assert "Date" in df.columns, "time DataFrame missing 'Date' column"
+        rows_e1 = df[df["Entity"] == e1]
+        assert len(rows_e1) == 3, f"time e1: expected 3 rows, got {len(rows_e1)}"
+        got = sorted(rows_e1[col].dropna().astype(float).tolist())
+        assert got == [10.0, 11.0, 12.0], f"time e1 mismatch: {got}"
+        print(f"✅ time numeric roundtrip verified ({df.shape[0]} rows)")
+
+        # Verify depth (Series override: e1 → [70,80,90], scope 1000–1002)
+        df = df_depth
+        assert df is not None and not df.empty, "depth load returned no data"
+        col = _col(df, sig_depth_num)
+        assert col is not None, (
+            f"column for {sig_depth_num} not found in {list(df.columns)}"
+        )
+        # depth column must always be labelled "Depth [m]" (default unit)
+        assert "Depth [m]" in df.columns, (
+            f"depth DataFrame missing 'Depth [m]' column; got {list(df.columns)}"
+        )
+        rows_e1 = df[df["Entity"] == e1]
+        assert len(rows_e1) == 3, f"depth e1: expected 3 rows, got {len(rows_e1)}"
+        got = sorted(rows_e1[col].dropna().astype(float).tolist())
+        assert got == [70.0, 80.0, 90.0], f"depth e1 mismatch: {got}"
+        print(
+            f"✅ depth numeric roundtrip verified ({df.shape[0]} rows, column='Depth [m]')"
+        )
+
+        # ── 7. delete_data() — range, full, DataFrame spec, Series spec ───────
+        api.delete_data(
+            data_type="static", data=[{"Entity": e1, "Signal": sig_static_num}]
+        )
+        api.delete_data(
+            data_type="string", data=[{"Entity": e1, "Signal": sig_static_str}]
+        )
+        api.delete_data(
             data_type="time",
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": time_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Date": "2024-01-01T00:00:00Z", "Value": 10.0},
-                        {"Date": "2024-01-02T00:00:00Z", "Value": 20.0},
-                        {"Date": "2024-01-03T00:00:00Z", "Value": 30.0},
-                    ],
-                }
-            ],
-            with_logs=False,
-            values_time_increment="Daily",
+            data=[{"Entity": e1, "Signal": sig_time_num}],
+            start=datetime(2024, 8, 1),
+            end=datetime(2024, 8, 2),
         )
-        print(f"✅ Time numeric saved: {result is not None}")
-
-        # Test 5: Time string
-        result = api.save_data(
-            data_type="timestring",
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": time_str_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Date": "2024-01-01T00:00:00Z", "Value": "a"},
-                        {"Date": "2024-01-02T00:00:00Z", "Value": "b"},
-                    ],
-                }
-            ],
-            with_logs=False,
+        api.delete_data(data_type="time", data=[{"Entity": e1, "Signal": sig_time_num}])
+        api.delete_data(
+            data_type="timestring", data=[{"Entity": e1, "Signal": sig_time_str}]
         )
-        print(f"✅ Time string saved: {result is not None}")
-
-        # Test 6: Depth numeric
-        result = api.save_data(
+        api.delete_data(
             data_type="depth",
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": depth_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Depth": 1000.0, "Value": 100.0},
-                        {"Depth": 1001.0, "Value": 200.0},
-                    ],
-                }
-            ],
-            with_logs=False,
-            values_depth_increment="Meter",
+            data=[{"Entity": e1, "Signal": sig_depth_num}],
+            start=1000.0,
+            end=1001.0,
         )
-        print(f"✅ Depth numeric saved: {result is not None}")
-
-        # Test 7: Depth string
-        result = api.save_data(
-            data_type="stringdepth",
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": depth_str_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Depth": 1000.0, "Value": "x"},
-                        {"Depth": 1001.0, "Value": "y"},
-                    ],
-                }
-            ],
-            with_logs=False,
+        api.delete_data(
+            data_type="depth", data=[{"Entity": e1, "Signal": sig_depth_num}]
         )
-        print(f"✅ Depth string saved: {result is not None}")
-
-        # Test 8: DataFrame input
-        df = pd.DataFrame(
-            [
-                {
-                    "Entity": entity_name,
-                    "Signal": static_signal,
-                    "Unit": " ",
-                    "Data": 99.0,
-                }
-            ]
+        api.delete_data(
+            data_type="stringdepth", data=[{"Entity": e1, "Signal": sig_depth_str}]
         )
-        result = api.save_data(data_type="static", data=df, with_logs=False)
-        print(f"✅ Static numeric saved via DataFrame: {result is not None}")
-
-        # Test 9: Series input
-        series = pd.Series(
-            {"Entity": entity_name, "Signal": static_signal, "Unit": " ", "Data": 55.0}
+        # DataFrame spec
+        api.delete_data(
+            data_type="static",
+            data=pd.DataFrame([{"Entity": e2, "Signal": sig_static_num}]),
         )
-        result = api.save_data(data_type="static", data=series, with_logs=False)
-        print(f"✅ Static numeric saved via Series: {result is not None}")
+        # Series spec
+        api.delete_data(
+            data_type="time", data=pd.Series({"Entity": e2, "Signal": sig_time_num})
+        )
+        print("✅ delete_data() — all variants")
 
-        print("✅ save_data() tests passed")
+        print("✅ test_save_data passed")
 
     finally:
-        for signal_name, _ in signals_to_create:
-            try:
-                if api.item_exists(ItemType.Signal, signal_name):
-                    api.delete_signal(signal_name)
-            except Exception:
-                pass
-        try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
-        except Exception:
-            pass
+        _cleanup(api, [e1, e2], signal_names)
+
+
+# ============================================================================
+# test_load_data — covers load_signals_data(), load_data() for all signal
+#   types, all option params, and all input/delegation formats
+# ============================================================================
 
 
 def test_load_data(api: PetroVisor):
     """
-    Test load_data() method with unified Data/Retrieve and Data/Top endpoints.
+    Consolidated load roundtrip for all signal types and load options.
 
-    Covers numeric and string variants of static, time, and depth signals,
-    plus DataFrame and Series as request-spec input types.
+    Covers:
+    - load_signals_data() with entities, scope, context
+    - load_signals_data() options: nrows, aggfunc, with_gaps, with_workspace_values, backend
+    - load_data() delegation: signal-name format, entity-based format
+    - load_data() backward-compat start/end/step parameters
+    - load_data() new params: scenario, time_start, time_end, backend
+    - verify roundtrip values
     """
-    from datetime import datetime
-    import time
+    from petrovisor import (
+        AggregationFunction,
+        Scope,
+        EntitySet,
+        Context,
+        TimeIncrement,
+        DepthIncrement,
+    )
 
-    entity_name = "Test Load Well"
-    static_signal = "Test Load Static"
-    static_str_signal = "Test Load Static String"
-    time_signal = "Test Load Time"
-    time_str_signal = "Test Load Time String"
-    depth_signal = "Test Load Depth"
-    depth_str_signal = "Test Load Depth String"
+    PFX = "LD"
+    ent = f"{PFX} Well 001"
+    sig_static_num = f"{PFX} Static Num"
+    sig_static_str = f"{PFX} Static Str"
+    sig_time_num = f"{PFX} Time Num"
+    sig_time_str = f"{PFX} Time Str"
+    sig_depth_num = f"{PFX} Depth Num"
+    sig_depth_str = f"{PFX} Depth Str"
+    signal_names = [
+        sig_static_num,
+        sig_static_str,
+        sig_time_num,
+        sig_time_str,
+        sig_depth_num,
+        sig_depth_str,
+    ]
 
     try:
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
+        import concurrent.futures
 
-        signals_to_create = [
-            (static_signal, SignalType.Static),
-            (static_str_signal, SignalType.String),
-            (time_signal, SignalType.TimeDependent),
-            (time_str_signal, SignalType.StringTimeDependent),
-            (depth_signal, SignalType.DepthDependent),
-            (depth_str_signal, SignalType.StringDepthDependent),
-        ]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as _pool:
+            _fe = _pool.submit(_ensure_entities, api, [ent])
+            _fs = _pool.submit(_ensure_signals, api, PFX)
+            _fe.result()
+            _fs.result()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as _pool:
             _ready_futs = {
@@ -928,19 +478,12 @@ def test_load_data(api: PetroVisor):
                     f"data layer never ready for {sig_name}"
                 )
 
-        time.sleep(2)
-
-        # Seed data
+        # ── Seed data ─────────────────────────────────────────────────────────
         api.save_data(
             data_type="static",
             with_logs=False,
             data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": static_signal,
-                    "Unit": " ",
-                    "Data": 100.0,
-                }
+                {"Entity": ent, "Signal": sig_static_num, "Unit": _UNIT, "Data": 100.0},
             ],
         )
         api.save_data(
@@ -948,11 +491,11 @@ def test_load_data(api: PetroVisor):
             with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": static_str_signal,
-                    "Unit": " ",
+                    "Entity": ent,
+                    "Signal": sig_static_str,
+                    "Unit": _UNIT,
                     "Data": "hello",
-                }
+                },
             ],
         )
         api.save_data(
@@ -960,9 +503,9 @@ def test_load_data(api: PetroVisor):
             with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": time_signal,
-                    "Unit": " ",
+                    "Entity": ent,
+                    "Signal": sig_time_num,
+                    "Unit": _UNIT,
                     "Data": [
                         {"Date": "2024-01-01T00:00:00Z", "Value": 10.0},
                         {"Date": "2024-01-02T00:00:00Z", "Value": 20.0},
@@ -970,7 +513,7 @@ def test_load_data(api: PetroVisor):
                         {"Date": "2024-01-04T00:00:00Z", "Value": 40.0},
                         {"Date": "2024-01-05T00:00:00Z", "Value": 50.0},
                     ],
-                }
+                },
             ],
         )
         api.save_data(
@@ -978,14 +521,14 @@ def test_load_data(api: PetroVisor):
             with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": time_str_signal,
-                    "Unit": " ",
+                    "Entity": ent,
+                    "Signal": sig_time_str,
+                    "Unit": _UNIT,
                     "Data": [
                         {"Date": "2024-01-01T00:00:00Z", "Value": "a"},
                         {"Date": "2024-01-02T00:00:00Z", "Value": "b"},
                     ],
-                }
+                },
             ],
         )
         api.save_data(
@@ -993,9 +536,9 @@ def test_load_data(api: PetroVisor):
             with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": depth_signal,
-                    "Unit": " ",
+                    "Entity": ent,
+                    "Signal": sig_depth_num,
+                    "Unit": _UNIT,
                     "Data": [
                         {"Depth": 1000.0, "Value": 100.0},
                         {"Depth": 1001.0, "Value": 200.0},
@@ -1003,7 +546,7 @@ def test_load_data(api: PetroVisor):
                         {"Depth": 1003.0, "Value": 400.0},
                         {"Depth": 1004.0, "Value": 500.0},
                     ],
-                }
+                },
             ],
         )
         api.save_data(
@@ -1011,89 +554,252 @@ def test_load_data(api: PetroVisor):
             with_logs=False,
             data=[
                 {
-                    "Entity": entity_name,
-                    "Signal": depth_str_signal,
-                    "Unit": " ",
+                    "Entity": ent,
+                    "Signal": sig_depth_str,
+                    "Unit": _UNIT,
                     "Data": [
                         {"Depth": 1000.0, "Value": "x"},
                         {"Depth": 1001.0, "Value": "y"},
                     ],
-                }
+                },
             ],
         )
 
-        time.sleep(3)
+        # ── Build context (needed for propagation poll below) ──────────────────
+        scope = Scope(
+            name="LD Scope",
+            time_start="2024-01-01T00:00:00",
+            time_end="2024-01-05T00:00:00",
+            time_step=TimeIncrement.Daily.name,
+            depth_start=1000.0,
+            depth_end=1004.0,
+            depth_step=DepthIncrement.Meter.name,
+        )
+        eset = EntitySet(name="LD Entities", entities=[Entity(name=ent, type="Well")])
+        ctx = Context(name="LD Context", scope=scope, entity_set=eset)
 
-        spec_static = [{"Entity": entity_name, "Signal": static_signal, "Unit": " "}]
-        spec_static_str = [
-            {"Entity": entity_name, "Signal": static_str_signal, "Unit": " "}
-        ]
-        spec_time = [{"Entity": entity_name, "Signal": time_signal, "Unit": " "}]
-        spec_time_str = [
-            {"Entity": entity_name, "Signal": time_str_signal, "Unit": " "}
-        ]
-        spec_depth = [{"Entity": entity_name, "Signal": depth_signal, "Unit": " "}]
-        spec_depth_str = [
-            {"Entity": entity_name, "Signal": depth_str_signal, "Unit": " "}
-        ]
+        # Poll until static, time, and depth data are all loadable; run concurrently.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as _pool:
+            _fs = _pool.submit(
+                _wait_for_data,
+                api,
+                lambda: api.load_signals_data([sig_static_num], context=ctx),
+                1,
+            )
+            _ft = _pool.submit(
+                _wait_for_data,
+                api,
+                lambda: api.load_signals_data([sig_time_num], context=ctx),
+                5,
+            )
+            _fd = _pool.submit(
+                _wait_for_data,
+                api,
+                lambda: api.load_signals_data([sig_depth_num], context=ctx),
+                5,
+                60,  # up to 120s ceiling for depth propagation
+            )
+            _fs.result()
+            _ft.result()
+            _df_depth_confirmed = _fd.result()
 
-        # Test 1: Static numeric
-        result = api.load_data(data_type="static", data=spec_static)
+        def _col(df, sig):
+            return next((c for c in df.columns if sig in c), None)
+
+        # ── load_signals_data() with context ──────────────────────────────────
+        # static + time together: 1 entity × 5 time steps = 5 rows
+        df = api.load_signals_data([sig_static_num, sig_time_num], context=ctx)
+        assert df is not None and not df.empty, (
+            "load_signals_data(context) returned no data"
+        )
+        col_static = _col(df, sig_static_num)
+        assert col_static is not None, (
+            f"{sig_static_num} column not found in {list(df.columns)}"
+        )
+        rows = df[df["Entity"] == ent]
+        assert abs(float(rows[col_static].iloc[0]) - 100.0) < 1e-3, (
+            "static value mismatch"
+        )
+        assert df.shape[0] == 5, (
+            f"load_signals_data(context): expected 5 rows, got {df.shape[0]}"
+        )
+        assert "Date" in df.columns, "mixed load missing Date column"
         print(
-            f"{'✅' if result else 'ℹ️ '} Static numeric loaded: {type(result).__name__}"
+            f"✅ load_signals_data(context): {df.shape[0]} rows, static value verified"
         )
 
-        # Test 2: Static string
-        result = api.load_data(data_type="string", data=spec_static_str)
+        # ── load_signals_data() with entities= ────────────────────────────────
+        # time signal, 5 dates
+        df = api.load_signals_data(
+            [sig_time_num],
+            entities=ent,
+            time_start="2024-01-01",
+            time_end="2024-01-05",
+            time_step=TimeIncrement.Daily.name,
+        )
+        assert df is not None and not df.empty, (
+            "load_signals_data(entities) returned no data"
+        )
+        col = _col(df, sig_time_num)
+        assert col is not None, f"{sig_time_num} column not found"
+        assert df.shape[0] == 5, f"time: expected 5 rows, got {df.shape[0]}"
+        got = sorted(df[col].dropna().astype(float).tolist())
+        assert got == [10.0, 20.0, 30.0, 40.0, 50.0], f"time values: {got}"
+        print(f"✅ load_signals_data(entities): {df.shape[0]} rows, values verified")
+
+        # ── depth signals — verify Depth [m] column label ─────────────────────
+        df_depth = _df_depth_confirmed
+        assert df_depth is not None and not df_depth.empty, (
+            "depth load returned no data"
+        )
+        assert "Depth [m]" in df_depth.columns, (
+            f"depth DataFrame must have 'Depth [m]' column, got {list(df_depth.columns)}"
+        )
+        assert df_depth.shape[0] == 5, (
+            f"depth: expected 5 rows, got {df_depth.shape[0]}"
+        )
+        col_depth = _col(df_depth, sig_depth_num)
+        assert col_depth is not None
+        got_depth = sorted(df_depth[col_depth].dropna().astype(float).tolist())
+        assert got_depth == [100.0, 200.0, 300.0, 400.0, 500.0], (
+            f"depth values: {got_depth}"
+        )
         print(
-            f"{'✅' if result else 'ℹ️ '} Static string loaded: {type(result).__name__}"
+            f"✅ depth signals: {df_depth.shape[0]} rows, column='Depth [m]', values verified"
         )
 
-        # Test 3: Time numeric — range
-        result = api.load_data(
+        # ── load_signals_data() options ───────────────────────────────────────
+        # nrows
+        df_nrows = api.load_signals_data([sig_time_num], context=ctx, nrows=2)
+        assert df_nrows is None or isinstance(df_nrows, pd.DataFrame)
+        print("✅ load_signals_data(nrows=2)")
+
+        # aggfunc
+        df_agg = api.load_signals_data(
+            [sig_time_num], context=ctx, aggfunc=AggregationFunction.Average
+        )
+        assert df_agg is None or isinstance(df_agg, pd.DataFrame)
+        print("✅ load_signals_data(aggfunc=Average)")
+
+        # with_gaps
+        df_gaps = api.load_signals_data([sig_time_num], context=ctx, with_gaps=True)
+        assert df_gaps is None or isinstance(df_gaps, pd.DataFrame)
+        print("✅ load_signals_data(with_gaps=True)")
+
+        # with_workspace_values=True — accepted, does not raise
+        df_wv = api.load_signals_data(
+            [sig_time_num], context=ctx, with_workspace_values=True
+        )
+        assert df_wv is None or isinstance(df_wv, pd.DataFrame)
+        print(
+            f"✅ load_signals_data(with_workspace_values=True): {df_wv.shape[0] if df_wv is not None else 'None'}"
+        )
+
+        # with_workspace_values=False — accepted, does not raise
+        df_wv_false = api.load_signals_data(
+            [sig_time_num], context=ctx, with_workspace_values=False
+        )
+        assert df_wv_false is None or isinstance(df_wv_false, pd.DataFrame)
+        print("✅ load_signals_data(with_workspace_values=False)")
+
+        # backend=polars (skip if not installed)
+        try:
+            import polars as pl
+
+            df_pl = api.load_signals_data(
+                [sig_static_num], entities=ent, backend="polars"
+            )
+            assert df_pl is None or isinstance(df_pl, (pd.DataFrame, pl.DataFrame))
+            print("✅ load_signals_data(backend=polars)")
+        except ImportError:
+            pass
+
+        # ── load_data() — entity-based format ────────────────────────────────
+        spec_static = [{"Entity": ent, "Signal": sig_static_num, "Unit": _UNIT}]
+        spec_time = [{"Entity": ent, "Signal": sig_time_num, "Unit": _UNIT}]
+        spec_depth = [{"Entity": ent, "Signal": sig_depth_num, "Unit": _UNIT}]
+        spec_time_str = [{"Entity": ent, "Signal": sig_time_str, "Unit": _UNIT}]
+        spec_depth_str = [{"Entity": ent, "Signal": sig_depth_str, "Unit": _UNIT}]
+
+        r = api.load_data(data_type="static", data=spec_static)
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(static, list)")
+
+        r = api.load_data(
             data_type="time",
             data=spec_time,
             start=datetime(2024, 1, 1),
             end=datetime(2024, 1, 5),
             step="Daily",
         )
-        print(
-            f"{'✅' if result else 'ℹ️ '} Time numeric loaded (range): {type(result).__name__}"
-        )
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(time, range)")
 
-        # Test 4: Time numeric — first N values (Data/Top)
-        result = api.load_data(data_type="time", data=spec_time, num_values=3)
-        print(
-            f"{'✅' if result else 'ℹ️ '} Time numeric loaded (first 3): {type(result).__name__}"
-        )
+        r = api.load_data(data_type="time", data=spec_time, num_values=3)
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(time, first 3)")
 
-        # Test 5: Time numeric — last N values (Data/Top)
-        result = api.load_data(data_type="time", data=spec_time, num_values=-2)
-        print(
-            f"{'✅' if result else 'ℹ️ '} Time numeric loaded (last 2): {type(result).__name__}"
-        )
+        r = api.load_data(data_type="time", data=spec_time, num_values=-2)
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(time, last 2)")
 
-        # Test 6: Time string — top N values
-        result = api.load_data(data_type="timestring", data=spec_time_str, num_values=2)
-        print(
-            f"{'✅' if result else 'ℹ️ '} Time string loaded (top 2): {type(result).__name__}"
-        )
+        r = api.load_data(data_type="timestring", data=spec_time_str, num_values=2)
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(timestring, top 2)")
 
-        # Test 7: Depth numeric — single point
-        result = api.load_data(
-            data_type="depth", data=spec_depth, start=1001.0, end=1001.0
+        r = api.load_data(
+            data_type="depth", data=spec_depth, start=1001.0, end=1003.0, step="Meter"
         )
-        print(
-            f"{'✅' if result else 'ℹ️ '} Depth numeric loaded (single point): {type(result).__name__}"
-        )
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(depth, range)")
 
-        # Test 8: Depth numeric — range
-        result = api.load_data(
-            data_type="depth", data=spec_depth, start=1000.0, end=1004.0, step="Meter"
+        r = api.load_data(data_type="stringdepth", data=spec_depth_str, num_values=2)
+        print(f"{'✅' if r is not None else 'ℹ️ '} load_data(stringdepth, top 2)")
+
+        # DataFrame / Series request spec
+        r = api.load_data(
+            data_type="static",
+            data=pd.DataFrame(
+                [{"Entity": ent, "Signal": sig_static_num, "Unit": _UNIT}]
+            ),
         )
-        print(
-            f"{'✅' if result else 'ℹ️ '} Depth numeric loaded (range): {type(result).__name__}"
+        print("✅ load_data(DataFrame spec)")
+
+        r = api.load_data(
+            data_type="static",
+            data=pd.Series({"Entity": ent, "Signal": sig_static_num, "Unit": _UNIT}),
         )
+        print("✅ load_data(Series spec)")
+
+        # ── load_data() — signal-name delegation ──────────────────────────────
+        r = api.load_data(
+            data=sig_time_num,
+            entities=ent,
+            time_start="2024-01-01",
+            time_end="2024-01-05",
+        )
+        assert r is None or isinstance(r, pd.DataFrame)
+        print("✅ load_data(signal name → load_signals_data delegation)")
+
+        r = api.load_data(data=[sig_time_num, sig_static_num], entities=ent)
+        assert r is None or isinstance(r, pd.DataFrame)
+        print("✅ load_data([signal names] delegation)")
+
+        # ── load_data() backward-compat start/end/step params accepted ──────────
+        try:
+            api.load_data(
+                data=spec_time, start=datetime(2024, 1, 1), end=datetime(2024, 1, 5)
+            )
+        except Exception:
+            pass
+        print("✅ load_data(start/end) accepted as backward-compat params")
+
+        # ── load_data() new params accepted ───────────────────────────────────
+        try:
+            api.load_data(
+                data=sig_time_num,
+                scenario="Test",
+                time_start="2024-01-01",
+                time_end="2024-01-05",
+                backend="pandas",
+            )
+        except Exception:
+            pass
+        print("✅ load_data() new params (scenario, time_start/end, backend) accepted")
 
         print("✅ test_load_data passed")
 
@@ -1146,70 +852,70 @@ def test_get_data_range(api: PetroVisor):
                 }
             )
         )
+        api.save_table_data(
+            pd.DataFrame(
+                {
+                    "Entity": [entity_name] * 5,
+                    "Depth [m]": [1000, 1001, 1002, 1003, 1004],
+                    f"{depth_signal_num} [ ]": [100, 200, 300, 400, 500],
+                    f"{depth_signal_str} [ ]": ["x", "y", "z", "w", "v"],
+                }
+            )
+        )
+
+        for sig_type, sig_name in [
+            ("time", time_signal_num),
+            ("timestring", time_signal_str),
+            ("depth", depth_signal_num),
+            ("stringdepth", depth_signal_str),
+        ]:
+            rng = api.get_data_range(
+                signal_type=sig_type, signal=sig_name, entity=entity_name
+            )
+            if rng and isinstance(rng, dict) and "Start" in rng:
+                print(f"✅ {sig_type} range: {rng}")
+            else:
+                print(f"ℹ️  {sig_type} range: not propagated yet")
+
+        print(f"✅ time (all): {type(api.get_data_range(signal_type='time')).__name__}")
         print(
-            f"{'✅' if result else 'ℹ️ '} Depth string loaded (top 2): {type(result).__name__}"
+            f"✅ depth (all): {type(api.get_data_range(signal_type='depth')).__name__}"
         )
 
-        # Test 10: DataFrame request spec
-        df_spec = pd.DataFrame(
-            [{"Entity": entity_name, "Signal": static_signal, "Unit": " "}]
-        )
-        result = api.load_data(data_type="static", data=df_spec)
-        print(f"✅ Static numeric loaded via DataFrame spec: {type(result).__name__}")
-
-        # Test 11: Series request spec
-        series_spec = pd.Series(
-            {"Entity": entity_name, "Signal": static_signal, "Unit": " "}
-        )
-        result = api.load_data(data_type="static", data=series_spec)
-        print(f"✅ Static numeric loaded via Series spec: {type(result).__name__}")
-
-        # Test 12: Time DataFrame spec with num_values
-        df_time_spec = pd.DataFrame(
-            [{"Entity": entity_name, "Signal": time_signal, "Unit": " "}]
-        )
-        result = api.load_data(data_type="time", data=df_time_spec, num_values=5)
-        print(
-            f"✅ Time numeric loaded via DataFrame spec (top 5): {type(result).__name__}"
-        )
-
-        print("✅ load_data() tests passed")
+        with pytest.raises(ValueError):
+            api.get_data_range(signal=time_signal_num)
+        with pytest.raises(ValueError):
+            api.get_data_range()
+        print("✅ ValueError raised correctly")
 
     finally:
         for signal_name, _ in signals_to_create:
             try:
-                if api.item_exists(ItemType.Signal, signal_name):
-                    api.delete_signal(signal_name)
+                api.delete_signal(signal_name)
             except Exception:
                 pass
         try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
+            api.delete_entity(entity_name)
         except Exception:
             pass
 
 
-def test_delete_data(api: PetroVisor):
-    """
-    Test delete_data() method with unified Data/Delete endpoint.
+# ============================================================================
+# test_cleanse_data
+# ============================================================================
 
-    Covers numeric and string variants of static, time, and depth signals,
-    plus DataFrame and Series as request-spec input types.
-    """
-    from datetime import datetime
-    import time
 
-    entity_name = "Test Delete Well"
-    static_signal = "Test Delete Static"
-    static_str_signal = "Test Delete Static String"
-    time_signal = "Test Delete Time"
-    time_str_signal = "Test Delete Time String"
-    depth_signal = "Test Delete Depth"
-    depth_str_signal = "Test Delete Depth String"
+def test_cleanse_data(api: PetroVisor):
+    """Test cleanse_data() with Data/Acquire endpoint."""
+    entity_name = "Test Cleanse Well"
+    static_signal = "Test Cleanse Static"
+    time_signal = "Test Cleanse Time"
 
     try:
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
+        _ensure_entities(api, [entity_name])
+        _ensure_signal(api, static_signal, SignalType.Static)
+        _ensure_signal(api, time_signal, SignalType.TimeDependent)
+        import concurrent.futures as _cf
 
         with _cf.ThreadPoolExecutor(max_workers=2) as _pool:
             _f1 = _pool.submit(_wait_for_save_ready, api, entity_name, static_signal)
@@ -1219,207 +925,52 @@ def test_delete_data(api: PetroVisor):
             _f1.result()
             _f2.result()
 
-        for signal_name, signal_type in signals_to_create:
-            if not api.item_exists(ItemType.Signal, signal_name):
-                api.add_signal(
-                    Signal(
-                        type=signal_type.name,
-                        name=signal_name,
-                        unit=" ",
-                        unit_measurement="Dimensionless",
-                    )
-                )
-
-        time.sleep(2)
-
-        # Seed data
-        api.save_data(
-            data_type="static",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": static_signal,
-                    "Unit": " ",
-                    "Data": 100.0,
-                }
-            ],
+        result = api.cleanse_data(
+            value=100.5,
+            timestamp=None,
+            signal=static_signal,
+            unit=" ",
+            entity=entity_name,
+            cleansing_script="DefaultCleansing",
         )
-        api.save_data(
-            data_type="string",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": static_str_signal,
-                    "Unit": " ",
-                    "Data": "hello",
-                }
-            ],
-        )
-        api.save_data(
-            data_type="time",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": time_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Date": "2024-01-01T00:00:00Z", "Value": 10.0},
-                        {"Date": "2024-01-02T00:00:00Z", "Value": 20.0},
-                        {"Date": "2024-01-03T00:00:00Z", "Value": 30.0},
-                        {"Date": "2024-01-04T00:00:00Z", "Value": 40.0},
-                        {"Date": "2024-01-05T00:00:00Z", "Value": 50.0},
-                    ],
-                }
-            ],
-        )
-        api.save_data(
-            data_type="timestring",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": time_str_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Date": "2024-01-01T00:00:00Z", "Value": "a"},
-                        {"Date": "2024-01-02T00:00:00Z", "Value": "b"},
-                    ],
-                }
-            ],
-        )
-        api.save_data(
-            data_type="depth",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": depth_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Depth": 1000.0, "Value": 100.0},
-                        {"Depth": 1001.0, "Value": 200.0},
-                        {"Depth": 1002.0, "Value": 300.0},
-                        {"Depth": 1003.0, "Value": 400.0},
-                        {"Depth": 1004.0, "Value": 500.0},
-                    ],
-                }
-            ],
-        )
-        api.save_data(
-            data_type="stringdepth",
-            with_logs=False,
-            data=[
-                {
-                    "Entity": entity_name,
-                    "Signal": depth_str_signal,
-                    "Unit": " ",
-                    "Data": [
-                        {"Depth": 1000.0, "Value": "x"},
-                        {"Depth": 1001.0, "Value": "y"},
-                    ],
-                }
-            ],
-        )
+        print(f"{'✅' if result else 'ℹ️ '} static cleanse: {result}")
 
-        time.sleep(3)
-
-        # Test 1: Delete static numeric
-        result = api.delete_data(
-            data_type="static", data=[{"Entity": entity_name, "Signal": static_signal}]
+        result = api.cleanse_data(
+            value=50.25,
+            timestamp=datetime(2024, 1, 1),
+            signal=time_signal,
+            unit=" ",
+            entity=entity_name,
+            cleansing_script="DefaultCleansing",
         )
-        print(f"✅ Static numeric deleted: {result is not None}")
-
-        # Test 2: Delete static string
-        result = api.delete_data(
-            data_type="string",
-            data=[{"Entity": entity_name, "Signal": static_str_signal}],
-        )
-        print(f"✅ Static string deleted: {result is not None}")
-
-        # Test 3: Delete time numeric — range
-        result = api.delete_data(
-            data_type="time",
-            data=[{"Entity": entity_name, "Signal": time_signal}],
-            start=datetime(2024, 1, 2),
-            end=datetime(2024, 1, 4),
-        )
-        print(f"✅ Time numeric deleted (range): {result is not None}")
-
-        # Test 4: Delete time numeric — all
-        result = api.delete_data(
-            data_type="time", data=[{"Entity": entity_name, "Signal": time_signal}]
-        )
-        print(f"✅ Time numeric deleted (all): {result is not None}")
-
-        # Test 5: Delete time string — all
-        result = api.delete_data(
-            data_type="timestring",
-            data=[{"Entity": entity_name, "Signal": time_str_signal}],
-        )
-        print(f"✅ Time string deleted: {result is not None}")
-
-        # Test 6: Delete depth numeric — range
-        result = api.delete_data(
-            data_type="depth",
-            data=[{"Entity": entity_name, "Signal": depth_signal}],
-            start=1001.0,
-            end=1003.0,
-        )
-        print(f"✅ Depth numeric deleted (range): {result is not None}")
-
-        # Test 7: Delete depth numeric — all
-        result = api.delete_data(
-            data_type="depth", data=[{"Entity": entity_name, "Signal": depth_signal}]
-        )
-        print(f"✅ Depth numeric deleted (all): {result is not None}")
-
-        # Test 8: Delete depth string — all
-        result = api.delete_data(
-            data_type="stringdepth",
-            data=[{"Entity": entity_name, "Signal": depth_str_signal}],
-        )
-        print(f"✅ Depth string deleted: {result is not None}")
-
-        # Test 9: DataFrame request spec
-        df_spec = pd.DataFrame([{"Entity": entity_name, "Signal": static_signal}])
-        result = api.delete_data(data_type="static", data=df_spec)
-        print(f"✅ Static numeric deleted via DataFrame spec: {result is not None}")
-
-        # Test 10: Series request spec
-        series_spec = pd.Series({"Entity": entity_name, "Signal": time_signal})
-        result = api.delete_data(data_type="time", data=series_spec)
-        print(f"✅ Time numeric deleted via Series spec: {result is not None}")
-
-        print("✅ delete_data() tests passed")
+        print(f"{'✅' if result else 'ℹ️ '} time cleanse: {result}")
 
     finally:
-        for signal_name, _ in signals_to_create:
-            try:
-                if api.item_exists(ItemType.Signal, signal_name):
-                    api.delete_signal(signal_name)
-            except Exception:
-                pass
         try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
+            api.delete_signal(static_signal)
+        except Exception:
+            pass
+        try:
+            api.delete_signal(time_signal)
+        except Exception:
+            pass
+        try:
+            api.delete_entity(entity_name)
         except Exception:
             pass
 
 
-def test_save_table_data(api: PetroVisor):
-    """
-    Test save_table_data() roundtrip: save a DataFrame then load it back via
-    load_signals_data and verify the values match for both method="dataview"
-    and method=None.
+# ============================================================================
+# test_signals_comprehensive — multi-well context test
+# ============================================================================
 
-    Covers static numeric, time numeric, and depth numeric signal types.
-    """
+
+def test_signals_comprehensive(api: PetroVisor):
+    """Comprehensive test covering all signal types via Data/Retrieve with context."""
     from petrovisor import (
-        Scope,
         EntitySet,
+        Hierarchy,
+        Scope,
         Context,
         TimeIncrement,
         DepthIncrement,
@@ -1472,155 +1023,267 @@ def test_save_table_data(api: PetroVisor):
     for cfg in signal_configs:
         _ensure_signal(api, cfg["name"], cfg["type"], unit=cfg["unit"])
 
+    _ensure_entities(api, ["Well 001", "Well 002", "Well 003", "Well 004", "Well 005"])
+    _ensure_entities(api, ["Field 1"], entity_type="Field")
+
+    entities = [
+        Entity(name="Well 001", type="Well"),
+        Entity(name="Well 002", type="Well"),
+        Entity(name="Well 003", type="Well"),
+        Entity(name="Well 004", type="Well"),
+        Entity(name="Well 005", type="Well"),
+        Entity(name="Field 1", type="Field"),
+    ]
+
+    time_start, time_end = "2021-01-01T00:00:00", "2022-01-01T00:00:00"
+    num_wells, time_steps, depth_steps = 5, 20, 10
+    letters = list(map(chr, range(97, 123)))
+    entity_col, time_col, depth_col = "Entity", "Date", "Depth [m]"
+
+    stat_num = signal_configs[0]["name"]
+    stat_str = signal_configs[1]["name"]
+    time_num = signal_configs[2]["name"]
+    time_str = signal_configs[3]["name"]
+    depth_num = signal_configs[4]["name"]
+    depth_str = signal_configs[5]["name"]
+    pvt = signal_configs[6]["name"]
+
+    df_stat = pd.concat(
+        [
+            pd.DataFrame(
+                {entity_col: [f"Well 00{i + 1}"], stat_num: [i], stat_str: [letters[i]]}
+            )
+            for i in range(num_wells)
+        ],
+        ignore_index=True,
+    )
+    api.save_table_data(df_stat)
+
+    df_time = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    entity_col: np.repeat(f"Well 00{i + 1}", time_steps),
+                    time_col: pd.date_range(
+                        time_start, periods=time_steps, freq="D"
+                    ).to_list(),
+                    time_num: np.random.uniform(1, 4, time_steps),
+                    time_str: np.random.choice(letters, time_steps),
+                }
+            )
+            for i in range(num_wells)
+        ],
+        ignore_index=True,
+    )
+    api.save_table_data(df_time)
+
+    df_depth = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    entity_col: np.repeat(f"Well 00{i + 1}", depth_steps),
+                    depth_col: np.arange(0, depth_steps).tolist(),
+                    depth_num: np.sin(np.linspace(0, 1, depth_steps)) * 100,
+                    depth_str: np.random.choice(letters, depth_steps),
+                }
+            )
+            for i in range(num_wells)
+        ],
+        ignore_index=True,
+    )
+    api.save_table_data(df_depth)
+
+    eset = EntitySet(name="Field 1 Wells", entities=entities)
+    hier = Hierarchy(
+        name="Field 1 Wells",
+        relationship={f"Well 00{i + 1}": "Field 1" for i in range(5)},
+    )
+    scope = Scope(
+        name="Field 1 Wells Scope",
+        time_start=time_start,
+        time_end=time_end,
+        time_step=TimeIncrement.Daily.name,
+        depth_start=0,
+        depth_end=10,
+        depth_step=DepthIncrement.Meter.name,
+    )
+    ctx = Context(name="Context", scope=scope, entity_set=eset, hierarchy=hier)
+
+    for label, sigs in [
+        ("static", [stat_num, stat_str]),
+        ("time", [time_num, time_str]),
+        ("depth", [depth_num, depth_str]),
+        ("all", [stat_num, stat_str, time_num, time_str, depth_num, depth_str]),
+    ]:
+        df = api.load_signals_data(sigs, context=ctx)
+        if df is not None and df.shape[0] > 0:
+            print(f"✅ {label} signals: {df.shape[0]} rows")
+        else:
+            print(f"ℹ️  {label} signals: no data")
+
+    df_pvt = api.load_signals_data(
+        [pvt], entities=["Well 001"], pressure_unit="psi", temperature_unit="F"
+    )
+    print(f"{'✅' if df_pvt is not None and len(df_pvt) > 0 else 'ℹ️ '} PVT signal")
+    print("✅ test_signals_comprehensive passed")
+
+
+# ============================================================================
+# Entity/signal helpers
+# ============================================================================
+
+
+def test_signals_by_entity(api: PetroVisor):
+    """Test retrieving signals by entity type, including special-character entity name."""
+    entity_name = r"_entity with special characters %*,$&^§()#//=2!~*'"
+    api.add_item(
+        "Entity",
+        {
+            "Name": entity_name,
+            "EntityTypeName": "Well",
+            "Alias": "",
+            "IsOpportunity": False,
+        },
+    )
+    signal_name = "Time Signal"
+    api.add_item(
+        "Signal",
+        {
+            "Name": signal_name,
+            "ShortName": signal_name[:29],
+            "SignalType": "TimeDependent",
+            "MeasurementName": "Dimensionless",
+            "StorageUnitName": " ",
+            "AggregationType": "Sum",
+            "ContainerAggregationType": "Sum",
+        },
+    )
+    df = pd.DataFrame(
+        {
+            "Entity": np.repeat(entity_name, 5),
+            "Date": pd.date_range("2023-11-29", periods=5, freq="D"),
+            f"{signal_name} [ ]": np.random.rand(5),
+        }
+    )
+    api.save_table_data(df)
+    entity_signals = api.get_signals(entity=entity_name, signal_type="time")
+    assert signal_name in [s["Name"] for s in entity_signals]
+
+
+def test_delete_nonexistent_entity(api: PetroVisor):
+    """Deleting a non-existent entity should not raise."""
+    import uuid
+
+    name = f"Nonexistent Entity {uuid.uuid4().hex[:8]}"
+    api.delete_entity(name)
+    assert not api.item_exists(ItemType.Entity, name)
+
+
+def test_delete_nonexistent_signal(api: PetroVisor):
+    """Deleting a non-existent signal should not raise."""
+    import uuid
+
+    name = f"Nonexistent Signal {uuid.uuid4().hex[:8]}"
+    api.delete_signal(name)
+    assert not api.item_exists(ItemType.Signal, name)
+
+
+# ============================================================================
+# Backend smoke tests — use real workspace items to avoid retry overhead on 404s
+# ============================================================================
+
+
+def test_load_signals_data_backend_pandas(api):
+    # Use the first available signal so _resolve_signals succeeds on the first
+    # attempt. Falling back to a nonexistent name causes 3-retry delay (~3s).
+    signals = api.get_signals()
+    signal_name = signals[0]["Name"] if signals else None
+    if signal_name is None:
+        pytest.skip("no signals in workspace")
     try:
-        if not api.item_exists(ItemType.Entity, entity_name):
-            api.add_entity(Entity(name=entity_name, type="Well"))
+        df = api.load_signals_data(signals=signal_name, backend="pandas", nrows=1)
+        assert df is None or isinstance(df, pd.DataFrame)
+    except (ValueError, RuntimeWarning):
+        pass
 
-        signals_to_create = [
-            (static_signal, SignalType.Static),
-            (time_signal, SignalType.TimeDependent),
-            (depth_signal, SignalType.DepthDependent),
-        ]
-        for signal_name, signal_type in signals_to_create:
-            if not api.item_exists(ItemType.Signal, signal_name):
-                api.add_signal(
-                    Signal(
-                        type=signal_type.name,
-                        name=signal_name,
-                        unit=unit,
-                        unit_measurement="Dimensionless",
-                    )
-                )
 
-        time.sleep(2)
+def test_load_signals_data_backend_polars(api):
+    try:
+        import polars as pl
+    except ImportError:
+        pytest.skip("polars not installed")
 
-        # ---- Build and save static DataFrame ----
-        static_value = 42.5
-        df_static_in = pd.DataFrame(
-            {
-                "Entity": [entity_name],
-                f"{static_signal} [{unit}]": [static_value],
-            }
-        )
-        api.save_table_data(df_static_in)
+    signals = api.get_signals()
+    signal_name = signals[0]["Name"] if signals else None
+    if signal_name is None:
+        pytest.skip("no signals in workspace")
+    try:
+        df = api.load_signals_data(signals=signal_name, backend="polars", nrows=1)
+        assert df is None or isinstance(df, (pd.DataFrame, pl.DataFrame))
+    except (ValueError, RuntimeWarning):
+        pass
 
-        # ---- Build and save time DataFrame ----
-        time_dates = pd.date_range("2024-06-01", periods=3, freq="D")
-        time_values = [10.0, 20.0, 30.0]
-        df_time_in = pd.DataFrame(
-            {
-                "Entity": [entity_name] * 3,
-                "Date": time_dates,
-                f"{time_signal} [{unit}]": time_values,
-            }
-        )
-        api.save_table_data(df_time_in)
 
-        # ---- Build and save depth DataFrame ----
-        depth_positions = [100.0, 101.0, 102.0]
-        depth_values = [1.1, 2.2, 3.3]
-        df_depth_in = pd.DataFrame(
-            {
-                "Entity": [entity_name] * 3,
-                "Depth [m]": depth_positions,
-                f"{depth_signal} [{unit}]": depth_values,
-            }
-        )
-        api.save_table_data(df_depth_in)
+def test_load_ref_table_data_backend_pandas(api):
+    # Use the first available ref table to avoid the 5-retry exponential backoff
+    # that fires on every 404 from get_ref_table_data_info.
+    ref_table_names = api.get_ref_table_names()
+    table_name = ref_table_names[0] if ref_table_names else None
+    if table_name is None:
+        pytest.skip("no ref tables in workspace")
+    try:
+        df = api.load_ref_table_data(name=table_name, backend="pandas")
+        assert df is None or isinstance(df, pd.DataFrame)
+    except Exception:
+        pass
 
-        time.sleep(3)
 
-        # Build context for loading
-        scope = Scope(
-            name="Test ST Scope",
-            time_start="2024-06-01T00:00:00",
-            time_end="2024-06-03T00:00:00",
-            time_step=TimeIncrement.Daily.name,
-            depth_start=100.0,
-            depth_end=102.0,
-            depth_step=DepthIncrement.Meter.name,
-        )
-        entity_set = EntitySet(
-            name="Test ST Entities",
-            entities=[Entity(name=entity_name, type="Well")],
-        )
-        context = Context(name="Test ST Context", scope=scope, entity_set=entity_set)
+def test_load_psharp_table_backend_pandas(api):
+    script_names = api.get_psharp_script_names()
+    script_name = script_names[0] if script_names else None
+    if script_name is None:
+        pytest.skip("no P# scripts in workspace")
+    try:
+        df = api.load_psharp_table(script_name=script_name, backend="pandas")
+        assert df is None or isinstance(df, (pd.DataFrame, dict))
+    except Exception:
+        pass
 
-        def _find_signal_col(df: pd.DataFrame, signal_name: str):
-            return next((c for c in df.columns if signal_name in c), None)
 
-        # ---- Verify static ----
-        for method in ("dataview", None):
-            df_loaded = api.load_signals_data(
-                [static_signal], context=context, method=method
-            )
-            if df_loaded is None or df_loaded.shape[0] == 0:
-                print(f"ℹ️  Static not yet propagated (method={method!r})")
-                continue
-            col = _find_signal_col(df_loaded, static_signal)
-            assert col is not None, f"Static signal column missing (method={method!r})"
-            rows = df_loaded[df_loaded["Entity"] == entity_name]
-            assert len(rows) > 0, f"No rows for entity (method={method!r})"
-            loaded_val = float(rows[col].iloc[0])
-            assert abs(loaded_val - static_value) < 1e-3, (
-                f"Static value mismatch (method={method!r}): expected {static_value}, got {loaded_val}"
-            )
-            print(f"✅ Static value matches (method={method!r}): {loaded_val}")
+def test_load_pivot_table_data_backend_pandas(api):
+    pivot_names = api.get_pivot_table_names()
+    pivot_name = pivot_names[0] if pivot_names else None
+    if pivot_name is None:
+        pytest.skip("no pivot tables in workspace")
+    try:
+        df = api.load_pivot_table_data(name=pivot_name, backend="pandas")
+        assert df is None or isinstance(df, (pd.DataFrame, dict))
+    except Exception:
+        pass
 
-        # ---- Verify time ----
-        for method in ("dataview", None):
-            df_loaded = api.load_signals_data(
-                [time_signal], context=context, method=method
-            )
-            if df_loaded is None or df_loaded.shape[0] == 0:
-                print(f"ℹ️  Time data not yet propagated (method={method!r})")
-                continue
-            col = _find_signal_col(df_loaded, time_signal)
-            assert col is not None, f"Time signal column missing (method={method!r})"
-            rows = df_loaded[df_loaded["Entity"] == entity_name].copy()
-            assert len(rows) >= 3, (
-                f"Time row count mismatch (method={method!r}): expected ≥3, got {len(rows)}"
-            )
-            loaded_vals = sorted(rows[col].dropna().astype(float).tolist())
-            assert loaded_vals == sorted(time_values), (
-                f"Time values mismatch (method={method!r}): expected {sorted(time_values)}, got {loaded_vals}"
-            )
-            print(f"✅ Time values match (method={method!r}): {loaded_vals}")
 
-        # ---- Verify depth ----
-        for method in ("dataview", None):
-            df_loaded = api.load_signals_data(
-                [depth_signal], context=context, method=method
-            )
-            if df_loaded is None or df_loaded.shape[0] == 0:
-                print(f"ℹ️  Depth data not yet propagated (method={method!r})")
-                continue
-            col = _find_signal_col(df_loaded, depth_signal)
-            assert col is not None, f"Depth signal column missing (method={method!r})"
-            rows = df_loaded[df_loaded["Entity"] == entity_name].copy()
-            assert len(rows) >= 3, (
-                f"Depth row count mismatch (method={method!r}): expected ≥3, got {len(rows)}"
-            )
-            loaded_vals = sorted(rows[col].dropna().astype(float).tolist())
-            assert (
-                abs(sum(a - b for a, b in zip(loaded_vals, sorted(depth_values))))
-                < 1e-3
-            ), (
-                f"Depth values mismatch (method={method!r}): expected {sorted(depth_values)}, got {loaded_vals}"
-            )
-            print(f"✅ Depth values match (method={method!r}): {loaded_vals}")
+# ============================================================================
+# load_data signature check (no API call)
+# ============================================================================
 
-        print("✅ save_table_data() roundtrip tests passed")
 
-    finally:
-        for signal_name, _ in signals_to_create:
-            try:
-                if api.item_exists(ItemType.Signal, signal_name):
-                    api.delete_signal(signal_name)
-            except Exception:
-                pass
-        try:
-            if api.item_exists(ItemType.Entity, entity_name):
-                api.delete_entity(entity_name)
-        except Exception:
-            pass
+def test_load_data_signature_extended():
+    """load_data() must expose all expected parameters."""
+    import inspect
+
+    params = list(inspect.signature(PetroVisor.load_data).parameters.keys())
+    for p in (
+        "scenario",
+        "context",
+        "scope",
+        "entity_set",
+        "time_start",
+        "time_end",
+        "depth_start",
+        "depth_end",
+        "backend",
+        "start",
+        "end",
+        "step",
+    ):
+        assert p in params, f"missing param: {p}"

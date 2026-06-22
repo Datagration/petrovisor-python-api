@@ -3,6 +3,7 @@
 /.claude/
 !/.claude/CLAUDE.md
 !/.claude/commands/
+/memory/
 /docs/api/
 /docusaurus-main/
 /sandbox/
