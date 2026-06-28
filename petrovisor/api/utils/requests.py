@@ -425,9 +425,10 @@ class ApiRequests:
                 ):
                     return response
 
-                # 400 and 404 can both be transient. Retry with exponential backoff unless the caller
-                # explicitly opted out of retries via errors="coerce"/"ignore" — those
-                # callers handle None/response themselves and don't want to block.
+                # 400 and 404 can both be transient (entity/signal propagation lag).
+                # Retry with exponential backoff only in "coerce" mode (best-effort).
+                # "raise" means fail fast — no retries.
+                # "ignore" returns the raw response immediately — no retries.
                 if (
                     response is not None
                     and response.status_code
@@ -435,7 +436,8 @@ class ApiRequests:
                         requests.codes["bad_request"],
                         requests.codes["not_found"],
                     }
-                    and errors not in ("coerce", "ignore")
+                    and isinstance(errors, str)
+                    and errors.lower() == "coerce"
                     and attempt < max_retries_on_404
                 ):
                     max_retries = max_retries_on_404

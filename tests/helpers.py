@@ -167,10 +167,13 @@ def wait_for_save_ready(
     else:
         payload = [{"Entity": entity, "Signal": signal, "Unit": _UNIT, "Data": 0.0}]
     for _ in range(retries):
-        # errors="coerce" returns None immediately on 400/404 (no internal retry loop)
-        result = api.save_data(data_type=data_type, with_logs=False, data=payload, errors="coerce")
-        if result is not None:
-            return result
+        # errors="raise" fails fast on 400/404 with no internal retry loop
+        try:
+            result = api.save_data(data_type=data_type, with_logs=False, data=payload, errors="raise")
+            if result is not None:
+                return result
+        except Exception:
+            pass
         time.sleep(delay)
     return None
 
