@@ -281,7 +281,9 @@ def test_save_data(api: PetroVisor):
                 if col is None:
                     return False
                 rows_e1 = df[df["Entity"] == e1]
-                return len(rows_e1) == 1 and abs(float(rows_e1[col].iloc[0]) - 99.0) < 1e-3
+                return (
+                    len(rows_e1) == 1 and abs(float(rows_e1[col].iloc[0]) - 99.0) < 1e-3
+                )
 
             return _wait_for_data(
                 api,
@@ -290,24 +292,46 @@ def test_save_data(api: PetroVisor):
                 predicate=_has_final_value,
             )
 
-        def _poll_time():
+        def _poll_time(expected_e1_vals):
+            def _check(df):
+                col = next((c for c in df.columns if sig_time_num in c), None)
+                if col is None:
+                    return False
+                rows_e1 = df[df["Entity"] == e1]
+                if len(rows_e1) < len(expected_e1_vals):
+                    return False
+                got = sorted(rows_e1[col].dropna().astype(float).tolist())
+                return got == sorted(float(v) for v in expected_e1_vals)
+
             return _wait_for_data(
                 api,
                 lambda: api.load_signals_data([sig_time_num], context=ctx),
                 min_rows=3,
+                predicate=_check,
             )
 
-        def _poll_depth():
+        def _poll_depth(expected_e1_vals):
+            def _check(df):
+                col = next((c for c in df.columns if sig_depth_num in c), None)
+                if col is None:
+                    return False
+                rows_e1 = df[df["Entity"] == e1]
+                if len(rows_e1) < len(expected_e1_vals):
+                    return False
+                got = sorted(rows_e1[col].dropna().astype(float).tolist())
+                return got == sorted(float(v) for v in expected_e1_vals)
+
             return _wait_for_data(
                 api,
                 lambda: api.load_signals_data([sig_depth_num], context=ctx),
                 min_rows=3,
+                predicate=_check,
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             fut_static = pool.submit(_poll_static)
-            fut_time = pool.submit(_poll_time)
-            fut_depth = pool.submit(_poll_depth)
+            fut_time = pool.submit(_poll_time, [10.0, 11.0, 12.0])
+            fut_depth = pool.submit(_poll_depth, [70.0, 80.0, 90.0])
             df_static = fut_static.result()
             df_time = fut_time.result()
             df_depth = fut_depth.result()
@@ -1362,10 +1386,16 @@ def test_pvt_save_and_load(api: PetroVisor):
         assert isinstance(df, pd.DataFrame), f"{label}: not a DataFrame"
         assert len(df) == n_rows, f"{label}: expected {n_rows} rows, got {len(df)}"
         assert "Entity" in df.columns, f"{label}: missing Entity column"
-        assert any("Pressure" in c for c in df.columns), f"{label}: missing Pressure column"
-        assert any("Temperature" in c for c in df.columns), f"{label}: missing Temperature column"
+        assert any("Pressure" in c for c in df.columns), (
+            f"{label}: missing Pressure column"
+        )
+        assert any("Temperature" in c for c in df.columns), (
+            f"{label}: missing Temperature column"
+        )
         for sig in [sig_rso, sig_bo, sig_mu]:
-            assert any(sig in c for c in df.columns), f"{label}: missing column for {sig}"
+            assert any(sig in c for c in df.columns), (
+                f"{label}: missing column for {sig}"
+            )
         # verify values
         p_col = next(c for c in df.columns if "Pressure" in c)
         df_s = df.sort_values(p_col).reset_index(drop=True)
@@ -1409,7 +1439,9 @@ def test_pvt_save_and_load(api: PetroVisor):
         _save_pvt(data_type_arg=SignalType.PVT)
 
         def _all_pvt_cols(df):
-            return all(any(s in c for c in df.columns) for s in [sig_rso, sig_bo, sig_mu])
+            return all(
+                any(s in c for c in df.columns) for s in [sig_rso, sig_bo, sig_mu]
+            )
 
         df = _wait_for_data(
             api,

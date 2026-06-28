@@ -179,7 +179,9 @@ def wait_for_save_ready(
     while time.monotonic() < deadline:
         # errors="raise" skips the internal 400/404 retry loop — fail fast per probe
         try:
-            result = api.save_data(data_type=data_type, with_logs=False, data=payload, errors="raise")
+            result = api.save_data(
+                data_type=data_type, with_logs=False, data=payload, errors="raise"
+            )
             if result is not None:
                 return result
         except Exception:

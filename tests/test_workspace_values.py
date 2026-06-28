@@ -74,10 +74,9 @@ def test_dict_workspace_value_roundtrip(api: PetroVisor, dict_wv):
 
 
 def test_get_workspace_values_contains_created(api: PetroVisor, numeric_wv, string_wv):
-    # fixtures confirmed creation; verify both are readable, using errors="ignore"
-    # so transient propagation misses return None quickly instead of 404-warning.
-    assert api.get_workspace_value(numeric_wv, errors="ignore") is not None
-    assert api.get_workspace_value(string_wv, errors="ignore") is not None
+    # fixtures confirmed creation; verify both are readable via single-value GET.
+    assert api.get_workspace_value(numeric_wv) is not None
+    assert api.get_workspace_value(string_wv) is not None
 
 
 def test_overwrite_workspace_value(api: PetroVisor, numeric_wv):

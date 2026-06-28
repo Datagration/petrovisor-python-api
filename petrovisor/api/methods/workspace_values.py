@@ -226,12 +226,12 @@ class WorkspaceValuesMixin(SupportsItemRequests, SupportsRequests):
             name, value, unit=unit, description=description, **kwargs
         )
         # get existing workspace values names (list endpoint may be stale — use POST then
-        # fall back to PUT on 409 to handle eventual-consistency races)
-        workspace_value_names = self.get_workspace_value_names(**kwargs)
+        # fall back to PUT on conflict to handle eventual-consistency races)
+        workspace_value_names = self.get_workspace_value_names(**kwargs) or []
         if name in workspace_value_names:
             return self.put(f"{route}/{self.encode(name)}", data=value_specs, **kwargs)
         try:
-            return self.post(f"{route}", data=value_specs, **kwargs)
+            return self.post(f"{route}", data=value_specs, errors="raise", **kwargs)
         except Exception:
             return self.put(f"{route}/{self.encode(name)}", data=value_specs, **kwargs)
 
