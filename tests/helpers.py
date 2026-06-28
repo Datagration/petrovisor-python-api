@@ -118,21 +118,29 @@ def wait_for_save_ready(
     entity: str,
     signal: str,
     data_type: str = "static",
-    retries: int = 20,
-    delay: float = 1.0,
+    timeout: float = 120.0,
+    delay: float = 2.0,
+    # legacy positional args — ignored, kept for call-site compatibility
+    retries: Optional[int] = None,
 ) -> Optional[Any]:
     """Probe Data/Save until entity+signal are accepted by the data layer.
 
-    Returns the successful save result, or None if all retries exhausted.
-    Callers should assert the return value is not None to catch readiness failures.
+    Uses a wall-clock timeout so slow HTTP round-trips don't exhaust a fixed
+    retry count.  Probe dates/depths are chosen outside all real test ranges
+    so probe records never contaminate load-verification assertions.
+
+    Returns the successful save result, or None if timeout expires.
     """
+    # Probe values chosen outside all test data ranges:
+    #   time:  year 2000 (tests use 2024)
+    #   depth: -1.0 m   (tests use 1000+ m)
     if data_type == "time":
         payload = [
             {
                 "Entity": entity,
                 "Signal": signal,
                 "Unit": _UNIT,
-                "Data": [{"Date": "2024-01-01T00:00:00", "Value": 0.0}],
+                "Data": [{"Date": "2000-01-01T00:00:00", "Value": 0.0}],
             }
         ]
     elif data_type == "timestring":
@@ -141,7 +149,7 @@ def wait_for_save_ready(
                 "Entity": entity,
                 "Signal": signal,
                 "Unit": _UNIT,
-                "Data": [{"Date": "2024-01-01T00:00:00", "Value": "probe"}],
+                "Data": [{"Date": "2000-01-01T00:00:00", "Value": "probe"}],
             }
         ]
     elif data_type == "depth":
@@ -150,7 +158,7 @@ def wait_for_save_ready(
                 "Entity": entity,
                 "Signal": signal,
                 "Unit": _UNIT,
-                "Data": [{"Depth": 0.0, "Value": 0.0}],
+                "Data": [{"Depth": -1.0, "Value": 0.0}],
             }
         ]
     elif data_type == "stringdepth":
@@ -159,15 +167,17 @@ def wait_for_save_ready(
                 "Entity": entity,
                 "Signal": signal,
                 "Unit": _UNIT,
-                "Data": [{"Depth": 0.0, "Value": "probe"}],
+                "Data": [{"Depth": -1.0, "Value": "probe"}],
             }
         ]
     elif data_type == "string":
         payload = [{"Entity": entity, "Signal": signal, "Unit": _UNIT, "Data": "probe"}]
     else:
         payload = [{"Entity": entity, "Signal": signal, "Unit": _UNIT, "Data": 0.0}]
-    for _ in range(retries):
-        # errors="raise" fails fast on 400/404 with no internal retry loop
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        # errors="raise" skips the internal 400/404 retry loop — fail fast per probe
         try:
             result = api.save_data(data_type=data_type, with_logs=False, data=payload, errors="raise")
             if result is not None:
@@ -252,17 +262,19 @@ def ensure_workspace_value(
     """
     _is_complex = isinstance(value, (list, dict, tuple))
 
+    deadline = time.monotonic() + retries * delay * 2  # generous total ceiling
     for attempt in range(retries):
+        if time.monotonic() > deadline:
+            break
         try:
             api.add_workspace_value(name, value, unit=unit)
         except Exception:
             pass
         # Poll until the specific new value is visible.
-        # Use errors="ignore" so 404 misses return None instantly instead of
-        # blocking ~10s per call under the default errors="coerce" path.
-        for _ in range(5):
+        # errors="raise" returns immediately on 404 (no internal retry loop).
+        for _ in range(15):
             try:
-                result = api.get_workspace_value(name, errors="ignore")
+                result = api.get_workspace_value(name, errors="raise")
                 if result is not None:
                     if _is_complex:
                         if result == value:

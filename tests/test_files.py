@@ -120,6 +120,7 @@ def test_read_dataframe_from_file_excel(api):
 
 
 def test_read_dataframe_from_file_parquet(api):
+    pytest.importorskip("pyarrow", reason="pyarrow required for parquet support")
     df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
     with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as f:
         df_original.to_parquet(f.name)
@@ -183,6 +184,7 @@ def test_read_dataframe_from_bytes_excel(api):
 
 
 def test_read_dataframe_from_bytes_parquet(api):
+    pytest.importorskip("pyarrow", reason="pyarrow required for parquet support")
     df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
     buffer = io.BytesIO()
     df_original.to_parquet(buffer)
@@ -247,6 +249,7 @@ def test_get_object_excel_dataframe(api):
 
 
 def test_get_object_parquet_dataframe(api):
+    pytest.importorskip("pyarrow", reason="pyarrow required for parquet support")
     df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
     buffer = io.BytesIO()
     df_original.to_parquet(buffer)

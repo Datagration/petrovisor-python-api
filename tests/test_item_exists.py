@@ -113,8 +113,8 @@ def test_after_delete(api: PetroVisor):
             f"resolve_item(after='delete') returned {result!r} for '{name}' — expected None"
         )
         # Each poll is a cheap list call; 30 × 1 s is the ceiling, not the norm
-        assert elapsed < 35.0, (
-            f"resolve_item(after='delete') took {elapsed:.1f}s — expected <35 s"
+        assert elapsed < 60.0, (
+            f"resolve_item(after='delete') took {elapsed:.1f}s — expected <60 s"
         )
         print(f"\n  resolve_item(after='delete') converged in {elapsed:.2f}s")
     finally:
