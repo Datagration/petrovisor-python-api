@@ -7,10 +7,9 @@ from typing import (
     Tuple,
 )
 
-import time
-
 from petrovisor.api.utils.helper import ApiHelper
-from petrovisor.api.protocols.protocols import SupportsRequests
+from petrovisor.api.enums.items import ItemType
+from petrovisor.api.protocols.protocols import SupportsRequests, SupportsItemRequests
 
 
 # Workspace value mixin Helper
@@ -126,7 +125,7 @@ class WorkspaceValueMixinHelper:
 
 
 # Workspace value API calls
-class WorkspaceValuesMixin(SupportsRequests):
+class WorkspaceValuesMixin(SupportsItemRequests, SupportsRequests):
     """
     Workspace value API calls
     """
@@ -270,9 +269,11 @@ class WorkspaceValuesMixin(SupportsRequests):
         route = WorkspaceValueMixinHelper.ENDPOINT
         result = self.delete(f"{route}/{self.encode(name)}", **kwargs)
         # Poll until the name disappears from the list (mirrors delete_item after="delete").
-        for _ in range(5):
-            names = self.get_workspace_value_names(**kwargs)
-            if not names or name not in names:
-                break
-            time.sleep(1.0)
+        self.item_exists(
+            ItemType.ConfigurationSettings,
+            name,
+            after="delete",
+            max_retries=10,
+            retry_delay=1.0,
+        )
         return result
