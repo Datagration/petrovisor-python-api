@@ -584,6 +584,13 @@ class SignalsMixin(
         if signal_type_enum in {SignalType.Static, SignalType.String}:
             return {"Start": None, "End": None}
 
+        # fast pre-check to avoid retry loop when signal or entity doesn't exist
+        if signal and not self.item_exists(ItemType.Signal, signal, **kwargs):
+            return {"Start": None, "End": None}
+        if entity and not isinstance(entity, (list, tuple, set)):
+            if not self.item_exists(ItemType.Entity, entity, **kwargs):
+                return {"Start": None, "End": None}
+
         # Determine if numeric or string signal
         is_numeric = signal_type_enum in {
             SignalType.TimeDependent,

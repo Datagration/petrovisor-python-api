@@ -325,7 +325,7 @@ class ItemsMixin(SupportsRequests):
         self.delete(f"{route}/{self.encode(name)}", **kwargs)
 
         self.item_exists(
-            item_type, name, after="delete", max_retries=3, retry_delay=0.5
+            item_type, name, after="delete", max_retries=5, retry_delay=1.0
         )
         return ApiRequests.success()
 
@@ -533,10 +533,18 @@ class ItemsMixin(SupportsRequests):
         if isinstance(item, str) and item_type:
             item_name = ApiHelper.get_object_name(item)
             item = self.get_item(item_type, item_name, **kwargs)
+        else:
+            item_name = ""
         if not item:
-            raise ValueError(
-                f"PetroVisor::get_item_field(): item '{item}' cannot be found!"
-            )
+            if item_name:
+                raise ValueError(
+                    f"PetroVisor::get_item_field(): "
+                    f"item '{item_name}' of type '{item_type}' cannot be found!"
+                )
+            else:
+                raise ValueError(
+                    f"PetroVisor::get_item_field(): item '{item}' of type '{item_type}' cannot be found!"
+                )
         elif not ApiHelper.has_field(item, field_name):
             raise ValueError(
                 f"PetroVisor::get_item_field(): "

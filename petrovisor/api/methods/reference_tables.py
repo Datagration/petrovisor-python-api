@@ -601,42 +601,81 @@ class RefTableMixin(
 
         # convert units if don't match with storage
         if ref_table_info:
-            # ref table units
-            columns = [(d["Name"], d["UnitName"]) for d in ref_table_info["Values"]]
-            key_column = (
-                ref_table_info["Key"]["Name"],
-                ref_table_info["Key"]["UnitName"],
-            )
-            columns = [
-                (entity_col or "Entity", ""),
-                (date_col or "Timestamp", ""),
-                key_column,
-                *columns,
+            # server schema: [(name, unit), ...]  for key + value columns
+            key_name = ref_table_info["Key"]["Name"]
+            key_unit_name = ref_table_info["Key"]["UnitName"]
+            server_value_cols = [
+                (d["Name"], d["UnitName"]) for d in ref_table_info["Values"]
             ]
-            df_columns = [self.get_column_name_and_unit(col) for col in df.columns]
-            if len(df_columns) != len(columns):
-                raise ValueError(
-                    "PetroVisor::save_ref_table_data():: "
-                    "Number of columns do not match. "
-                    f"RefTable columns: {columns}, DataFrame columns: {df_columns}."
-                )
-            for idx, ((_, unit), (_, df_col_unit)) in enumerate(
-                zip(columns, df_columns)
-            ):
-                df_col = df.columns[idx]
+
+            # accepted aliases for the entity and date index columns
+            _entity_aliases = RefTableMixinHelper.get_list(entity_col, default="Entity")
+            _date_aliases = RefTableMixinHelper.get_list(
+                date_col, default=["Timestamp", "Date", "Time"]
+            )
+
+            # build name→df_col lookup (strip units for matching)
+            df_col_by_base: Dict[str, str] = {
+                self.get_column_name_without_unit(c): c for c in df.columns
+            }
+
+            # locate entity column in df
+            df_entity_col = next(
+                (df_col_by_base[a] for a in _entity_aliases if a in df_col_by_base),
+                None,
+            )
+            # locate date column in df (server always calls it "Timestamp")
+            df_date_col = next(
+                (df_col_by_base[a] for a in _date_aliases if a in df_col_by_base),
+                None,
+            )
+            # locate key column in df
+            df_key_col = df_col_by_base.get(key_name)
+
+            # locate each server value column in df; include key as first entry for unit conversion
+            matched_cols: List[tuple] = []
+            if df_key_col is not None:
+                matched_cols.append((key_name, key_unit_name, df_key_col))
+            for sv_name, sv_unit in server_value_cols:
+                df_vc = df_col_by_base.get(sv_name)
+                if df_vc is not None:
+                    matched_cols.append((sv_name, sv_unit, df_vc))
+
+            # apply unit conversions for key + value columns
+            for _sv_name, _sv_unit, _df_vc in matched_cols:
+                _, df_col_unit = self.get_column_name_and_unit(_df_vc)
                 if (
-                    unit
+                    _sv_unit
                     and df_col_unit
-                    and unit != df_col_unit
-                    and unit not in (" ", "%")
+                    and _sv_unit != df_col_unit
+                    and _sv_unit not in (" ", "%")
                 ):
-                    dtype = df[df_col].dtype
-                    df[df_col] = self.convert_units(
-                        df[df_col].values,
+                    dtype = df[_df_vc].dtype
+                    df = df.copy()
+                    df[_df_vc] = self.convert_units(
+                        df[_df_vc].values,
                         source=df_col_unit,
-                        target=unit,
+                        target=_sv_unit,
                     )
-                    df[df_col] = df[df_col].astype(dtype)
+                    df[_df_vc] = df[_df_vc].astype(dtype)
+
+            # reorder df to [entity, date, key, *value_cols] matching server schema
+            ordered_df_cols = []
+            rename_map: Dict[str, str] = {}
+            if df_entity_col is not None:
+                ordered_df_cols.append(df_entity_col)
+                rename_map[df_entity_col] = entity_col or "Entity"
+            if df_date_col is not None:
+                ordered_df_cols.append(df_date_col)
+                rename_map[df_date_col] = "Timestamp"
+            for _, _, df_vc in matched_cols:
+                if df_vc not in ordered_df_cols:
+                    ordered_df_cols.append(df_vc)
+
+            if ordered_df_cols:
+                df = df[ordered_df_cols]
+            if rename_map:
+                df = df.rename(columns=rename_map)
 
         if chunksize and chunksize > 0 and (df.shape[0] > chunksize):
             for start in range(0, df.shape[0], chunksize):
