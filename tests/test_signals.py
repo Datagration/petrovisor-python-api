@@ -276,10 +276,18 @@ def test_save_data(api: PetroVisor):
         import concurrent.futures
 
         def _poll_static():
+            def _has_final_value(df):
+                col = next((c for c in df.columns if sig_static_num in c), None)
+                if col is None:
+                    return False
+                rows_e1 = df[df["Entity"] == e1]
+                return len(rows_e1) == 1 and abs(float(rows_e1[col].iloc[0]) - 99.0) < 1e-3
+
             return _wait_for_data(
                 api,
                 lambda: api.load_signals_data([sig_static_num], context=ctx),
                 min_rows=2,
+                predicate=_has_final_value,
             )
 
         def _poll_time():
@@ -1287,7 +1295,6 @@ def test_pvt_save_and_load(api: PetroVisor):
     """
     import time
     import warnings as _warnings
-    import concurrent.futures
 
     PFX = "PVTTest"
     entity = f"{PFX} Well"
@@ -1319,27 +1326,6 @@ def test_pvt_save_and_load(api: PetroVisor):
             }
             for sig, vals in _values.items()
         ]
-
-    def _poll_ready(sig_name):
-        for _ in range(30):
-            with _warnings.catch_warnings():
-                _warnings.simplefilter("ignore", RuntimeWarning)
-                df_probe = api.load_signals_data(
-                    [sig_name],
-                    entities=[entity],
-                    pressure_unit=pressure_unit,
-                    temperature_unit=temperature_unit,
-                )
-            if df_probe is not None and len(df_probe) > 0:
-                return True
-            time.sleep(2)
-        return False
-
-    def _wait_all_ready():
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-            futs = {s: pool.submit(_poll_ready, s) for s in [sig_rso, sig_bo, sig_mu]}
-            for sig_name, fut in futs.items():
-                assert fut.result(), f"data layer never ready for {sig_name}"
 
     def _delete_all():
         for sig in [sig_rso, sig_bo, sig_mu]:
@@ -1421,12 +1407,20 @@ def test_pvt_save_and_load(api: PetroVisor):
 
         # ── 1. save_data() explicit data_type="pvt" ───────────────────────────
         _save_pvt(data_type_arg=SignalType.PVT)
-        _wait_all_ready()
-        df = api.load_signals_data(
-            [sig_rso, sig_bo, sig_mu],
-            entities=[entity],
-            pressure_unit=pressure_unit,
-            temperature_unit=temperature_unit,
+
+        def _all_pvt_cols(df):
+            return all(any(s in c for c in df.columns) for s in [sig_rso, sig_bo, sig_mu])
+
+        df = _wait_for_data(
+            api,
+            lambda: api.load_signals_data(
+                [sig_rso, sig_bo, sig_mu],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+            ),
+            min_rows=n_rows,
+            predicate=_all_pvt_cols,
         )
         _assert_df(df, "save_data(explicit pvt)")
         print("✅ save_data(explicit pvt)")
@@ -1437,12 +1431,16 @@ def test_pvt_save_and_load(api: PetroVisor):
 
         # ── 3. save_data() auto-detect (data_type=None) ───────────────────────
         _save_pvt(data_type_arg=None)
-        _wait_all_ready()
-        df = api.load_signals_data(
-            [sig_rso, sig_bo, sig_mu],
-            entities=[entity],
-            pressure_unit=pressure_unit,
-            temperature_unit=temperature_unit,
+        df = _wait_for_data(
+            api,
+            lambda: api.load_signals_data(
+                [sig_rso, sig_bo, sig_mu],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+            ),
+            min_rows=n_rows,
+            predicate=_all_pvt_cols,
         )
         _assert_df(df, "save_data(auto-detect)")
         print("✅ save_data(auto-detect)")
@@ -1478,12 +1476,16 @@ def test_pvt_save_and_load(api: PetroVisor):
                 temperature_unit=temperature_unit,
                 only_existing_entities=False,
             )
-        _wait_all_ready()
-        df = api.load_signals_data(
-            [sig_rso, sig_bo, sig_mu],
-            entities=[entity],
-            pressure_unit=pressure_unit,
-            temperature_unit=temperature_unit,
+        df = _wait_for_data(
+            api,
+            lambda: api.load_signals_data(
+                [sig_rso, sig_bo, sig_mu],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+            ),
+            min_rows=n_rows,
+            predicate=_all_pvt_cols,
         )
         _assert_df(df, "save_table_data(wide pvt)")
         print("✅ save_table_data(wide pvt)")

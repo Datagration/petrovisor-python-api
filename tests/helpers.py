@@ -180,13 +180,18 @@ def wait_for_data(
     min_rows: int = 1,
     retries: int = 60,
     delay: float = 2.0,
+    predicate: Optional[Callable] = None,
 ) -> Optional[Any]:
-    """Poll load_fn() until it returns a non-empty result with at least min_rows."""
+    """Poll load_fn() until it returns a non-empty result with at least min_rows.
+
+    If *predicate* is given, also require predicate(result) to be True.
+    """
     for _ in range(retries):
         try:
             result = load_fn()
             if result is not None and len(result) >= min_rows:
-                return result
+                if predicate is None or predicate(result):
+                    return result
         except Exception:
             pass
         time.sleep(delay)
