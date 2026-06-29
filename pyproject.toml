@@ -18,7 +18,11 @@ dependencies = [
     "pydantic",
     "openpyxl",
     "xlsxwriter",
-    "typing-extensions"
+    "typing-extensions",
+    "narwhals>=1.43.1; python_version>='3.9'",
+    "polars>=1.0.0; python_version>='3.9'",
+    "pyarrow; python_version>='3.9'",
+    "duckdb>=1.3.2; python_version>='3.9'",
 ]
 classifiers = [
     "Operating System :: OS Independent",
@@ -35,6 +39,22 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "python-dotenv",
+    "ruff",
+    "ty; python_version>='3.8'",
+    "ipykernel",
+]
+docs = [
+    "numpydoc>=1.1.0",
+    "sphinx>=4.0.0",
+    "docstring-parser>=0.15",
+    "docutils>=0.17.0",
+    "pydantic>=1.8.0",
+]
 
 [project.urls]
 repository = "https://github.com/Datagration/petrovisor-python-api"
@@ -58,24 +78,34 @@ exclude = [
     ".git",
 ]
 
-[project.optional-dependencies]
-dev = [
-    # Testing
-    "pytest",
-    "pytest-cov",
-
-    # Development tools
-    "pre-commit",
-    "ruff",
-    "flake8",
-    "hatchling",
-    "build",
-
-    # Jupyter
-    "ipykernel",
-    "jupyter",
-    "notebook"
+[tool.ty.src]
+# Exclude non-library directories from type checking
+exclude = [
+    "tests/**",
+    "examples/**",
+    "experimental/**",
+    "website/**",
+    "docs/**",
+    "scripts/**",
 ]
+
+[tool.ty.rules]
+# Downgrade noisy rules to warnings — these are mostly annotation-style issues
+# or false positives from incomplete third-party stubs (requests, pandas, numpy).
+# Real logic bugs (not-iterable, not-subscriptable, invalid-return-type) remain errors.
+invalid-parameter-default = "warn"
+invalid-assignment = "warn"
+invalid-argument-type = "warn"
+unknown-argument = "warn"
+no-matching-overload = "warn"
+invalid-method-override = "warn"
+invalid-type-form = "warn"
+unsupported-operator = "warn"
+unresolved-attribute = "warn"
+unresolved-import = "warn"
+
+[tool.pytest.ini_options]
+addopts = "--durations=0"
 
 # Keep existing Ruff configuration
 [tool.ruff]
@@ -113,8 +143,8 @@ exclude = [
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.9
-target-version = "py39"
+# Minimum supported Python version
+target-version = "py37"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -156,3 +186,4 @@ docstring-code-format = false
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
 docstring-code-line-length = "dynamic"
+

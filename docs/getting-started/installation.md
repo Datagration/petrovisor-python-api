@@ -7,39 +7,57 @@ tags: [tutorial]
 
 # Installing petrovisor
 
-`petrovisor` can be installed using `pip` or `uv` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
-
+`petrovisor` can be installed using [uv](https://docs.astral.sh/uv/) (recommended) or `pip` from [PyPI](https://pypi.org/project/petrovisor/), [GitHub](https://github.com/Datagration/petrovisor-python-api.git), or directly from the source.
 
 ## Prerequisites
 
-- Python 3.7 or higher, Python 3.12 (Recommended)
-- [pip](https://pypi.org/project/pip/) (Python package installer) or [uv](https://docs.astral.sh/uv/) (extremely fast Python package and project manager, written in Rust)
+- Python 3.7+, Python 3.12+ recommended (tested on 3.7–3.14)
+- [uv](https://docs.astral.sh/uv/) — **Recommended**: an extremely fast Python package and project manager written in Rust (10–100× faster than pip)
+
+Install uv:
+
+```bash
+# Unix / macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip
+pip install uv
+```
 
 ## Installation Options
 
 ### From PyPI (Recommended)
 
 ```bash
-pip install petrovisor
-```
-
-or
-
-```bash
 uv pip install petrovisor
 ```
 
+<details>
+<summary>Using pip instead</summary>
+
+```bash
+pip install petrovisor
+```
+
+</details>
+
 ### From GitHub
+
+```bash
+uv pip install git+https://github.com/Datagration/petrovisor-python-api.git
+```
+
+<details>
+<summary>Using pip instead</summary>
 
 ```bash
 pip install git+https://github.com/Datagration/petrovisor-python-api.git
 ```
 
-or
-
-```bash
-uv pip install git+https://github.com/Datagration/petrovisor-python-api.git
-```
+</details>
 
 ### From Source
 
@@ -51,22 +69,31 @@ cd petrovisor-python-api
 
 2. Install the package
 ```bash
-pip install .
-```
-
-or 
-
-```bash
 uv pip install .
 ```
 
-## Verify Installation
+<details>
+<summary>Using pip instead</summary>
 
-You can verify that petrovisor is installed correctly by importing it in Python:
+```bash
+pip install .
+```
+
+</details>
+
+## Verify Installation
 
 ```python
 import petrovisor as pv
 print(pv.__version__)
+```
+
+## Development Setup
+
+For contributors, install with development dependencies:
+
+```bash
+uv pip install -e ".[dev]"
 ```
 
 ## Dependencies

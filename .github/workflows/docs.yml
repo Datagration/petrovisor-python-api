@@ -15,21 +15,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install -r scripts/requirements-docs.txt
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Generate documentation
         run: |
-          chmod +x scripts/generate_docs.sh
-          bash scripts/generate_docs.sh
+          chmod +x scripts/docs/generate_docs.sh
+          bash scripts/docs/generate_docs.sh
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -38,7 +34,7 @@ jobs:
           cache: 'yarn'
           cache-dependency-path: website/yarn.lock
 
-      - name: Install dependencies
+      - name: Install website dependencies
         run: |
           cd website
           yarn install --frozen-lockfile
@@ -52,15 +48,15 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: website/build
-  
+
   deploy:
     name: Deploy Documentation
     needs: build
 
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:
-      pages: write # to deploy to Pages
-      id-token: write # to verify the deployment originates from an appropriate source
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
 
     # Deploy to the github-pages environment
     environment:

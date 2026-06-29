@@ -1,4 +1,14 @@
 repos:
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty type check
+        entry: uv tool run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [petrovisor/]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.7.0
     hooks:

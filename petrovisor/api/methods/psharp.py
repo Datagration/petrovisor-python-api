@@ -1,11 +1,10 @@
 from typing import (
+    Any,
     Optional,
     Union,
     List,
     Dict,
 )
-
-import pandas as pd
 
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import (
@@ -15,6 +14,18 @@ from petrovisor.api.protocols.protocols import (
     SupportsPsharpRequests,
     SupportsItemRequests,
 )
+
+
+# P# mixin helper
+class PsharpMixinHelper:
+    """
+    P# mixin helper — endpoint constants.
+    """
+
+    ENDPOINT_SCRIPTS = "PSharpScripts"
+    ENDPOINT_PARSING = "Parsing/Parsed"
+    ENDPOINT_EXECUTE_SCRIPT = "PSharpScripts/ExecuteScript"
+    ENDPOINT_EXECUTE = "PSharpScripts/Execute"
 
 
 # P# API class
@@ -46,7 +57,9 @@ class PsharpMixin(
         name : str
             P# script name
         """
-        return self.get(f"PSharpScripts/{self.encode(name)}", **kwargs)
+        return self.get(
+            f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(name)}", **kwargs
+        )
 
     # get P# script content
     def get_psharp_script_content(self, script: Union[str, Dict], **kwargs) -> str:
@@ -59,21 +72,23 @@ class PsharpMixin(
             P# script object or P# script name
         """
         # get P# script content
+        script_obj: Optional[Dict] = None
         if isinstance(script, str):
             script_content = script
             # check is script is the name of P# script
             script_names = self.get_psharp_script_names(**kwargs)
-            script = (
+            script_obj = (
                 self.get_psharp_script(script, **kwargs)
                 if script in script_names
                 else None
             )
         else:
             script_content = None
-        if script is None and script_content:
+            script_obj = script
+        if script_obj is None and script_content:
             pass
-        elif "Content" in script:
-            script_content = script["Content"]
+        elif isinstance(script_obj, dict) and "Content" in script_obj:
+            script_content = script_obj["Content"]
         else:
             raise ValueError(
                 f"PetroVisor::get_psharp_script_content(): "
@@ -102,7 +117,7 @@ class PsharpMixin(
             options = {"TreatScriptContentAsScriptName": False, "NoMissedObjects": True}
             options = ApiHelper.update_dict(options, **kwargs)
         return self.post(
-            "Parsing/Parsed",
+            PsharpMixinHelper.ENDPOINT_PARSING,
             data={"ScriptContent": script_content, "Options": options},
             **kwargs,
         )
@@ -185,8 +200,9 @@ class PsharpMixin(
         with_entity_column: bool = True,
         groupby_entity: bool = False,
         load_full_table_info: bool = False,
+        backend: str = "pandas",
         **kwargs,
-    ) -> Optional[Union[pd.DataFrame, List[pd.DataFrame], Dict[str, pd.DataFrame]]]:
+    ) -> Optional[Union[Any, Dict[str, Any]]]:
         """
         Load P# table and return DataFrame
 
@@ -205,6 +221,8 @@ class PsharpMixin(
             Return dictionary of DataFrames grouped by entity name
         load_full_table_info : bool, default False
             Load table using api call with full table content
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars'). Output DataFrame(s) will be in the specified backend format.
         """
 
         # get available table names
@@ -242,24 +260,25 @@ class PsharpMixin(
         if table_name and dropna:
             if with_entity_column:
                 psharp_table = self.get(
-                    f"PSharpScripts/{self.encode(script_name)}/ExecuteAsBITable",
+                    f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(script_name)}/ExecuteAsBITable",
                     query={"Table": table_name},
                     **kwargs,
                 )
             else:
                 psharp_table = self.get(
-                    f"PSharpScripts/{self.encode(script_name)}/ExecuteAsTable",
+                    f"{PsharpMixinHelper.ENDPOINT_SCRIPTS}/{self.encode(script_name)}/ExecuteAsTable",
                     query={"Table": table_name},
                     **kwargs,
                 )
             if psharp_table is not None:
-                return self.convert_psharp_table_to_dataframe(
+                df = self.convert_psharp_table_to_dataframe(
                     psharp_table,
                     with_entity_column=with_entity_column,
                     groupby_entity=groupby_entity,
                     dropna=dropna,
                     **kwargs,
                 )
+                return self._convert_dataframe_backend(df, backend)
         else:
             psharp_table = None
 
@@ -275,28 +294,29 @@ class PsharpMixin(
         script_content = self.get_psharp_script_content(script_name, **kwargs)
         if load_full_table_info:
             psharp_tables = self.post(
-                "PSharpScripts/ExecuteScript",
+                PsharpMixinHelper.ENDPOINT_EXECUTE_SCRIPT,
                 data={"ScriptContent": script_content},
                 **kwargs,
             )
         else:
             psharp_tables = self.post(
-                "PSharpScripts/Execute",
+                PsharpMixinHelper.ENDPOINT_EXECUTE,
                 data={"ScriptContent": script_content},
                 **kwargs,
             )
 
         # return single table
         if table_name:
-            return self.convert_psharp_table_to_dataframe(
+            df = self.convert_psharp_table_to_dataframe(
                 psharp_tables[table_names.index(table_name)],
                 with_entity_column=with_entity_column,
                 groupby_entity=groupby_entity,
                 dropna=dropna,
                 **kwargs,
             )
+            return self._convert_dataframe_backend(df, backend)
         # return multiple tables
-        return {
+        result = {
             table_name: self.convert_psharp_table_to_dataframe(
                 t,
                 with_entity_column=with_entity_column,
@@ -306,77 +326,40 @@ class PsharpMixin(
             )
             for table_name, t in zip(table_names, psharp_tables)
         }
+        # Convert each DataFrame in the dictionary
+        if backend != "pandas":
+            result = {
+                k: self._convert_dataframe_backend(v, backend)
+                for k, v in result.items()
+            }
+        return result
 
-    # save data from table to PetroVisor
-    def save_table_data(
-        self,
-        df: pd.DataFrame,
-        delimiter: str = "\t",
-        signals: Optional[Dict] = None,
-        chunksize: int = 10000,
-        only_existing_entities: bool = True,
-        entity_type: str = "",
-        entities: Optional[Dict] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Save DataFrame data to corresponding signals
+    def _convert_dataframe_backend(self, df_or_dict, backend: str):
+        """Convert DataFrame or Dict[str, DataFrame] to specified backend."""
+        if backend == "pandas":
+            return df_or_dict
 
-        Parameters
-        ----------
-        df : DataFrame, str
-            Table or filename. Table should contain necessary columns 'Entity', 'Date' or 'Depth',
-            depending on the type of the present signals.
-        delimiter : str, default '\t'
-            Delimiter used while reading table from file
-        signals : dict, default None
-            Dictionary map from 'table column name' to 'workspace signal name'
-        chunksize : int, default 10000
-            Save data by splitting it into several chunks of specified size and performing separate requests
-        entities : dict, default None
-            Dictionary map from 'table entity name' to 'workspace entity name'
-        only_existing_entities : bool, default True
-            Save data only if entity exist in workspace
-        entity_type : str, default None
-            Save data only for specified entity type
-        """
-        # read table
-        if isinstance(df, str):
-            ext = ApiHelper.get_file_extension(df, **kwargs)
-            if ext.lower() in [".xlsx", ".xls"]:
-                df = pd.read_excel(df)
-            else:  # elif(ext.lower() in ['.csv']):
-                df = pd.read_csv(df, delimiter=delimiter)
-        if df is not None:
-            if chunksize and (df.shape[0] > chunksize):
-                for start in range(0, df.shape[0], chunksize):
-                    end = min(start + chunksize, df.shape[0])
-                    self.save_table_data(
-                        df[start:end],
-                        delimiter=delimiter,
-                        signals=signals,
-                        chunksize=chunksize,
-                        only_existing_entities=only_existing_entities,
-                        entity_type=entity_type,
-                        entities=entities,
-                        **kwargs,
-                    )
-                return None
-            # get PetroVisor data from DataFrame
-            data_to_save = self.get_signal_data_from_dataframe(
-                df,
-                signals=signals,
-                only_existing_entities=only_existing_entities,
-                entity_type=entity_type,
-                entities=entities,
-                **kwargs,
-            )
-            # save data
-            for data_type, data in data_to_save.items():
-                if data:
-                    self.post(
-                        f"{self.get_signal_type_route(data_type)}/Save",
-                        data=data,
-                        **kwargs,
-                    )
-        return None
+        from petrovisor.api.methods.dataframes import DataFrameMixinHelper
+
+        def convert_single(df):
+            if df is None:
+                return df
+            if backend == "polars" and DataFrameMixinHelper.is_backend_available(
+                "polars"
+            ):
+                import polars as pl
+
+                return pl.from_pandas(df)
+            elif backend == "narwhals" and DataFrameMixinHelper.is_backend_available(
+                "narwhals"
+            ):
+                import narwhals as nw
+
+                return nw.from_native(df)
+            return df
+
+        # Handle Dict[str, DataFrame] (groupby_entity=True case)
+        if isinstance(df_or_dict, dict):
+            return {k: convert_single(v) for k, v in df_or_dict.items()}
+        # Handle single DataFrame
+        return convert_single(df_or_dict)

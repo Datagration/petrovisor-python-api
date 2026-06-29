@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from scripts.docstring_to_mdx import docstring_to_markdown
+from scripts.docs.docstring_to_mdx import docstring_to_markdown
 
 
 def main():

@@ -2,6 +2,15 @@ from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.protocols.protocols import SupportsRequests
 
 
+# Logs mixin helper
+class LogsMixinHelper:
+    """
+    Logs mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "LogEntries"
+
+
 # PetroVisor Logs API calls
 class LogsMixin(SupportsRequests):
     """
@@ -53,7 +62,9 @@ class LogsMixin(SupportsRequests):
         }
         log_entry = ApiHelper.update_dict(log_entry, **kwargs)
         return self.post(
-            "LogEntries", data=ApiHelper.get_non_empty_fields(log_entry), **kwargs
+            LogsMixinHelper.ENDPOINT,
+            data=ApiHelper.get_non_empty_fields(log_entry),
+            **kwargs,
         )
 
     # add workflow log entry

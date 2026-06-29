@@ -17,7 +17,11 @@ from petrovisor.api.enums.internal_dtypes import (
     RefTableColumnType,
     AggregationType,
 )
-from petrovisor.api.enums.increments import TimeIncrement, DepthIncrement
+from petrovisor.api.enums.increments import (
+    TimeIncrement,
+    DepthIncrement,
+    AggregationFunction,
+)
 from petrovisor.api.enums.ml import MLModelType, MLNormalizationType
 from petrovisor.api.enums.data_grids import DataGridType, PointSetType
 from petrovisor.models.contexts_manager import ContextsManager
@@ -36,6 +40,7 @@ __all__ = [
     "ItemType",
     "SignalType",
     "AggregationType",
+    "AggregationFunction",
     "TimeIncrement",
     "DepthIncrement",
     "MLModelType",
