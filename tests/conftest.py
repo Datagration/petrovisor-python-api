@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import petrovisor as pv
 import pytest
@@ -11,6 +12,12 @@ def api():
         discovery_url=os.environ.get("TEST_URL"),
         key=os.environ.get("TEST_KEY"),
     )
+
+
+@pytest.fixture(scope="session")
+def run_id():
+    """Unique 8-char hex per test session — prevents parallel CI runs from colliding."""
+    return uuid.uuid4().hex[:8]
 
 
 # Re-export helpers so existing `from conftest import ...` calls keep working.

@@ -35,7 +35,7 @@ from conftest import (
 # ============================================================================
 
 
-def test_save_data(api: PetroVisor):
+def test_save_data(api: PetroVisor, run_id):
     """
     Consolidated save/delete roundtrip for all signal types and input formats.
 
@@ -49,7 +49,7 @@ def test_save_data(api: PetroVisor):
     """
     from petrovisor import Scope, EntitySet, Context, TimeIncrement, DepthIncrement
 
-    PFX = "SD"
+    PFX = f"SD {run_id}"
     e1, e2 = f"{PFX} Well 001", f"{PFX} Well 002"
     sig_static_num = f"{PFX} Static Num"
     sig_static_str = f"{PFX} Static Str"
@@ -287,7 +287,10 @@ def test_save_data(api: PetroVisor):
                     if len(rows) != 1:
                         return False
                     try:
-                        if abs(float(rows[col].iloc[0]) - exp) >= 1e-3:
+                        v = float(rows[col].iloc[0])
+                        if v != v:  # nan check
+                            return False
+                        if abs(v - exp) >= 1e-3:
                             return False
                     except (TypeError, ValueError):
                         return False
@@ -445,7 +448,7 @@ def test_save_data(api: PetroVisor):
 # ============================================================================
 
 
-def test_load_data(api: PetroVisor):
+def test_load_data(api: PetroVisor, run_id):
     """
     Consolidated load roundtrip for all signal types and load options.
 
@@ -466,7 +469,7 @@ def test_load_data(api: PetroVisor):
         DepthIncrement,
     )
 
-    PFX = "LD"
+    PFX = f"LD {run_id}"
     ent = f"{PFX} Well 001"
     sig_static_num = f"{PFX} Static Num"
     sig_static_str = f"{PFX} Static Str"
@@ -893,13 +896,13 @@ def test_load_data(api: PetroVisor):
 # ============================================================================
 
 
-def test_get_data_range(api: PetroVisor):
+def test_get_data_range(api: PetroVisor, run_id):
     """Test get_data_range() with Data/TimeRange and Data/DepthStepExtremum endpoints."""
-    entity_name = "Test Range Well"
-    time_signal_num = "Test Range Time Numeric"
-    time_signal_str = "Test Range Time String"
-    depth_signal_num = "Test Range Depth Numeric"
-    depth_signal_str = "Test Range Depth String"
+    entity_name = f"Test Range Well {run_id}"
+    time_signal_num = f"Test Range Time Numeric {run_id}"
+    time_signal_str = f"Test Range Time String {run_id}"
+    depth_signal_num = f"Test Range Depth Numeric {run_id}"
+    depth_signal_str = f"Test Range Depth String {run_id}"
     signals_to_create = [
         (time_signal_num, SignalType.TimeDependent),
         (time_signal_str, SignalType.StringTimeDependent),
@@ -1348,7 +1351,7 @@ def test_load_pivot_table_data_backend_pandas(api):
 # ============================================================================
 
 
-def test_pvt_save_and_load(api: PetroVisor):
+def test_pvt_save_and_load(api: PetroVisor, run_id):
     """PVT full roundtrip covering all public methods.
 
     Creates entity "PVTTest Well" and three PVT signals (Rso, Bo, Mu), then
@@ -1363,7 +1366,7 @@ def test_pvt_save_and_load(api: PetroVisor):
     import time
     import warnings as _warnings
 
-    PFX = "PVTTest"
+    PFX = f"PVTTest {run_id}"
     entity = f"{PFX} Well"
     sig_rso = f"{PFX} Rso"
     sig_bo = f"{PFX} Bo"

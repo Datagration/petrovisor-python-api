@@ -274,10 +274,9 @@ def ensure_workspace_value(
         except Exception:
             pass
         # Poll until the specific new value is visible.
-        # errors="raise" returns immediately on 404 (no internal retry loop).
         for _ in range(15):
             try:
-                result = api.get_workspace_value(name, errors="raise")
+                result = api.get_workspace_value(name)
                 if result is not None:
                     if _is_complex:
                         if result == value:
