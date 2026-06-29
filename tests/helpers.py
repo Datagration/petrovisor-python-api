@@ -177,13 +177,14 @@ def wait_for_save_ready(
 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        # errors="raise" skips the internal 400/404 retry loop — fail fast per probe
+        # errors="raise" means any HTTP error raises immediately (no internal retry).
+        # A successful save returns None (204 No Content) — that is a success here.
+        # Only exceptions indicate a failed probe.
         try:
-            result = api.save_data(
+            api.save_data(
                 data_type=data_type, with_logs=False, data=payload, errors="raise"
             )
-            if result is not None:
-                return result
+            return True
         except Exception:
             pass
         time.sleep(delay)

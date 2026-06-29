@@ -276,20 +276,28 @@ def test_save_data(api: PetroVisor):
         import concurrent.futures
 
         def _poll_static():
-            def _has_final_value(df):
+            expected = {e1: 99.0, e2: 88.0}
+
+            def _has_final_values(df):
                 col = next((c for c in df.columns if sig_static_num in c), None)
                 if col is None:
                     return False
-                rows_e1 = df[df["Entity"] == e1]
-                return (
-                    len(rows_e1) == 1 and abs(float(rows_e1[col].iloc[0]) - 99.0) < 1e-3
-                )
+                for ent_name, exp in expected.items():
+                    rows = df[df["Entity"] == ent_name]
+                    if len(rows) != 1:
+                        return False
+                    try:
+                        if abs(float(rows[col].iloc[0]) - exp) >= 1e-3:
+                            return False
+                    except (TypeError, ValueError):
+                        return False
+                return True
 
             return _wait_for_data(
                 api,
                 lambda: api.load_signals_data([sig_static_num], context=ctx),
                 min_rows=2,
-                predicate=_has_final_value,
+                predicate=_has_final_values,
             )
 
         def _poll_time(expected_e1_vals):
@@ -611,25 +619,60 @@ def test_load_data(api: PetroVisor):
         ctx = Context(name="LD Context", scope=scope, entity_set=eset)
 
         # Poll until static, time, and depth data are all loadable; run concurrently.
+        # Use predicates so polls only exit when the actual seeded values (not probe data) appear.
+        def _static_ready(df):
+            col = next((c for c in df.columns if sig_static_num in c), None)
+            if col is None:
+                return False
+            rows = df[df["Entity"] == ent]
+            if len(rows) < 1:
+                return False
+            try:
+                return abs(float(rows[col].iloc[0]) - 100.0) < 1e-3
+            except (TypeError, ValueError):
+                return False
+
+        def _time_ready(df):
+            col = next((c for c in df.columns if sig_time_num in c), None)
+            if col is None:
+                return False
+            rows = df[df["Entity"] == ent]
+            return len(rows) >= 5 and rows[col].dropna().count() >= 5
+
+        def _depth_ready(df):
+            col = next((c for c in df.columns if sig_depth_num in c), None)
+            if col is None:
+                return False
+            rows = df[df["Entity"] == ent]
+            return len(rows) >= 5 and rows[col].dropna().count() >= 5
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as _pool:
             _fs = _pool.submit(
                 _wait_for_data,
                 api,
                 lambda: api.load_signals_data([sig_static_num], context=ctx),
                 1,
+                60,
+                2.0,
+                _static_ready,
             )
             _ft = _pool.submit(
                 _wait_for_data,
                 api,
                 lambda: api.load_signals_data([sig_time_num], context=ctx),
                 5,
+                60,
+                2.0,
+                _time_ready,
             )
             _fd = _pool.submit(
                 _wait_for_data,
                 api,
                 lambda: api.load_signals_data([sig_depth_num], context=ctx),
                 5,
-                60,  # up to 120s ceiling for depth propagation
+                60,
+                2.0,
+                _depth_ready,
             )
             _fs.result()
             _ft.result()
