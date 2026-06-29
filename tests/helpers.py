@@ -255,44 +255,43 @@ def ensure_workspace_value(
     retries: int = 30,
     delay: float = 1.0,
 ) -> Any:
-    """Create or overwrite a workspace value; poll until the new value is readable.
+    """Write a workspace value and wait until it is confirmed readable.
 
-    Returns the confirmed value as read back from the API.
-
-    Works around the backend's eventual consistency: `add_workspace_value` internally
-    checks the names list (which may be stale) to decide POST vs PUT, which can cause
-    a 409/404 cycle. We retry the write itself until it lands, then poll the read.
+    Strategy:
+    1. Write via add_workspace_value.
+    2. Poll the names list (cheap, fast) until the name appears.
+    3. Once visible in the list, poll GET until it returns a value.
+    Returns the confirmed value, or None if timeout expires.
     """
-    _is_complex = isinstance(value, (list, dict, tuple))
+    deadline = time.monotonic() + retries * delay * 3
 
-    deadline = time.monotonic() + retries * delay * 2  # generous total ceiling
-    for attempt in range(retries):
-        if time.monotonic() > deadline:
-            break
+    while time.monotonic() < deadline:
         try:
             api.add_workspace_value(name, value, unit=unit)
         except Exception:
             pass
-        # Poll until the specific new value is visible.
-        for _ in range(15):
+
+        # Step 2: wait for name to appear in the list (cheap).
+        list_deadline = time.monotonic() + 30.0
+        while time.monotonic() < list_deadline:
+            if name in (api.get_workspace_value_names() or []):
+                break
+            time.sleep(delay)
+        else:
+            continue  # never appeared — retry the write
+
+        # Step 3: name is in list; poll GET until it returns a parsed value.
+        # errors="raise" fails fast on 404 (no 7s retry loop), caught below.
+        get_deadline = time.monotonic() + 30.0
+        while time.monotonic() < get_deadline:
             try:
-                result = api.get_workspace_value(name)
+                result = api.get_workspace_value(name, errors="raise")
                 if result is not None:
-                    if _is_complex:
-                        if result == value:
-                            return result
-                    else:
-                        try:
-                            if result == value or float(result) == float(value):  # type: ignore[arg-type]
-                                return result
-                        except (TypeError, ValueError):
-                            if result == value:
-                                return result
+                    return result
             except Exception:
                 pass
             time.sleep(delay)
-        # Value not confirmed yet — retry the write
-        time.sleep(delay)
+
     return None
 
 

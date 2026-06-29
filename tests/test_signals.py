@@ -1420,10 +1420,11 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
         for attempt in range(20):
             with _warnings.catch_warnings():
                 _warnings.simplefilter("ignore", RuntimeWarning)
-                resp = api.save_data(**kw)
-            # Response is truthy on 2xx, None/falsy on server error
-            if resp is not None:
-                return
+                try:
+                    api.save_data(errors="raise", **kw)
+                    return  # success (204 No Content returns None, not an error)
+                except Exception:
+                    pass
             time.sleep(5)
         raise RuntimeError("save_pvt returned error after 20 attempts")
 
