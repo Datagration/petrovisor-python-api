@@ -1343,7 +1343,45 @@ class DataFrameMixinHelper:
         """
         if len(data) < 1:
             return None
-        return pd.read_csv(io.StringIO("\n".join(data)), delimiter="\t")
+
+        # Try with default C engine first
+        try:
+            return pd.read_csv(io.StringIO("\n".join(data)), delimiter="\t", **kwargs)
+        except pd.errors.ParserError as e:
+            # Fall back to Python engine which is more flexible with inconsistent fields
+            # and can handle tabs within field values better
+            import warnings
+
+            warnings.warn(
+                f"Inconsistent field count detected in tab-delimited data: {e}. "
+                "Using Python parser engine for more flexible parsing.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+            # Build parser options based on pandas version
+            parser_options = {
+                "delimiter": "\t",
+                "engine": "python",
+                "quoting": 3,  # csv.QUOTE_NONE - don't interpret quotes
+            }
+
+            # pandas 1.3+ uses on_bad_lines, older versions use error_bad_lines
+            try:
+                return pd.read_csv(
+                    io.StringIO("\n".join(data)),
+                    on_bad_lines="skip",
+                    **parser_options,
+                    **kwargs,
+                )
+            except TypeError:
+                # Fallback for pandas < 1.3
+                return pd.read_csv(
+                    io.StringIO("\n".join(data)),
+                    error_bad_lines=False,
+                    **parser_options,
+                    **kwargs,
+                )
 
     # remove entity name from column names
     @staticmethod
