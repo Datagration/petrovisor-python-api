@@ -113,4 +113,6 @@ def test_delete_workspace_value(api: PetroVisor, wv_run_id):
     name = f"{_PFX} ToDelete {wv_run_id}"
     ensure_workspace_value(api, name, "temp")
     api.delete_workspace_value(name)
-    assert not api.item_exists(ItemType.ConfigurationSettings, name, after="delete")
+    assert not api.item_exists(
+        ItemType.ConfigurationSettings, name, after="delete", max_retries=30
+    )

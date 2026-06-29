@@ -219,67 +219,69 @@ def test_read_dataframe_from_bytes_polars(api):
 # ============================================================================
 
 
-def test_get_object_csv_dataframe(api):
+def test_get_object_csv_dataframe(api, run_id):
     df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
     csv_bytes = df_original.to_csv(index=False).encode("utf-8")
-    api.upload_file(io.BytesIO(csv_bytes), name="test_get_object.csv")
+    name = f"test_get_object_{run_id}.csv"
+    api.upload_file(io.BytesIO(csv_bytes), name=name)
     try:
-        df_downloaded = api.get_object("test_get_object.csv")
+        df_downloaded = api.get_object(name)
         assert isinstance(df_downloaded, pd.DataFrame)
         assert list(df_downloaded.columns) == ["A", "B"]
         assert len(df_downloaded) == 3
         assert df_downloaded["A"].tolist() == [1, 2, 3]
     finally:
-        api.delete_file("test_get_object.csv")
+        api.delete_file(name)
 
 
-def test_get_object_excel_dataframe(api):
+def test_get_object_excel_dataframe(api, run_id):
     df_original = pd.DataFrame({"Name": ["Alice", "Bob"], "Age": [25, 30]})
     buffer = io.BytesIO()
     df_original.to_excel(buffer, index=False, engine="openpyxl")
     buffer.seek(0)
-    api.upload_file(buffer, name="test_get_object.xlsx")
+    name = f"test_get_object_{run_id}.xlsx"
+    api.upload_file(buffer, name=name)
     try:
-        df_downloaded = api.get_object("test_get_object.xlsx")
+        df_downloaded = api.get_object(name)
         assert isinstance(df_downloaded, pd.DataFrame)
         assert list(df_downloaded.columns) == ["Name", "Age"]
         assert len(df_downloaded) == 2
     finally:
-        api.delete_file("test_get_object.xlsx")
+        api.delete_file(name)
 
 
-def test_get_object_parquet_dataframe(api):
+def test_get_object_parquet_dataframe(api, run_id):
     pytest.importorskip("pyarrow", reason="pyarrow required for parquet support")
     df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
     buffer = io.BytesIO()
     df_original.to_parquet(buffer)
     buffer.seek(0)
-    api.upload_file(buffer, name="test_get_object.parquet")
+    name = f"test_get_object_{run_id}.parquet"
+    api.upload_file(buffer, name=name)
     try:
-        df_downloaded = api.get_object("test_get_object.parquet")
+        df_downloaded = api.get_object(name)
         assert isinstance(df_downloaded, pd.DataFrame)
         assert list(df_downloaded.columns) == ["A", "B"]
         assert len(df_downloaded) == 3
     finally:
-        api.delete_file("test_get_object.parquet")
+        api.delete_file(name)
 
 
-def test_get_object_dataframe_with_backend(api):
+def test_get_object_dataframe_with_backend(api, run_id):
     try:
         import polars as pl
 
         df_original = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
         csv_bytes = df_original.to_csv(index=False).encode("utf-8")
-        api.upload_file(io.BytesIO(csv_bytes), name="test_get_object_polars.csv")
+        name = f"test_get_object_polars_{run_id}.csv"
+        api.upload_file(io.BytesIO(csv_bytes), name=name)
         try:
-            df_downloaded = api.get_object(
-                "test_get_object_polars.csv", backend="polars"
-            )
+            df_downloaded = api.get_object(name, backend="polars")
             assert isinstance(df_downloaded, pl.DataFrame)
             assert df_downloaded.columns == ["A", "B"]
             assert len(df_downloaded) == 3
         finally:
-            api.delete_file("test_get_object_polars.csv")
+            api.delete_file(name)
     except ImportError:
         pytest.skip("polars not installed")
 

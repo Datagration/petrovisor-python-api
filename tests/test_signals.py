@@ -1581,11 +1581,16 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
         print("✅ save_table_data(wide pvt)")
 
         # ── 5. load_data() signal-name delegation ─────────────────────────────
-        df_ld = api.load_data(
-            data=[sig_rso, sig_bo, sig_mu],
-            entities=[entity],
-            pressure_unit=pressure_unit,
-            temperature_unit=temperature_unit,
+        df_ld = _wait_for_data(
+            api,
+            lambda: api.load_data(
+                data=[sig_rso, sig_bo, sig_mu],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+            ),
+            min_rows=n_rows,
+            predicate=_all_pvt_cols,
         )
         _assert_df(df_ld, "load_data(signal-name)")
         print("✅ load_data(signal-name delegation)")
