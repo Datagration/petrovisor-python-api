@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Optional,
+    Sequence,
     Union,
     List,
     Dict,
@@ -9,10 +10,27 @@ from typing import (
 from petrovisor.api.models.entity import Entity
 from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.utils.helper import ApiHelper
+from petrovisor.api.enums.items import ItemType
 from petrovisor.api.protocols.protocols import (
     SupportsRequests,
     SupportsItemRequests,
 )
+
+
+# Entities mixin helper
+class EntitiesMixinHelper:
+    """
+    Entities mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "Entities"
+    ENDPOINT_ALL = "Entities/All"
+    ENDPOINT_ADD_OR_EDIT = "Entities/AddOrEdit"
+    ENDPOINT_DELETE = "Entities/Delete"
+    ENDPOINT_RENAME = "Entities/Rename"
+    ENDPOINT_ENTITY_TYPES = "EntityTypes"
+    ENDPOINT_ENTITY_TYPES_RENAME = "EntityTypes/Rename"
+    ENDPOINT_SIGNALS = "Signals"
 
 
 # Entities API calls
@@ -33,7 +51,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         alias : str
             Entity alias
         """
-        route = "Entities"
+        route = EntitiesMixinHelper.ENDPOINT
         if alias:
             return self.get(f"{route}/{self.encode(alias)}/Entity", **kwargs)
         return self.get(f"{route}/{self.encode(name)}", **kwargs)
@@ -61,7 +79,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         include_opportunities : bool, default False
             Whether to include opportunities
         """
-        route = "Entities"
+        route = EntitiesMixinHelper.ENDPOINT
         options = {
             "IncludeEntities": include_entities,
             "IncludeOpportunities": include_opportunities,
@@ -74,7 +92,9 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
             )
         # get all entities
         else:
-            entities = self.get(f"{route}/All", query=options, **kwargs)
+            entities = self.get(
+                EntitiesMixinHelper.ENDPOINT_ALL, query=options, **kwargs
+            )
         # get entities by 'Signal' name
         if signal:
             entity_names = self.get_entity_names(
@@ -99,10 +119,10 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
             Signal object or Signal name
         """
 
-        route = "Entities"
+        route = EntitiesMixinHelper.ENDPOINT
         # get entities by 'Signal' name
         if signal:
-            signals_route = "Signals"
+            signals_route = EntitiesMixinHelper.ENDPOINT_SIGNALS
             signal_name = ApiHelper.get_object_name(signal)
             entity_names = self.get(
                 f"{signals_route}/{self.encode(signal_name)}/Entities", **kwargs
@@ -143,7 +163,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entity : Entity | dict
             Entity
         """
-        route = "Entities"
+        route = EntitiesMixinHelper.ENDPOINT
         if isinstance(entity, Entity):
             validated_entity = entity.model_dump(by_alias=True)
         elif isinstance(entity, dict):
@@ -157,7 +177,7 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
 
     # add entities
     def add_entities(
-        self, entities: List[Union[Entity, Dict[str, Any]]], **kwargs
+        self, entities: Sequence[Union[Entity, Dict[str, Any]]], **kwargs
     ) -> Any:
         """
         Add multiple entities
@@ -167,13 +187,14 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entities : list[Entity | dict]
             List of entities
         """
-        route = "Entities"
         validated_entities = [
             e.model_dump(by_alias=True) if isinstance(e, Entity) else e
             for e in entities
             if isinstance(e, dict) or isinstance(e, Entity)
         ]
-        return self.post(f"{route}/AddOrEdit", data=validated_entities, **kwargs)
+        return self.post(
+            EntitiesMixinHelper.ENDPOINT_ADD_OR_EDIT, data=validated_entities, **kwargs
+        )
 
     # delete entity
     def delete_entity(
@@ -187,18 +208,17 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entity : Entity | dict | str
             Entity
         """
-        route = "Entities"
         if isinstance(entity, Entity):
             name = entity.name
         else:
             name = ApiHelper.get_object_name(entity)
         if not name:
             return ApiRequests.success()
-        return self.delete(f"{route}/{self.encode(name)}", **kwargs)
+        return self.delete_item(ItemType.Entity, name, **kwargs)
 
     # delete entities
     def delete_entities(
-        self, entities: List[Union[Entity, Dict[str, Any], str]], **kwargs
+        self, entities: Sequence[Union[Entity, Dict[str, Any], str]], **kwargs
     ) -> Any:
         """
         Delete multiple entities
@@ -208,14 +228,13 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         entities : list[Entity | dict | str]
             List of entities
         """
-        route = "Entities"
         names = [
             e.name if isinstance(e, Entity) else ApiHelper.get_object_name(e)
             for e in entities
             if e
         ]
         names = [name for name in names if name]
-        return self.post(f"{route}/Delete", data=names, **kwargs)
+        return self.post(EntitiesMixinHelper.ENDPOINT_DELETE, data=names, **kwargs)
 
     # rename entity type
     def rename_entity_type(self, old_name: str, new_name: str, **kwargs) -> Any:
@@ -229,9 +248,8 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         new_name : str
             New name
         """
-        route = "EntityTypes"
         return self.post(
-            f"{route}/Rename",
+            EntitiesMixinHelper.ENDPOINT_ENTITY_TYPES_RENAME,
             query={"OldName": old_name, "NewName": new_name},
             **kwargs,
         )
@@ -248,9 +266,8 @@ class EntitiesMixin(SupportsItemRequests, SupportsRequests):
         new_name : str
             New name
         """
-        route = "Entities"
         return self.post(
-            f"{route}/Rename",
+            EntitiesMixinHelper.ENDPOINT_RENAME,
             query={"OldName": old_name, "NewName": new_name},
             **kwargs,
         )

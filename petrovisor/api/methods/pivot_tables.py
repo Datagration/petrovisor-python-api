@@ -17,6 +17,15 @@ from petrovisor.api.protocols.protocols import (
 )
 
 
+# Pivot tables mixin helper
+class PivotTablesMixinHelper:
+    """
+    Pivot tables mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "PivotTables"
+
+
 # Pivot Table API calls
 class PivotTableMixin(
     SupportsDataFrames, SupportsSignalsRequests, SupportsItemRequests, SupportsRequests
@@ -53,6 +62,7 @@ class PivotTableMixin(
         num_rows: Optional[int] = 0,
         generate: bool = False,
         groupby_entity: bool = False,
+        backend: str = "pandas",
         **kwargs,
     ) -> Any:
         """
@@ -72,8 +82,10 @@ class PivotTableMixin(
             Generate pivot table, otherwise load saved
         groupby_entity : bool, default False
             Return dictionary of DataFrames grouped by entity name
+        backend : str, default 'pandas'
+            DataFrame backend ('pandas', 'polars'). Output DataFrame(s) will be in the specified backend format.
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         if generate or entity_set or scope:
             options = {}
             if entity_set:
@@ -105,9 +117,38 @@ class PivotTableMixin(
         if pivot_table_data:
             # get pivot table schema
             schema = self.get(f"{route}/{self.encode(name)}/Schema")
-            return self.convert_pivot_table_to_dataframe(
+            df = self.convert_pivot_table_to_dataframe(
                 pivot_table_data, schema=schema, groupby_entity=groupby_entity, **kwargs
             )
+            # Convert to requested backend
+            if df is not None and backend != "pandas":
+                from petrovisor.api.methods.dataframes import DataFrameMixinHelper
+
+                def convert_single(d):
+                    if d is None:
+                        return d
+                    if (
+                        backend == "polars"
+                        and DataFrameMixinHelper.is_backend_available("polars")
+                    ):
+                        import polars as pl
+
+                        return pl.from_pandas(d)
+                    elif (
+                        backend == "narwhals"
+                        and DataFrameMixinHelper.is_backend_available("narwhals")
+                    ):
+                        import narwhals as nw
+
+                        return nw.from_native(d)
+                    return d
+
+                # Handle Dict[str, DataFrame] (groupby_entity=True case)
+                if isinstance(df, dict):
+                    df = {k: convert_single(v) for k, v in df.items()}
+                else:
+                    df = convert_single(df)
+            return df
 
         warnings.warn(
             f"PetroVisor::load_pivot_table_data(): "
@@ -138,7 +179,7 @@ class PivotTableMixin(
         scope : str, dict, default None
             Scope object or Scope name. If None, the Scope from PivotTable definition is used.
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         options = {}
         if entity_set:
             entity_set_name = ApiHelper.get_object_name(entity_set, **kwargs)
@@ -166,7 +207,7 @@ class PivotTableMixin(
         name : str
             Reference table name
         """
-        route = "PivotTables"
+        route = PivotTablesMixinHelper.ENDPOINT
         if not self.item_exists(ItemType.PivotTable, name):
             return ApiRequests.success()
         return self.get(f"{route}/{self.encode(name)}/Delete", **kwargs)
@@ -181,11 +222,8 @@ class PivotTableMixin(
         name : str
             Pivot table name
         """
-        route = "PivotTables"
         if not self.item_exists(ItemType.PivotTable, name):
             return ApiRequests.success()
-        # delete data
+        # delete data first, then the item definition
         self.delete_pivot_table_data(name)
-        # delete item
-        self.delete(f"{route}/{self.encode(name)}", **kwargs)
-        return ApiRequests.success()
+        return self.delete_item(ItemType.PivotTable, name, **kwargs)

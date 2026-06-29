@@ -3,6 +3,11 @@ import pandas as pd
 from petrovisor import PetroVisor
 
 
+def test_api(api: PetroVisor):
+    assert api.Api
+    assert api.ItemRoutes
+
+
 def test_units(api: PetroVisor):
     value = api.convert_units(3, "cm", "m")
     assert value == 0.03

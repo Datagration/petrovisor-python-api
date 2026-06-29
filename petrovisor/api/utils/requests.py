@@ -280,6 +280,7 @@ class ApiRequests:
         """
         request_headers = {
             "accept": "application/json",
+            "cache-control": "no-cache",  # Bypass caching to get fresh data
         }
         # add access token to headers
         if token:
@@ -320,9 +321,11 @@ class ApiRequests:
 
         # request specs
         timeout = None  # no timeout
-        max_retries_top = 5
-        max_retries = 1  # increased to max_retries_top times in case of 400 Bad Request or 404 Not Found
-        waiting_time = 5  # in seconds
+        # 404 can occur transiently after a create (metadata propagation lag) — retry with
+        # exponential backoff. Max 3 retries: 1s + 2s + 4s = 7s worst-case vs the old 5×2s=10s.
+        max_retries_on_404 = 3
+        base_wait = 1  # seconds; doubles each retry (1 → 2 → 4)
+        max_retries = 1
 
         # get response
         response = None
@@ -411,24 +414,40 @@ class ApiRequests:
                 elif method_name == "TRACE":
                     pass
                 # raise exception if error occurred
-                response.raise_for_status()
+                if response is not None:
+                    response.raise_for_status()
             except requests.exceptions.HTTPError as err:
                 # check if unauthorized request (401)
                 if (
                     retry_on_unauthorized
-                    and response.status_code == requests.codes.unauthorized
+                    and response is not None
+                    and response.status_code == requests.codes["unauthorized"]
                 ):
                     return response
 
-                if response.status_code in {
-                    requests.codes.bad_request,
-                    requests.codes.not_found,
-                }:
-                    max_retries = max_retries_top
+                # 400 and 404 can both be transient (entity/signal propagation lag).
+                # Retry with exponential backoff only in "coerce" mode (best-effort).
+                # "raise" means fail fast — no retries.
+                # "ignore" returns the raw response immediately — no retries.
+                if (
+                    response is not None
+                    and response.status_code
+                    in {
+                        requests.codes["bad_request"],
+                        requests.codes["not_found"],
+                    }
+                    and isinstance(errors, str)
+                    and errors.lower() == "coerce"
+                    and attempt < max_retries_on_404
+                ):
+                    max_retries = max_retries_on_404
+                    time.sleep(base_wait * (2 ** (attempt - 1)))
+                    response = None
+                    continue
 
-                # retry request
+                # retry request (non-400/404 path, single attempt only)
                 if attempt < max_retries:
-                    time.sleep(waiting_time)
+                    time.sleep(base_wait)
                     response = None
                     continue
 
@@ -458,6 +477,8 @@ class ApiRequests:
             break
 
         if response is not None:
+            if response.status_code == requests.codes["no_content"]:
+                return None
             try:
                 if format in ("json",):
                     return response.json()

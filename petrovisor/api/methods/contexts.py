@@ -1,6 +1,7 @@
 from typing import (
     Any,
     Optional,
+    Sequence,
     Union,
     List,
     Dict,
@@ -32,6 +33,132 @@ from petrovisor.api.models.entity import Entity
 from petrovisor.api.models.hierarchy import Hierarchy
 
 
+# Contexts mixin helper
+class ContextsMixinHelper:
+    """
+    Contexts mixin helper — endpoint constants and range-resolution helpers.
+    """
+
+    ENDPOINT_CONTEXTS = "Contexts"
+    ENDPOINT_SCOPES = "Scopes"
+    ENDPOINT_ENTITY_SETS = "EntitySets"
+    ENDPOINT_HIERARCHIES = "Hierarchies"
+
+    @staticmethod
+    def _resolve_time_range(
+        scope: Dict,
+        time_signals: List[Dict],
+        entity_names: List[str],
+        api: Any,
+    ) -> tuple:
+        """Resolve time start, end, and step from scope or signal data ranges.
+
+        Returns
+        -------
+        tuple[str, str, str]
+            (time_start, time_end, time_step) all as strings ready for the API.
+            time_start/time_end are ISO format; time_step is a TimeIncrement name.
+        """
+        time_step_raw = scope.get("TimeIncrement", None)
+        if time_step_raw:
+            time_step = str(api.get_time_increment_enum(time_step_raw).name)
+        else:
+            time_step = str(TimeIncrement.EverySecond.name)
+
+        time_start = scope.get("Start", None)
+        if not time_start or pd.isnull(time_start):
+            time_starts: List[Any] = [
+                pd.to_datetime(
+                    (
+                        api.get_data_range(
+                            s["SignalType"],
+                            signal=s["Name"],
+                            entity=entity_names,
+                        )
+                        or {}
+                    ).get("Start", "")
+                )
+                for s in time_signals
+            ]
+            time_start = np.min(time_starts)
+
+        time_end = scope.get("End", None)
+        if not time_end or pd.isnull(time_end):
+            time_ends: List[Any] = [
+                pd.to_datetime(
+                    (
+                        api.get_data_range(
+                            s["SignalType"],
+                            signal=s["Name"],
+                            entity=entity_names,
+                        )
+                        or {}
+                    ).get("End", "")
+                )
+                for s in time_signals
+            ]
+            time_end = np.max(time_ends)
+
+        ts = pd.to_datetime(time_start)
+        te = pd.to_datetime(time_end)
+        return (
+            api.datetime_to_string(ts) if not pd.isnull(ts) else None,
+            api.datetime_to_string(te) if not pd.isnull(te) else None,
+            time_step,
+        )
+
+    @staticmethod
+    def _resolve_depth_range(
+        scope: Dict,
+        depth_signals: List[Dict],
+        entity_names: List[str],
+        api: Any,
+    ) -> tuple:
+        """Resolve depth start, end, and step from scope or signal data ranges.
+
+        Returns
+        -------
+        tuple[float, float, str]
+            (depth_start, depth_end, depth_step) where depth_start/end are floats
+            and depth_step is a DepthIncrement name string.
+        """
+        depth_step_raw = scope.get("DepthIncrement", None)
+        if depth_step_raw:
+            depth_step = str(api.get_depth_increment_enum(depth_step_raw).name)
+        else:
+            depth_step = str(DepthIncrement.Meter.name)
+
+        depth_start = scope.get("StartDepth", None)
+        if depth_start is None or pd.isnull(depth_start):
+            depth_starts = [
+                (
+                    api.get_data_range(
+                        s["SignalType"], signal=s["Name"], entity=entity_names
+                    )
+                    or {}
+                ).get("Start", None)
+                for s in depth_signals
+            ]
+            _min = np.min([v for v in depth_starts if v is not None] or None)
+            depth_start = float(_min if _min is not None else np.finfo(np.float64).min)
+
+        depth_end = scope.get("EndDepth", None)
+        if depth_end is None or pd.isnull(depth_end):
+            depth_ends = [
+                (
+                    api.get_data_range(
+                        s["SignalType"], signal=s["Name"], entity=entity_names
+                    )
+                    or {}
+                ).get("End", None)
+                for s in depth_signals
+            ]
+            _max = np.max([v for v in depth_ends if v is not None] or None)
+            depth_end = float(_max if _max is not None else np.finfo(np.float64).max)
+
+        return float(depth_start), float(depth_end), depth_step
+
+
 # Context API calls
 class ContextMixin(
     SupportsDataFrames,
@@ -47,21 +174,26 @@ class ContextMixin(
     # get 'Context'
     def get_context(
         self,
-        context: Union[str, Dict[str, Any], Context],
-        scope: Union[str, Dict[str, Any], Scope] = None,
-        entity_set: Union[str, Dict[str, Any], EntitySet] = None,
-        hierarchy: Union[str, Dict[str, Any], Hierarchy] = None,
-        relationship: Dict[str, str] = None,
-        entities: Union[
-            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        context: Optional[Union[str, Dict[str, Any], Context]],
+        scope: Optional[Union[str, Dict[str, Any], Scope]] = None,
+        entity_set: Optional[Union[str, Dict[str, Any], EntitySet]] = None,
+        hierarchy: Optional[Union[str, Dict[str, Any], Hierarchy]] = None,
+        relationship: Optional[Dict[str, str]] = None,
+        entities: Optional[
+            Union[
+                str,
+                Dict[str, Any],
+                Entity,
+                Sequence[Union[str, Dict[str, Any], Entity]],
+            ]
         ] = None,
-        entity_type: Union[str, List[str]] = None,
-        time_start: Union[str, datetime] = None,
-        time_end: Union[str, datetime] = None,
-        time_step: Union[str, TimeIncrement] = None,
-        depth_start: float = None,
-        depth_end: float = None,
-        depth_step: Union[str, DepthIncrement] = None,
+        entity_type: Optional[Union[str, List[str]]] = None,
+        time_start: Optional[Union[str, datetime]] = None,
+        time_end: Optional[Union[str, datetime]] = None,
+        time_step: Optional[Union[str, TimeIncrement]] = None,
+        depth_start: Optional[float] = None,
+        depth_end: Optional[float] = None,
+        depth_step: Optional[Union[str, DepthIncrement]] = None,
         **kwargs,
     ) -> Optional[Dict]:
         """
@@ -97,7 +229,7 @@ class ContextMixin(
         depth_step : str, DepthIncrement, default None
             Step of depth range, e.g. 'Meter', 'Foot'
         """
-        route = "Contexts"
+        route = ContextsMixinHelper.ENDPOINT_CONTEXTS
 
         def is_context(obj):
             if isinstance(obj, Context):
@@ -108,7 +240,7 @@ class ContextMixin(
                 return True
             return False
 
-        default_context = {
+        default_context: Dict[str, Any] = {
             "Name": "",
             "Scope": None,
             "EntitySet": None,
@@ -121,7 +253,7 @@ class ContextMixin(
             context_obj = default_context
             if isinstance(context, Context):
                 context_obj.update(context.model_dump(by_alias=True))
-            else:
+            elif isinstance(context, dict):
                 context_obj.update(context)
             return context_obj
 
@@ -173,8 +305,9 @@ class ContextMixin(
             context_obj["Hierarchy"] = self.get_hierarchy(
                 hierarchy, relationship=relationship, **kwargs
             )
-            if context_obj["Hierarchy"] is None or not context_obj["Hierarchy"].get(
-                "Relationship", None
+            _hier = context_obj["Hierarchy"]
+            if _hier is None or not (
+                isinstance(_hier, dict) and _hier.get("Relationship", None)
             ):
                 context_obj.pop("Hierarchy")
         return context_obj
@@ -182,13 +315,13 @@ class ContextMixin(
     # get 'Scope'
     def get_scope(
         self,
-        scope: Union[str, Dict[str, Any], Scope],
-        time_start: Union[str, datetime] = None,
-        time_end: Union[str, datetime] = None,
-        time_step: Union[str, TimeIncrement] = None,
-        depth_start: float = None,
-        depth_end: float = None,
-        depth_step: Union[str, DepthIncrement] = None,
+        scope: Optional[Union[str, Dict[str, Any], Scope]],
+        time_start: Optional[Union[str, datetime]] = None,
+        time_end: Optional[Union[str, datetime]] = None,
+        time_step: Optional[Union[str, TimeIncrement]] = None,
+        depth_start: Optional[float] = None,
+        depth_end: Optional[float] = None,
+        depth_step: Optional[Union[str, DepthIncrement]] = None,
         **kwargs,
     ) -> Optional[Dict]:
         """
@@ -211,9 +344,9 @@ class ContextMixin(
         depth_step : str, DepthIncrement, default None
             Step of depth range, e.g. 'Meter', 'Foot'
         """
-        route = "Scopes"
+        route = ContextsMixinHelper.ENDPOINT_SCOPES
 
-        default_scope = {
+        default_scope: Dict[str, Any] = {
             "Name": "",
             "Start": None,
             "End": None,
@@ -245,7 +378,7 @@ class ContextMixin(
             scope_obj = default_scope
             if isinstance(scope, Scope):
                 scope_obj.update(scope.model_dump(by_alias=True))
-            else:
+            elif isinstance(scope, dict):
                 scope_obj.update(scope)
             return scope_obj
 
@@ -295,11 +428,16 @@ class ContextMixin(
     # get 'EntitySet'
     def get_entity_set(
         self,
-        entity_set: Union[str, Dict[str, Any], EntitySet],
-        entities: Union[
-            Union[str, Dict[str, Any], Entity], List[Union[str, Dict[str, Any], Entity]]
+        entity_set: Optional[Union[str, Dict[str, Any], EntitySet]],
+        entities: Optional[
+            Union[
+                str,
+                Dict[str, Any],
+                Entity,
+                Sequence[Union[str, Dict[str, Any], Entity]],
+            ]
         ] = None,
-        entity_type: Union[str, List[str]] = None,
+        entity_type: Optional[Union[str, List[str]]] = None,
         **kwargs,
     ) -> Optional[Dict]:
         """
@@ -315,9 +453,9 @@ class ContextMixin(
             Entity type. Used when entity_set or entities is not provided.
             If not None, will filter out entities defined in entity_set.
         """
-        route = "EntitySets"
+        route = ContextsMixinHelper.ENDPOINT_ENTITY_SETS
 
-        default_entity_set = {
+        default_entity_set: Dict[str, Any] = {
             "Name": "",
             "Entities": None,
             "Formula": "",
@@ -337,7 +475,7 @@ class ContextMixin(
             entity_set_obj = default_entity_set
             if isinstance(entity_set, EntitySet):
                 entity_set_obj.update(entity_set.model_dump(by_alias=True))
-            else:
+            elif isinstance(entity_set, dict):
                 entity_set_obj.update(entity_set)
             return entity_set_obj
 
@@ -394,8 +532,8 @@ class ContextMixin(
     # get 'Hierarchy'
     def get_hierarchy(
         self,
-        hierarchy: Union[str, Dict[str, Any], Hierarchy],
-        relationship: Dict[str, Union[str, None]] = None,
+        hierarchy: Optional[Union[str, Dict[str, Any], Hierarchy]],
+        relationship: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Optional[Dict]:
         """
@@ -408,9 +546,9 @@ class ContextMixin(
         relationship: dict, default None
             Hierarchy relationship as dictionary in form of 'Child': 'Parent'
         """
-        route = "Hierarchies"
+        route = ContextsMixinHelper.ENDPOINT_HIERARCHIES
 
-        default_hierarchy = {
+        default_hierarchy: Dict[str, Any] = {
             "Name": "",
             "Relationship": None,
             "Formula": "",
@@ -430,7 +568,7 @@ class ContextMixin(
             hierarchy_obj = default_hierarchy
             if isinstance(hierarchy, Hierarchy):
                 hierarchy_obj.update(hierarchy.model_dump(by_alias=True))
-            else:
+            elif isinstance(hierarchy, dict):
                 hierarchy_obj.update(hierarchy)
             return hierarchy_obj
 
@@ -476,9 +614,10 @@ class ContextMixin(
         if context and isinstance(context, Context):
             context_obj = context
         elif context and isinstance(context, dict):
-            context_obj = Context.parse_obj(context)
+            context_obj = Context.model_validate(context)
         else:
-            context_obj = Context(name=context or "Context")
+            context_name = context if isinstance(context, str) else ""
+            context_obj = Context(Name=context_name or "Context")
         # overriding context
         if entity_set:
             context_obj.entity_set = self.create_entity_set(entity_set)
@@ -505,8 +644,8 @@ class ContextMixin(
         if isinstance(scope, Scope):
             return scope
         if isinstance(scope, dict):
-            return Scope.parse_obj(scope)
-        return Scope(name=scope)
+            return Scope.model_validate(scope)
+        return Scope(Name=scope)
 
     # create EntitySet
     def create_entity_set(
@@ -525,8 +664,8 @@ class ContextMixin(
         if isinstance(entity_set, EntitySet):
             return entity_set
         if isinstance(entity_set, dict):
-            return EntitySet.parse_obj(entity_set)
-        return EntitySet(name=entity_set)
+            return EntitySet.model_validate(entity_set)
+        return EntitySet(Name=entity_set)
 
     # create Hierarchy
     def create_hierarchy(
@@ -545,8 +684,8 @@ class ContextMixin(
         if isinstance(hierarchy, Hierarchy):
             return hierarchy
         if isinstance(hierarchy, dict):
-            return Hierarchy.parse_obj(hierarchy)
-        return Hierarchy(name=hierarchy)
+            return Hierarchy.model_validate(hierarchy)
+        return Hierarchy(Name=hierarchy)
 
     # merge Contexts
     def merge_contexts(
@@ -581,7 +720,7 @@ class ContextMixin(
             return self.create_context(contexts[0])
 
         # merge all contexts
-        context = Context(name="Merged Context")
+        context = Context(Name="Merged Context")
         context.scope = self.merge_scopes(
             [getattr(ctx, "scope", None) for ctx in contexts]
         )
@@ -626,7 +765,7 @@ class ContextMixin(
             return self.create_scope(scopes[0])
 
         # merge all scopes
-        scope = Scope(name="Merged Scope")
+        scope = Scope(Name="Merged Scope")
         scope.time_start = None
         scope.time_end = None
         scope.time_step = None
@@ -661,7 +800,7 @@ class ContextMixin(
             pass
 
         try:
-            time_steps: Set[TimeIncrement] = set()
+            time_steps: Set[Union[str, TimeIncrement]] = set()
             for s in scopes:
                 time_step = getattr(s, "time_step", "")
                 if time_step:
@@ -702,7 +841,7 @@ class ContextMixin(
             pass
 
         try:
-            depth_steps: Set[DepthIncrement] = set()
+            depth_steps: Set[Union[str, DepthIncrement]] = set()
             for s in scopes:
                 depth_step = getattr(s, "depth_step", None)
                 if depth_step:
@@ -751,7 +890,7 @@ class ContextMixin(
             return self.create_entity_set(entity_sets[0])
 
         # merge all entity sets
-        entity_set = EntitySet(name="Merged EntitySet")
+        entity_set = EntitySet(Name="Merged EntitySet")
         entity_set.entities = []
         for eset in entity_sets:
             entities = getattr(eset, "entities", None)
@@ -794,7 +933,7 @@ class ContextMixin(
             return self.create_hierarchy(hierarchies[0])
 
         # merge all hierarchies
-        hierarchy = Hierarchy(name="Merged Hierarchy")
+        hierarchy = Hierarchy(Name="Merged Hierarchy")
         hierarchy.relationship = {}
         for h in hierarchies:
             relationship = getattr(h, "relationship", None)
@@ -805,7 +944,9 @@ class ContextMixin(
     # create contexts manager
     def create_contexts_manager(
         self,
-        contexts: Union[List[Context], List[Dict[str, Any]], List[str]] = None,
+        contexts: Optional[
+            Union[List[Context], List[Dict[str, Any]], List[str]]
+        ] = None,
         scope: Union[Scope, Dict[str, Any], str, None] = None,
         entity_set: Union[EntitySet, Dict[str, Any], str, None] = None,
         hierarchy: Union[Hierarchy, Dict[str, Any], str, None] = None,

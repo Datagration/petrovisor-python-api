@@ -59,7 +59,7 @@ class RequestsMixin(SupportsRequests):
         return self.__key
 
     @property
-    def Workspace(self) -> str:
+    def Workspace(self) -> Optional[str]:
         """
         Workspace name
         """
@@ -192,6 +192,12 @@ class RequestsMixin(SupportsRequests):
                 access_response = ApiLogin.get_access_token(
                     key=key, discovery_url=discovery_url
                 )
+                if not access_response:
+                    raise ValueError(
+                        "PetroVisor::__init__(): "
+                        "failed to obtain access token. "
+                        "Check your credentials or discovery url."
+                    )
                 self.__access_token = access_response["access_token"]
                 self.__refresh_token = (
                     access_response["refresh_token"]
@@ -221,7 +227,7 @@ class RequestsMixin(SupportsRequests):
         data: Optional[Any] = None,
         query: Optional[Any] = None,
         files: Optional[Any] = None,
-        format: Optional[str] = "json",
+        format: str = "json",
         errors: Optional[str] = None,
         **kwargs,
     ) -> Any:
@@ -249,7 +255,7 @@ class RequestsMixin(SupportsRequests):
         response = ApiRequests.get(
             self.Api,
             rqst,
-            workspace=self.Workspace,
+            workspace=self.Workspace or "",
             data=data,
             query=query,
             files=files,
@@ -264,13 +270,13 @@ class RequestsMixin(SupportsRequests):
         )
         if (
             ApiHelper.has_field(response, "status_code")
-            and response.status_code == requests.codes.unauthorized
+            and response.status_code == requests.codes["unauthorized"]
         ):
             self.__reset_token(**kwargs)
             response = ApiRequests.get(
                 self.Api,
                 rqst,
-                workspace=self.Workspace,
+                workspace=self.Workspace or "",
                 data=data,
                 query=query,
                 files=files,
@@ -320,7 +326,7 @@ class RequestsMixin(SupportsRequests):
         response = ApiRequests.post(
             self.Api,
             rqst,
-            workspace=self.Workspace,
+            workspace=self.Workspace or "",
             data=data,
             query=query,
             files=files,
@@ -335,13 +341,13 @@ class RequestsMixin(SupportsRequests):
         )
         if (
             ApiHelper.has_field(response, "status_code")
-            and response.status_code == requests.codes.unauthorized
+            and response.status_code == requests.codes["unauthorized"]
         ):
             self.__reset_token(**kwargs)
             response = ApiRequests.post(
                 self.Api,
                 rqst,
-                workspace=self.Workspace,
+                workspace=self.Workspace or "",
                 data=data,
                 query=query,
                 files=files,
@@ -391,7 +397,7 @@ class RequestsMixin(SupportsRequests):
         response = ApiRequests.put(
             self.Api,
             rqst,
-            workspace=self.Workspace,
+            workspace=self.Workspace or "",
             data=data,
             query=query,
             files=files,
@@ -406,13 +412,13 @@ class RequestsMixin(SupportsRequests):
         )
         if (
             ApiHelper.has_field(response, "status_code")
-            and response.status_code == requests.codes.unauthorized
+            and response.status_code == requests.codes["unauthorized"]
         ):
             self.__reset_token(**kwargs)
             response = ApiRequests.put(
                 self.Api,
                 rqst,
-                workspace=self.Workspace,
+                workspace=self.Workspace or "",
                 data=data,
                 query=query,
                 files=files,
@@ -462,7 +468,7 @@ class RequestsMixin(SupportsRequests):
         response = ApiRequests.delete(
             self.Api,
             rqst,
-            workspace=self.Workspace,
+            workspace=self.Workspace or "",
             data=data,
             query=query,
             files=files,
@@ -477,13 +483,13 @@ class RequestsMixin(SupportsRequests):
         )
         if (
             ApiHelper.has_field(response, "status_code")
-            and response.status_code == requests.codes.unauthorized
+            and response.status_code == requests.codes["unauthorized"]
         ):
             self.__reset_token(**kwargs)
             response = ApiRequests.delete(
                 self.Api,
                 rqst,
-                workspace=self.Workspace,
+                workspace=self.Workspace or "",
                 data=data,
                 query=query,
                 files=files,
@@ -500,7 +506,9 @@ class RequestsMixin(SupportsRequests):
 
     # encode url component
     @staticmethod
-    def encode(url_component: str, safe: Union[str, bytes] = "~", **kwargs: Any) -> str:
+    def encode(
+        url_component: str, safe: Optional[Union[str, bytes]] = "~", **kwargs: Any
+    ) -> str:
         """
         Encode url component
 
@@ -511,7 +519,9 @@ class RequestsMixin(SupportsRequests):
         safe : str
             Safe symbols which do not need to be encoded
         """
-        return ApiRequests.encode(url_component, safe=safe, **kwargs)
+        return ApiRequests.encode(
+            url_component, safe=safe if safe is not None else "~", **kwargs
+        )
 
     # generate credentials key
     @staticmethod
@@ -608,8 +618,9 @@ class RequestsMixin(SupportsRequests):
         access_response = ApiLogin.get_access_token(
             key=self.Key, discovery_url=self.DiscoveryUrl, **kwargs
         )
-        self.__access_token = (
-            access_response["access_token"]
-            if ("access_token" in access_response)
-            else ""
-        )
+        if access_response:
+            self.__access_token = (
+                access_response["access_token"]
+                if ("access_token" in access_response)
+                else ""
+            )

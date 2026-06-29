@@ -7,11 +7,119 @@ from typing import (
 )
 
 import time
+import warnings
 
 from petrovisor.api.enums.items import ItemType
 from petrovisor.api.utils.helper import ApiHelper
 from petrovisor.api.utils.requests import ApiRequests
 from petrovisor.api.protocols.protocols import SupportsRequests
+
+
+# Items mixin helper
+class ItemsMixinHelper:
+    # get item types
+    @staticmethod
+    def get_item_types() -> List:
+        """
+        Get all item types
+        """
+        return list(ItemsMixinHelper.get_item_routes().keys())
+
+    # get item routes
+    @staticmethod
+    def get_item_routes() -> Dict:
+        """
+        Get all item routes
+        """
+        return dict(
+            **ItemsMixinHelper.get_named_item_routes(),
+            **ItemsMixinHelper.get_petrovisor_item_routes(),
+        )
+
+    # get 'NamedItem' routes
+    @staticmethod
+    def get_named_item_routes() -> Dict:
+        """
+        Get routes of NamedItems
+        """
+        return {
+            ItemType.Unit: "Units",
+            ItemType.UnitMeasurement: "UnitMeasurements",
+            ItemType.Entity: "Entities",
+            ItemType.EntityType: "EntityTypes",
+            ItemType.Tag: "Tags",
+            ItemType.Label: "Labels",
+            ItemType.MessageEntry: "MessageEntries",
+            ItemType.Ticket: "Tickets",
+            ItemType.ProcessTemplate: "ProcessTemplates",
+            ItemType.UserSetting: "UserSettings",
+            ItemType.EventSubscription: "EventSubscriptions",
+        }
+
+    # get 'PetroVisorItem' routes
+    @staticmethod
+    def get_info_item_routes() -> Dict:
+        """
+        Get routes of InfoItems
+        """
+        return dict(
+            **{
+                ItemType.MLModel: "MLModels",
+                ItemType.DataGrid: "DataGrids",
+                ItemType.DataConnection: "DataConnections",
+                ItemType.DataSourceMapping: "DataSourceMappings",
+                ItemType.DataIntegrationSession: "DataIntegrationSessions",
+                ItemType.Scenario: "Scenarios",
+            },
+            **{  # alias
+                ItemType.MachineLearningModel: "MLModels",  # alias MLModel
+            },
+        )
+
+    # get 'PetroVisorItem' routes
+    @staticmethod
+    def get_petrovisor_item_routes() -> Dict:
+        """
+        Get routes of PetroVisorItems
+        """
+        return dict(
+            **{
+                ItemType.Signal: "Signals",
+                ItemType.ConfigurationSettings: "ConfigurationSettings",
+                ItemType.RefTable: "RefTables",
+                ItemType.PivotTable: "PivotTables",
+                ItemType.Hierarchy: "Hierarchies",
+                ItemType.Scope: "Scopes",
+                ItemType.EntitySet: "EntitySets",
+                ItemType.Context: "Contexts",
+                ItemType.TableCalculation: "TableCalculations",
+                ItemType.EventCalculation: "EventCalculations",
+                ItemType.CleansingCalculation: "CleansingCalculations",
+                ItemType.PSharpScript: "PSharpScripts",
+                ItemType.CleansingScript: "CleansingScripts",
+                ItemType.Plot: "Plots",
+                ItemType.Chart: "Charts",
+                ItemType.Filter: "Filters",
+                ItemType.Workflow: "Workflows",
+                ItemType.WorkflowSchedule: "WorkflowSchedules",
+                ItemType.CustomWorkflowActivity: "CustomWorkflowActivities",
+                ItemType.RWorkflowActivity: "RWorkflowActivities",
+                ItemType.PythonWorkflowActivity: "PythonWorkflowActivities",
+                ItemType.WebWorkflowActivity: "WebWorkflowActivities",
+                ItemType.DataIntegrationSet: "DataIntegrationSets",
+                ItemType.WorkspacePackage: "WorkspacePackages",
+                ItemType.DCA: "DCA",
+                ItemType.PowerBIItem: "PowerBIItems",
+                ItemType.Dashboard: "Dashboards",
+            },
+            **{  # alias
+                ItemType.ConfigurationSettingValue: "ConfigurationSettings",  # alias ConfigurationSettings
+                ItemType.PivotTableDefinition: "PivotTables",  # alias PivotTable
+                ItemType.ChartDefinition: "Charts",  # alias Chart
+                ItemType.FilterDefinition: "Filters",  # alias Filter
+            },
+            **ItemsMixinHelper.get_info_item_routes(),
+        )
 
 
 # Items API calls
@@ -31,23 +139,141 @@ class ItemsMixin(SupportsRequests):
         """
         return ItemsMixinHelper.get_item_types()
 
-    # items exists
-    def item_exists(self, item_type: str, item: Union[str, Dict], **kwargs) -> bool:
-        """
-        Get item
+    def item_exists(
+        self,
+        item_type: str,
+        item: Union[str, Dict],
+        after: Optional[str] = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        **kwargs,
+    ) -> bool:
+        """Return whether an item of *item_type* named *item* exists.
+
+        Uses the list endpoint as a fast pre-check, avoiding the ~10 s 404
+        penalty the individual GET incurs on missing items.
+
+        The ``after`` argument handles eventual consistency when the caller
+        knows a mutation just occurred:
+
+        ``after=None`` (default)
+            Single list check, no retry.  Use for stable lookups.
+
+        ``after="create"``
+            Polls until the item appears in the individual GET (faster
+            propagation path than the list after a creation).
+
+        ``after="delete"``
+            Polls until the item disappears from the list (avoids the slow
+            404 path on the individual GET after a deletion).
 
         Parameters
         ----------
         item_type : str
-            Item type
-        item: Union[str, Dict]
-            Item object
+            ``ItemType`` enum value (e.g. ``ItemType.Signal``).
+        item : str or dict
+            Item name or dict with a ``Name`` key.
+        after : {"create", "delete", None}, default None
+            Consistency hint — see above.
+        max_retries : int, default 3
+            Poll attempts before giving up.  Ignored when ``after=None``.
+        retry_delay : float, default 1.0
+            Seconds between polls.
         """
-        item_names = self.get_item_names(item_type, **kwargs)
-        if not item_names:
-            return False
         item_name = self.get_item_name(item, **kwargs)
-        return item_name in item_names
+
+        if after == "create":
+            # Individual GET converges fast (~0.5 s) once the item propagates.
+            # 404 misses during polling are expected — suppress RuntimeWarnings.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                for attempt in range(max_retries):
+                    if self.get_item(item_type, item_name, **kwargs) is not None:
+                        return True
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            return False
+
+        if after == "delete":
+            for attempt in range(max_retries):
+                names = self.get_item_names(item_type, **kwargs)
+                if not names or item_name not in names:
+                    return False
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            return True
+
+        # after=None — single list check, no retries.
+        names = self.get_item_names(item_type, **kwargs)
+        return bool(names) and item_name in names
+
+    def resolve_item(
+        self,
+        item_type: str,
+        name: str,
+        after: Optional[str] = None,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        **kwargs,
+    ) -> Optional[Any]:
+        """Return the full item dict for *name* of *item_type*, or None if not found.
+
+        Use this instead of ``item_exists`` when you need the item's data, not
+        just a presence check.  Shares the same ``after`` polling strategies.
+
+        ``after=None`` (default)
+            Single list pre-check, then fetch.  Fast for stable lookups;
+            avoids the ~10 s 404 on missing items.
+
+        ``after="create"``
+            Polls individual GET until the item is returned.  Converges
+            faster than the list after a creation.
+
+        ``after="delete"``
+            Polls the list until the name is absent, then returns ``None``.
+
+        Parameters
+        ----------
+        item_type : str
+            ``ItemType`` enum value (e.g. ``ItemType.Signal``).
+        name : str
+            Item name to resolve.
+        after : {"create", "delete", None}, default None
+            Consistency hint — see above.
+        max_retries : int, default 3
+            Poll attempts before returning ``None``.  Ignored when ``after=None``.
+        retry_delay : float, default 1.0
+            Seconds between polls.
+        """
+        item_name = self.get_item_name(name, **kwargs)
+
+        if after == "create":
+            # Individual GET converges fast (~0.5 s) once the item propagates.
+            # 404 misses during polling are expected — suppress RuntimeWarnings.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                for attempt in range(max_retries):
+                    item = self.get_item(item_type, item_name, **kwargs)
+                    if item is not None:
+                        return item
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            return None
+
+        if after == "delete":
+            for attempt in range(max_retries):
+                names = self.get_item_names(item_type, **kwargs)
+                if not names or item_name not in names:
+                    return None
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            return None
+
+        # after=None — single list pre-check, then fetch.
+        names = self.get_item_names(item_type, **kwargs)
+        if names and item_name in names:
+            return self.get_item(item_type, item_name, **kwargs)
+        return None
 
     # get item
     def get_item(self, item_type: str, name: str, **kwargs) -> Any:
@@ -92,11 +318,15 @@ class ItemsMixin(SupportsRequests):
                 f"Known item types: {list(self.ItemRoutes.keys())}"
             )
         name = self.get_item_name(item, **kwargs)
-        # make sure item is really deleted
-        waiting_time = 3  # in seconds
-        while self.item_exists(item_type, name):
-            self.delete(f"{route}/{self.encode(name)}", **kwargs)
-            time.sleep(waiting_time)
+
+        if not self.item_exists(item_type, name):
+            return ApiRequests.success()
+
+        self.delete(f"{route}/{self.encode(name)}", **kwargs)
+
+        self.item_exists(
+            item_type, name, after="delete", max_retries=5, retry_delay=1.0
+        )
         return ApiRequests.success()
 
     # add or edit item
@@ -240,7 +470,7 @@ class ItemsMixin(SupportsRequests):
     # get item infos
     def get_item_infos(
         self, item_type: str, name: Optional[str] = None, **kwargs
-    ) -> Union[List, Dict]:
+    ) -> Union[List, Dict, None]:
         """
         Get item infos of given type
 
@@ -266,7 +496,7 @@ class ItemsMixin(SupportsRequests):
             if name:
                 return self.get(f"{route}/{self.encode(name)}/PetroVisorItem", **kwargs)
             return self.get(f"{route}/PetroVisorItems", **kwargs)
-        return {} if name else []
+        return None if name else []
 
     # get item name
     def get_item_name(self, item: Union[str, Dict], **kwargs) -> str:
@@ -303,19 +533,32 @@ class ItemsMixin(SupportsRequests):
         if isinstance(item, str) and item_type:
             item_name = ApiHelper.get_object_name(item)
             item = self.get_item(item_type, item_name, **kwargs)
+        else:
+            item_name = ""
         if not item:
-            raise ValueError(
-                f"PetroVisor::get_item_field(): item '{item}' cannot be found!"
-            )
+            if item_name:
+                raise ValueError(
+                    f"PetroVisor::get_item_field(): "
+                    f"item '{item_name}' of type '{item_type}' cannot be found!"
+                )
+            else:
+                raise ValueError(
+                    f"PetroVisor::get_item_field(): item '{item}' of type '{item_type}' cannot be found!"
+                )
         elif not ApiHelper.has_field(item, field_name):
             raise ValueError(
                 f"PetroVisor::get_item_field(): "
                 f"item '{item}' doesn't not have '{field_name}' field!"
             )
+        elif not isinstance(item, dict):
+            raise ValueError(
+                f"PetroVisor::get_item_field(): "
+                f"item '{item}' is not a dict-like object!"
+            )
         return item[field_name]
 
     # get 'NamedItem' route
-    def get_item_route(self, data_type: str, **kwargs) -> str:
+    def get_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding NamedItem type
 
@@ -327,7 +570,7 @@ class ItemsMixin(SupportsRequests):
         return ApiHelper.get_dict_value(self.ItemRoutes, data_type, **kwargs)
 
     # get 'PetroVisorItems' route
-    def get_petrovisor_item_route(self, data_type: str, **kwargs) -> str:
+    def get_petrovisor_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding PetroVisorItem type
 
@@ -339,7 +582,7 @@ class ItemsMixin(SupportsRequests):
         return ApiHelper.get_dict_value(self.PetroVisorItemRoutes, data_type, **kwargs)
 
     # get 'InfoItems' route
-    def get_info_item_route(self, data_type: str, **kwargs) -> str:
+    def get_info_item_route(self, data_type: str, **kwargs) -> Optional[str]:
         """
         Get route for corresponding InfoItem type
 
@@ -385,110 +628,3 @@ class ItemsMixin(SupportsRequests):
             Item type
         """
         return ApiHelper.contains(self.InfoItemRoutes, data_type, **kwargs)
-
-
-# Items mixin helper
-class ItemsMixinHelper:
-    # get item types
-    @staticmethod
-    def get_item_types() -> List:
-        """
-        Get all item types
-        """
-        return list(ItemsMixinHelper.get_item_routes().keys())
-
-    # get item routes
-    @staticmethod
-    def get_item_routes() -> Dict:
-        """
-        Get all item routes
-        """
-        return dict(
-            **ItemsMixinHelper.get_named_item_routes(),
-            **ItemsMixinHelper.get_petrovisor_item_routes(),
-        )
-
-    # get 'NamedItem' routes
-    @staticmethod
-    def get_named_item_routes() -> Dict:
-        """
-        Get routes of NamedItems
-        """
-        return {
-            ItemType.Unit: "Units",
-            ItemType.UnitMeasurement: "UnitMeasurements",
-            ItemType.Entity: "Entities",
-            ItemType.EntityType: "EntityTypes",
-            ItemType.Signal: "Signals",
-            ItemType.Tag: "Tags",
-            ItemType.Label: "Labels",
-            ItemType.MessageEntry: "MessageEntries",
-            ItemType.Ticket: "Tickets",
-            ItemType.ProcessTemplate: "ProcessTemplates",
-            ItemType.UserSetting: "UserSettings",
-            ItemType.EventSubscription: "EventSubscriptions",
-        }
-
-    # get 'PetroVisorItem' routes
-    @staticmethod
-    def get_info_item_routes() -> Dict:
-        """
-        Get routes of InfoItems
-        """
-        return dict(
-            **{
-                ItemType.MLModel: "MLModels",
-                ItemType.DataGrid: "DataGrids",
-                ItemType.DataConnection: "DataConnections",
-                ItemType.DataSourceMapping: "DataSourceMappings",
-                ItemType.DataIntegrationSession: "DataIntegrationSessions",
-                ItemType.Scenario: "Scenarios",
-            },
-            **{  # alias
-                ItemType.MachineLearningModel: "MLModels",  # alias MLModel
-            },
-        )
-
-    # get 'PetroVisorItem' routes
-    @staticmethod
-    def get_petrovisor_item_routes() -> Dict:
-        """
-        Get routes of PetroVisorItems
-        """
-        return dict(
-            **{
-                ItemType.ConfigurationSettings: "ConfigurationSettings",
-                ItemType.RefTable: "RefTables",
-                ItemType.PivotTable: "PivotTables",
-                ItemType.Hierarchy: "Hierarchies",
-                ItemType.Scope: "Scopes",
-                ItemType.EntitySet: "EntitySets",
-                ItemType.Context: "Contexts",
-                ItemType.TableCalculation: "TableCalculations",
-                ItemType.EventCalculation: "EventCalculations",
-                ItemType.CleansingCalculation: "CleansingCalculations",
-                ItemType.PSharpScript: "PSharpScripts",
-                ItemType.CleansingScript: "CleansingScripts",
-                ItemType.Plot: "Plots",
-                ItemType.Chart: "Charts",
-                ItemType.Filter: "Filters",
-                ItemType.Workflow: "Workflows",
-                ItemType.WorkflowSchedule: "WorkflowSchedules",
-                ItemType.CustomWorkflowActivity: "CustomWorkflowActivities",
-                ItemType.RWorkflowActivity: "RWorkflowActivities",
-                ItemType.PythonWorkflowActivity: "PythonWorkflowActivities",
-                ItemType.WebWorkflowActivity: "WebWorkflowActivities",
-                ItemType.DataIntegrationSet: "DataIntegrationSets",
-                ItemType.WorkspacePackage: "WorkspacePackages",
-                ItemType.DCA: "DCA",
-                ItemType.PowerBIItem: "PowerBIItems",
-                ItemType.Dashboard: "Dashboards",
-            },
-            **{  # alias
-                ItemType.ConfigurationSettingValue: "ConfigurationSettings",  # alias ConfigurationSettings
-                ItemType.PivotTableDefinition: "PivotTables",  # alias PivotTable
-                ItemType.ChartDefinition: "Charts",  # alias Chart
-                ItemType.FilterDefinition: "Filters",  # alias Filter
-            },
-            **ItemsMixinHelper.get_info_item_routes(),
-        )

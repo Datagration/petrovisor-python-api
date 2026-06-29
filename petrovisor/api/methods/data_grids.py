@@ -10,6 +10,16 @@ from petrovisor.api.protocols.protocols import (
 )
 
 
+# DataGrids mixin helper
+class DataGridsMixinHelper:
+    """
+    DataGrids mixin helper — endpoint constants.
+    """
+
+    ENDPOINT = "DataGrids"
+    ENDPOINT_IMPORT = "DataGrids/Import"
+
+
 # DataGrid API calls
 class DataGridsMixin(SupportsItemRequests, SupportsRequests):
     """
@@ -36,13 +46,12 @@ class DataGridsMixin(SupportsItemRequests, SupportsRequests):
         default_crs : str, default 'EPSG:3857'
             Coordinate Reference System (CRS)
         """
-        route = "DataGrids"
         options = {
             "Extension": file_extension,
             "Filter": file_filter,
             "DefaultCRS": default_crs,
         }
-        return self.get(f"{route}/Import", query=options)
+        return self.get(DataGridsMixinHelper.ENDPOINT_IMPORT, query=options)
 
     # update DataGrid's CRS
     def update_data_grid_crs(self, name: str, crs: str, **kwargs) -> Any:
@@ -56,7 +65,7 @@ class DataGridsMixin(SupportsItemRequests, SupportsRequests):
         crs : str
             Coordinate Reference System (CRS)
         """
-        route = "DataGrids"
+        route = DataGridsMixinHelper.ENDPOINT
         options = {"CRS": crs}
         return self.post(f"{route}/{self.encode(name)}/CRS", query=options)
 
@@ -74,6 +83,6 @@ class DataGridsMixin(SupportsItemRequests, SupportsRequests):
         crs : str, default '+proj=longlat +datum=WGS84 +no_defs'
             Coordinate Reference System (CRS)
         """
-        route = "DataGrids"
+        route = DataGridsMixinHelper.ENDPOINT
         options = {"CRS": crs}
         return self.get(f"{route}/{self.encode(name)}/Project", query=options)

@@ -1,5 +1,11 @@
 *.DS_Store
+.env
+/.claude/
+!/.claude/CLAUDE.md
+!/.claude/commands/
+/memory/
 /docs/api/
+/docusaurus-main/
 /sandbox/
 /petrovisor.egg-info/
 /dist/
@@ -8,6 +14,7 @@
 /.venv/
 /.vscode/
 /.idea/
+/.zed/
 __pycache__/
 *.pyc
 *.ipynb_checkpoints

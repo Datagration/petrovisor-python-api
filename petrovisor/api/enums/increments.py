@@ -1,4 +1,5 @@
 from enum import (
+    Enum,
     IntEnum,
     auto,
 )
@@ -28,6 +29,30 @@ class TimeIncrement(IntEnum):
     Quarterly = auto()
     # Every year
     Yearly = auto()
+
+
+# Aggregation function for data retrieval
+class AggregationFunction(str, Enum):
+    """
+    PetroVisor aggregation functions for data retrieval (Data/Retrieve endpoint).
+    Values match the API string representation directly.
+    Consistent with pandas aggfunc names where possible.
+    """
+
+    Sum = "Sum"
+    Average = "Average"  # pandas: 'mean'
+    Max = "Max"
+    Min = "Min"
+    First = "First"
+    Last = "Last"
+    Count = "Count"
+    Median = "Median"
+    Mode = "Mode"
+    StandardDeviation = "StandardDeviation"  # pandas: 'std'
+    Variance = "Variance"  # pandas: 'var'
+    Percentile = "Percentile"
+    Range = "Range"
+    CountDistinct = "CountDistinct"
 
 
 # Depth increment for aggregation
