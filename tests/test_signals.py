@@ -1571,7 +1571,7 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
                     temperature_unit=temperature_unit,
                 ),
                 min_rows=n_rows,
-                retries=6,
+                retries=15,
                 predicate=_all_pvt_cols,
             )
             if df is not None:
@@ -1599,12 +1599,20 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
         try:
             import polars as _pl
 
-            df_pl = api.load_signals_data(
-                [sig_rso, sig_bo, sig_mu],
-                entities=[entity],
-                pressure_unit=pressure_unit,
-                temperature_unit=temperature_unit,
-                backend="polars",
+            def _all_pvt_cols_pl(df):
+                return all(any(s in c for c in df.columns) for s in [sig_rso, sig_bo, sig_mu])
+
+            df_pl = _wait_for_data(
+                api,
+                lambda: api.load_signals_data(
+                    [sig_rso, sig_bo, sig_mu],
+                    entities=[entity],
+                    pressure_unit=pressure_unit,
+                    temperature_unit=temperature_unit,
+                    backend="polars",
+                ),
+                min_rows=n_rows,
+                predicate=_all_pvt_cols_pl,
             )
             assert df_pl is not None and isinstance(df_pl, _pl.DataFrame)
             assert len(df_pl) == n_rows, "polars backend row count mismatch"
