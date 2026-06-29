@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from petrovisor import PetroVisor
+from petrovisor.api.enums.items import ItemType
 
 from helpers import (
     ensure_workspace_value,
@@ -109,16 +110,7 @@ def test_overwrite_workspace_value(api: PetroVisor, numeric_wv):
 
 
 def test_delete_workspace_value(api: PetroVisor, wv_run_id):
-    import time
-
     name = f"{_PFX} ToDelete {wv_run_id}"
     ensure_workspace_value(api, name, "temp")
     api.delete_workspace_value(name)
-    # Poll list until name disappears (eventual consistency after delete).
-    deadline = time.monotonic() + 60.0
-    while time.monotonic() < deadline:
-        names = api.get_workspace_value_names() or []
-        if name not in names:
-            break
-        time.sleep(1)
-    assert name not in (api.get_workspace_value_names() or [])
+    assert not api.item_exists(ItemType.ConfigurationSettings, name, after="delete")

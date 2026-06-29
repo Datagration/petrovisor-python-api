@@ -257,7 +257,7 @@ class WorkspaceValuesMixin(SupportsItemRequests, SupportsRequests):
         )
 
     # delete workspace value
-    def delete_workspace_value(self, name: str, **kwargs) -> Dict:
+    def delete_workspace_value(self, name: str, **kwargs) -> Any:
         """
         Delete workspace value
 
@@ -266,14 +266,4 @@ class WorkspaceValuesMixin(SupportsItemRequests, SupportsRequests):
         name : str
             Variable name
         """
-        route = WorkspaceValueMixinHelper.ENDPOINT
-        result = self.delete(f"{route}/{self.encode(name)}", **kwargs)
-        # Poll until the name disappears from the list (mirrors delete_item after="delete").
-        self.item_exists(
-            ItemType.ConfigurationSettings,
-            name,
-            after="delete",
-            max_retries=10,
-            retry_delay=1.0,
-        )
-        return result
+        return self.delete_item(ItemType.ConfigurationSettings, name, **kwargs)
