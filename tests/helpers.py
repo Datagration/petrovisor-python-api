@@ -255,14 +255,24 @@ def ensure_workspace_value(
     retries: int = 30,
     delay: float = 1.0,
 ) -> Any:
-    """Write a workspace value and wait until it is confirmed readable.
+    """Write a workspace value and poll GET until the expected value is readable.
 
-    Strategy:
-    1. Write via add_workspace_value.
-    2. Poll the names list (cheap, fast) until the name appears.
-    3. Once visible in the list, poll GET until it returns a value.
-    Returns the confirmed value, or None if timeout expires.
+    Retries the write if GET never returns the expected value within 30s.
+    Uses errors="raise" on GET so each probe fails fast on 404 instead of
+    waiting 7s in the coerce retry loop.
     """
+    _is_numeric = not isinstance(value, (list, dict, tuple, str))
+
+    def _matches(result: Any) -> bool:
+        if result is None:
+            return False
+        if _is_numeric:
+            try:
+                return float(result) == float(value)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                pass
+        return result == value
+
     deadline = time.monotonic() + retries * delay * 3
 
     while time.monotonic() < deadline:
@@ -271,22 +281,13 @@ def ensure_workspace_value(
         except Exception:
             pass
 
-        # Step 2: wait for name to appear in the list (cheap).
-        list_deadline = time.monotonic() + 30.0
-        while time.monotonic() < list_deadline:
-            if name in (api.get_workspace_value_names() or []):
-                break
-            time.sleep(delay)
-        else:
-            continue  # never appeared — retry the write
-
-        # Step 3: name is in list; poll GET until it returns a parsed value.
+        # Poll GET until it returns the expected value.
         # errors="raise" fails fast on 404 (no 7s retry loop), caught below.
         get_deadline = time.monotonic() + 30.0
         while time.monotonic() < get_deadline:
             try:
                 result = api.get_workspace_value(name, errors="raise")
-                if result is not None:
+                if _matches(result):
                     return result
             except Exception:
                 pass

@@ -1420,13 +1420,18 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
         for attempt in range(20):
             with _warnings.catch_warnings():
                 _warnings.simplefilter("ignore", RuntimeWarning)
-                try:
-                    api.save_data(errors="raise", **kw)
-                    return  # success (204 No Content returns None, not an error)
-                except Exception:
-                    pass
+                api.save_data(**kw)
+            # Verify data landed by checking the load endpoint.
+            df = api.load_signals_data(
+                [sig_rso],
+                entities=[entity],
+                pressure_unit=pressure_unit,
+                temperature_unit=temperature_unit,
+            )
+            if df is not None and len(df) >= n_rows:
+                return
             time.sleep(5)
-        raise RuntimeError("save_pvt returned error after 20 attempts")
+        raise RuntimeError("save_pvt: data never appeared after 20 attempts")
 
     def _assert_df(df, label):
         assert df is not None, f"{label}: returned None"
@@ -1547,25 +1552,31 @@ def test_pvt_save_and_load(api: PetroVisor, run_id):
                 f"{sig_mu} [ ]": _values[sig_mu],
             }
         )
-        with _warnings.catch_warnings():
-            _warnings.simplefilter("ignore", RuntimeWarning)
-            api.save_table_data(
-                df_wide,
-                pressure_unit=pressure_unit,
-                temperature_unit=temperature_unit,
-                only_existing_entities=False,
+        df = None
+        for _ in range(20):
+            with _warnings.catch_warnings():
+                _warnings.simplefilter("ignore", RuntimeWarning)
+                api.save_table_data(
+                    df_wide,
+                    pressure_unit=pressure_unit,
+                    temperature_unit=temperature_unit,
+                    only_existing_entities=False,
+                )
+            df = _wait_for_data(
+                api,
+                lambda: api.load_signals_data(
+                    [sig_rso, sig_bo, sig_mu],
+                    entities=[entity],
+                    pressure_unit=pressure_unit,
+                    temperature_unit=temperature_unit,
+                ),
+                min_rows=n_rows,
+                retries=6,
+                predicate=_all_pvt_cols,
             )
-        df = _wait_for_data(
-            api,
-            lambda: api.load_signals_data(
-                [sig_rso, sig_bo, sig_mu],
-                entities=[entity],
-                pressure_unit=pressure_unit,
-                temperature_unit=temperature_unit,
-            ),
-            min_rows=n_rows,
-            predicate=_all_pvt_cols,
-        )
+            if df is not None:
+                break
+            time.sleep(5)
         _assert_df(df, "save_table_data(wide pvt)")
         print("✅ save_table_data(wide pvt)")
 
